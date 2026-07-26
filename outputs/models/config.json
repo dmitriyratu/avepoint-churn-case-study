@@ -1,0 +1,6 @@
+{
+  "lgb_threshold": 0.13,
+  "lr_threshold": 0.363,
+  "churn_rate_train": 0.22,
+  "note": "Fully synthetic dataset \u2014 features and labels generated independently. Max feature-target correlation ~0.12. Models demonstrate correct methodology; expected AUC near 0.5 on this data."
+}
