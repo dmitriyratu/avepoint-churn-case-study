@@ -26,13 +26,14 @@ from sklearn.metrics import roc_auc_score, recall_score, precision_score
 from src.load_data import load_all
 from src.clean import clean_all
 from src.labeling import build_cohort, truncate_tables
+from src import pipeline
 from src.model import prep_xy, load_model, oof_threshold, model_ladder
 from src.config import CUTOFF_DATE, TARGET
 
 sns.set_theme(style="whitegrid", palette="muted")
 
-df = pd.read_csv("../data/processed/features_temporal.csv")
-X, y = prep_xy(df)
+data = pipeline.build()
+df, X, y = data.frame, data.X, data.y
 model = load_model("churn_l1_logistic")
 config = json.load(open("../outputs/models/config.json"))
 
@@ -119,9 +120,7 @@ plt.show()
 # (AUC 0.650). Early-tenure accounts carry materially more risk.
 
 # %%
-tables = clean_all(load_all())
-cohort = build_cohort(tables)
-obs = truncate_tables(tables, CUTOFF_DATE)
+cohort = data.cohort
 tmp = cohort.copy()
 tmp["days_since_signup"] = (CUTOFF_DATE - tmp["signup_date"]).dt.days
 tmp["tenure_band"] = pd.cut(tmp["days_since_signup"], [0, 180, 365, 550, 10000],

@@ -42,21 +42,16 @@ import seaborn as sns
 import warnings
 warnings.filterwarnings("ignore")
 
-from src.load_data import load_all
-from src.clean import clean_all
-from src.labeling import build_cohort, truncate_tables, cohort_summary
-from src.features import (build_model_dataset, subscription_features,
-                          usage_features, support_features)
-from src.model import prep_xy
+from src import pipeline
+from src.features import subscription_features, support_features, usage_features
 from src.config import CUTOFF_DATE
 
 sns.set_theme(style="whitegrid", palette="muted")
 
-tables = clean_all(load_all())
-cohort = build_cohort(tables)
-obs = truncate_tables(tables, CUTOFF_DATE)
+data = pipeline.build()
+tables, obs, cohort = data.tables, data.observed, data.cohort
 
-print(cohort_summary(cohort).to_string())
+print(data.summary.to_string())
 
 # %% [markdown]
 # ## How much data survives truncation
@@ -128,13 +123,12 @@ support_feats.describe().T.round(2)
 # ## Assemble
 
 # %%
-df = build_model_dataset(obs, cohort, CUTOFF_DATE)
-X, y = prep_xy(df)
+df, X, y = data.frame, data.X, data.y
 print(f"feature matrix : {X.shape}  (categoricals still raw; encoded in-fold)")
 from src.model import categorical_columns
 print(f"categorical cols: {categorical_columns(X)}")
 print(f"positives      : {int(y.sum())} ({y.mean():.1%})")
-print(f"pruned as collinear: {df.attrs.get('dropped_collinear')}")
+print(f"pruned: {data.dropped}")
 print(f"events per variable: {y.sum()/X.shape[1]:.2f}   (want >= 10)")
 
 # %% [markdown]
@@ -186,8 +180,7 @@ plt.show()
 # ## Leakage gate before anything is modelled
 
 # %%
-import src.audit as audit
-res, passed = audit.run_all(X, y, df, obs, CUTOFF_DATE)
+res, passed = data.audit()
 print(f"max single-feature AUC : {res['single_feature_auc']['auc'].max():.4f}")
 print(f"temporal provenance    : {'PASS' if res['temporal_provenance']['pass'].all() else 'FAIL'}")
 print(f"\nSUITE: {'PASS' if passed else 'FAIL'}")

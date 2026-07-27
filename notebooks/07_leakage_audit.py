@@ -21,20 +21,14 @@ import numpy as np
 import warnings
 warnings.filterwarnings("ignore")
 
-from src.load_data import load_all
-from src.clean import clean_all, integrity_report
-from src.labeling import build_cohort, truncate_tables
-from src.features import build_model_dataset
-from src.model import prep_xy
+from src import pipeline
+from src.clean import integrity_report
 from src.config import CUTOFF_DATE, POST_OUTCOME_COLS
 import src.audit as audit
 
-raw = load_all()
-tables = clean_all(raw)
-cohort = build_cohort(tables)
-obs = truncate_tables(tables, CUTOFF_DATE)
-df = build_model_dataset(obs, cohort, CUTOFF_DATE)
-X, y = prep_xy(df)
+data = pipeline.build()
+raw, tables, obs = data.raw, data.tables, data.observed
+cohort, df, X, y = data.cohort, data.frame, data.X, data.y
 print(f"cohort {X.shape}, positives {int(y.sum())}, cutoff {CUTOFF_DATE.date()}")
 
 # %% [markdown]

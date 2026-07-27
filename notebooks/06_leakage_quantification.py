@@ -26,9 +26,7 @@ warnings.filterwarnings("ignore")
 
 from sklearn.model_selection import cross_val_score
 
-from src.load_data import load_all
-from src.clean import clean_all
-from src.labeling import build_cohort, truncate_tables
+from src import pipeline
 from src.features import build_model_dataset
 from src.model import prep_xy, model_ladder, CV
 from src.config import CUTOFF_DATE, POST_OUTCOME_COLS
@@ -36,9 +34,8 @@ import src.model as model_module
 
 sns.set_theme(style="whitegrid")
 
-tables = clean_all(load_all())
-cohort = build_cohort(tables)
-observed = truncate_tables(tables, CUTOFF_DATE)
+data = pipeline.build()
+tables, observed, cohort = data.tables, data.observed, data.cohort
 _, estimator = model_ladder()[4]
 
 

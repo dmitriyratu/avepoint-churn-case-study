@@ -37,14 +37,19 @@ AvePoint/
 │   ├── 06_leakage_quantification.py   # what each form of leakage is worth
 │   └── 07_leakage_audit.py   # automated leakage + cleaning gates
 ├── src/
-│   ├── audit.py              # automated leakage + quality gates
 │   ├── config.py             # cutoff/buffer/horizon, leakage exclusion lists
-│   ├── load_data.py          # load the 5 tables
-│   ├── clean.py              # cleaning + integrity_report
-│   ├── labeling.py           # cohort construction, table truncation
-│   ├── features.py           # cutoff-aware feature aggregation
+│   ├── load_data.py          # load the 5 raw tables
+│   ├── clean.py              # parsing, dedup, integrity_report
+│   ├── labeling.py           # cohort construction, observation-window truncation
+│   ├── features/             # one module per feature family
+│   │   ├── subscription.py   #   size, direction, tenure, plan movement
+│   │   ├── usage.py          #   volume, breadth, recency, momentum, rhythm
+│   │   ├── support.py        #   load, responsiveness, escalation, trend
+│   │   ├── assemble.py       #   join blocks, prune constant/collinear
+│   │   └── _helpers.py       #   window ladder, slope, safe division
 │   ├── model.py              # model ladder, permutation test, oof threshold
-│   └── evaluate.py           # metrics, ROC/PR plots, SHAP helpers
+│   ├── audit.py              # leakage + quality gates
+│   └── pipeline.py           # build() — one call for the whole chain
 ├── outputs/
 │   ├── figures/              # saved plots
 │   ├── models/               # saved model artifacts (.joblib)
@@ -89,28 +94,20 @@ Or run the src modules directly as a pipeline:
 
 ```bash
 python -c "
-from src.load_data import load_all
-from src.clean import clean_all
-from src.labeling import build_cohort, truncate_tables
-from src.features import build_model_dataset
-from src.model import prep_xy, model_ladder, evaluate_ladder, save_model
-from src.config import CUTOFF_DATE
-import src.audit as audit
+from src import pipeline
+from src.model import evaluate_ladder, model_ladder, save_model
 
-tables = clean_all(load_all())
-cohort = build_cohort(tables)                       # forward-looking label
-obs    = truncate_tables(tables, CUTOFF_DATE)       # observation window only
-df     = build_model_dataset(obs, cohort, CUTOFF_DATE)
-X, y   = prep_xy(df)                                # NaNs kept for in-fold imputation
+data = pipeline.build(verify=True)      # asserts the leakage suite before returning
+print(data.summary.to_string())
+print(evaluate_ladder(data.X, data.y).to_string(index=False))
 
-_, passed = audit.run_all(X, y, df, obs, CUTOFF_DATE)
-assert passed, 'leakage audit failed'               # gate before any score is trusted
-
-print(evaluate_ladder(X, y).to_string(index=False))
-best = model_ladder()[4][1].fit(X, y)
-save_model(best, 'churn_l1_logistic')
+save_model(model_ladder()[4][1].fit(data.X, data.y), 'churn_l1_logistic')
 "
 ```
+
+`pipeline.build()` runs load → clean → cohort → truncate → features → `prep_xy`
+and returns the intermediates alongside `X`/`y`. `build_at_buffer(days)` varies
+the lead time, which is how the sensitivity sweep is generated.
 
 ## Problem framing
 
