@@ -29,7 +29,7 @@ AvePoint/
 │   ├── raw/                  # original CSVs (not committed)
 │   └── processed/            # cleaned tables + feature matrix
 ├── notebooks/
-│   ├── 01_eda.py             # exploratory analysis
+│   ├── 01_eda.py             # EDA — quality pass on all rows, target pass on train split only
 │   ├── 02_cleaning.py        # data cleaning walkthrough
 │   ├── 03_feature_engineering.py
 │   ├── 04_modeling.py        # first pass — static label (superseded by 06)
@@ -51,7 +51,8 @@ AvePoint/
 │   └── reports/              # CSV metrics
 └── docs/
     ├── ASSUMPTIONS.md        # key decisions and their rationale
-    └── DATA_DICTIONARY.md    # field-by-field availability-at-prediction-time audit
+    ├── DATA_DICTIONARY.md    # field-by-field availability-at-prediction-time audit
+    └── EDA_CHECKLIST.md      # EDA practices followed, with what each one found
 ```
 
 ## Setup

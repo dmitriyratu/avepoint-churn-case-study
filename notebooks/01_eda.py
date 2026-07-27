@@ -1,15 +1,21 @@
 # %% [markdown]
 # # 01 — Exploratory Data Analysis
 #
-# Five-table relational dataset from Kaggle (Rivalytics / RavenStack).
-# Goal: understand churn drivers before touching the model.
+# Structured against `docs/EDA_CHECKLIST.md`.
 #
-# Tables:
-# - `accounts` — one row per customer, has `churn_flag` (target)
-# - `subscriptions` — subscription history (many per account)
-# - `feature_usage` — per-feature usage logs (via subscription_id)
-# - `support_tickets` — support interactions
-# - `churn_events` — logged churn reasons
+# The notebook is deliberately split into two passes:
+#
+# - **Part A — data quality**, on all rows. Shapes, dtypes, missingness,
+#   duplicates, outliers, referential integrity. None of this touches the target,
+#   so using every row is safe.
+# - **Part B — target relationships**, on the **exploration split only**. Churn
+#   rates by segment, feature-target associations, anything that could steer a
+#   modelling decision.
+#
+# The split matters. Every feature idea that comes out of Part B is chosen with
+# knowledge of the labels it was derived from. If that is the whole dataset, the
+# eventual score is optimistic in a way no cross-validation can undo. The
+# first version of this notebook computed all of Part B on all 500 accounts.
 
 # %%
 import sys
@@ -18,263 +24,319 @@ sys.path.append("..")
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 import seaborn as sns
+import warnings
+warnings.filterwarnings("ignore")
 
-from src.load_data import load_all
-from src.clean import clean_all
+from sklearn.model_selection import train_test_split
+
+from src.load_data import load_all, TABLES
+from src.clean import clean_all, integrity_report
+from src.labeling import build_cohort, truncate_tables, cohort_summary
+from src.config import CUTOFF_DATE, HORIZON_DAYS
 
 sns.set_theme(style="whitegrid", palette="muted")
 pd.set_option("display.max_columns", 40)
 
-tables = clean_all(load_all())
-acc = tables["accounts"]
-subs = tables["subscriptions"]
-usage = tables["feature_usage"]
-tickets = tables["support_tickets"]
-churn_ev = tables["churn_events"]
+raw = load_all()
+tables = clean_all(raw)
 
 # %% [markdown]
-# ## 1. Accounts overview
+# ## Checklist §1 — Formulate the question first
+#
+# "Why do users churn" is not answerable as stated: it has no unit of analysis
+# and no time reference. Sharpened to
+#
+# > Given what is known about an account on **2024-06-30**, will it churn within
+# > the next **180 days**?
+#
+# That immediately forces an observation window, a prediction window, and an
+# eligibility rule — the structure the first pass was missing.
 
 # %%
-print(acc.shape)
-acc.head()
+print(f"cutoff  : {CUTOFF_DATE.date()}")
+print(f"horizon : {HORIZON_DAYS} days")
+print(cohort_summary(build_cohort(tables)).to_string())
+
+# %% [markdown]
+# # Part A — Data quality (safe on all rows)
+
+# %% [markdown]
+# ## §2 — Check the packaging
+#
+# Do the shapes match what the dataset README claims?
 
 # %%
-print(f"Churn rate: {acc['churn_flag'].mean():.1%}")
-print(f"Trial accounts: {acc['is_trial'].mean():.1%}")
-acc["churn_flag"].value_counts()
+expected = {"accounts": 500, "subscriptions": 5000, "feature_usage": 25000,
+            "support_tickets": 2000, "churn_events": 600}
+pack = pd.DataFrame([
+    {"table": k, "file": TABLES[k], "rows": len(raw[k]), "cols": raw[k].shape[1],
+     "expected_rows": expected[k], "matches": len(raw[k]) == expected[k]}
+    for k in raw
+])
+print(pack.to_string(index=False))
+
+# %% [markdown]
+# ## §3 — Structure, dtypes, and the top *and* bottom
+#
+# Peng stresses looking at both ends: sorted data hides its problems in the tail.
 
 # %%
-fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+for name in ["accounts", "subscriptions"]:
+    print(f"--- {name} ---")
+    print(raw[name].dtypes.to_string())
+    print()
 
-acc["plan_tier"].value_counts().plot(kind="bar", ax=axes[0], color=sns.color_palette("muted"))
-axes[0].set_title("Accounts by Plan")
-axes[0].tick_params(axis="x", rotation=0)
+# %%
+subs_sorted = raw["subscriptions"].sort_values("start_date")
+print("EARLIEST subscriptions:")
+print(subs_sorted.head(3).to_string(index=False))
+print("\nLATEST subscriptions:")
+print(subs_sorted.tail(3).to_string(index=False))
 
-acc["industry"].value_counts().plot(kind="barh", ax=axes[1])
-axes[1].set_title("Accounts by Industry")
+# %% [markdown]
+# Two things visible from the dtypes alone: every date arrived as a string, and
+# `arr_amount` looks like a deterministic function of `mrr_amount`.
 
-acc["country"].value_counts().head(7).plot(kind="bar", ax=axes[2])
-axes[2].set_title("Top Countries")
-axes[2].tick_params(axis="x", rotation=45)
+# %%
+print("rows where arr_amount != mrr_amount * 12:",
+      int((raw["subscriptions"]["arr_amount"] != raw["subscriptions"]["mrr_amount"] * 12).sum()),
+      f"of {len(raw['subscriptions'])}")
+print("-> perfectly collinear, dropped in clean.py")
 
+# %% [markdown]
+# ## §4 — Check your "n"s
+#
+# Count the same concept three different ways and see whether the answers agree.
+# This is the cheapest bug detector in the checklist, and it found the most
+# important problem in the project.
+
+# %%
+acc = tables["accounts"]
+ce = tables["churn_events"]
+
+n_accounts = len(acc)
+n_flagged = int(acc["churn_flag"].sum())
+n_with_events = int(acc["account_id"].isin(ce["account_id"]).sum())
+n_events = len(ce)
+
+print(f"accounts total                       : {n_accounts}")
+print(f"accounts with churn_flag = True      : {n_flagged}")
+print(f"accounts appearing in churn_events   : {n_with_events}")
+print(f"churn_event rows                     : {n_events}")
+
+agree = (acc["account_id"].isin(ce["account_id"]) == acc["churn_flag"]).mean()
+print(f"\nagreement between the two definitions: {agree:.1%}")
+print(pd.crosstab(acc["churn_flag"],
+                  acc["account_id"].isin(ce["account_id"]).rename("has_churn_event")))
+
+# %% [markdown]
+# **These cannot all describe the same thing, and they don't.** `churn_flag`
+# agrees with the event log for 37.6% of accounts — worse than a coin flip.
+#
+# This is a labelling decision that has to be made explicitly, not discovered
+# after the model underperforms. `churn_events` is used as ground truth because
+# it carries dates and `churn_flag` does not; an undated flag cannot be placed
+# relative to any cutoff, so it is unusable for a forward-looking target.
+
+# %% [markdown]
+# ## §5 — Validate against an external source
+#
+# The dataset README claims referential integrity and "signup ≤ subscription ≤
+# churn". Worth testing rather than trusting.
+
+# %%
+print(integrity_report(tables).to_string(index=False))
+
+# %% [markdown]
+# The generator does not honour its own temporal claims. These are documented
+# and worked around rather than silently repaired — in a real engagement they
+# would go back to data engineering first.
+
+# %% [markdown]
+# ## §6 — Variation: missingness, and *why*
+
+# %%
+import src.audit as audit
+print(audit.missingness_report(raw).to_string(index=False))
+
+# %% [markdown]
+# Disposition depends on the cause, not the percentage:
+#
+# - **`end_date`, 90.3%** — structural. The subscription is still open. A naive
+#   ">60% missing, drop it" rule would discard one of the most informative
+#   columns in the table.
+# - **`satisfaction_score`, 41.2%** — genuinely absent; the customer did not
+#   respond. Imputed **inside the CV fold**, never globally.
+# - **`feedback_text`, 24.7%** — free text, not used as a feature.
+
+# %%
+# Is the missingness itself informative? If so it must be encoded, not filled.
+tix = raw["support_tickets"].copy()
+tix["missing"] = tix["satisfaction_score"].isna()
+print("missing-rate by priority:")
+print(tix.groupby("priority")["missing"].mean().round(3).to_string())
+print("\nFlat across priorities -> no per-priority signal to exploit.")
+
+# %% [markdown]
+# ## §6 — Variation: duplicates, constants, impossible values
+
+# %%
+print("duplicate keys:")
+for name, key in [("accounts", "account_id"), ("subscriptions", "subscription_id"),
+                  ("feature_usage", "usage_id"), ("support_tickets", "ticket_id")]:
+    d = int(raw[name][key].duplicated().sum())
+    print(f"  {name:16s} {key:18s} {d}" + ("   <- dropped in clean.py" if d else ""))
+
+print("\nimpossible values:")
+t = raw["support_tickets"]
+s = raw["subscriptions"]
+checks = [
+    ("negative resolution_time_hours", int((t["resolution_time_hours"] < 0).sum())),
+    ("negative first_response_minutes", int((t["first_response_time_minutes"] < 0).sum())),
+    ("satisfaction outside 1-5", int(((t["satisfaction_score"] < 1) | (t["satisfaction_score"] > 5)).sum())),
+    ("negative mrr", int((s["mrr_amount"] < 0).sum())),
+    ("seats <= 0", int((raw["accounts"]["seats"] <= 0).sum())),
+]
+for label, n in checks:
+    print(f"  {label:34s} {n}")
+
+# %% [markdown]
+# ## §6 — Variation: distributions and outliers
+
+# %%
+fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+s["mrr_amount"].plot(kind="hist", bins=50, ax=axes[0], edgecolor="white")
+axes[0].set_title("MRR — raw (heavy right tail)")
+axes[0].set_xlabel("MRR ($)")
+
+np.log1p(s["mrr_amount"]).plot(kind="hist", bins=40, ax=axes[1], edgecolor="white", color="coral")
+axes[1].set_title("log1p(MRR) — tail controlled")
+
+raw["accounts"]["seats"].plot(kind="hist", bins=40, ax=axes[2], edgecolor="white", color="seagreen")
+axes[2].set_title("Seats per account")
 plt.tight_layout()
-plt.savefig("../outputs/figures/01_account_distributions.png", bbox_inches="tight")
+plt.savefig("../outputs/figures/01_distributions.png", bbox_inches="tight")
 plt.show()
 
 # %%
-# churn rate by plan tier and industry
-fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+# Quantify the tails rather than eyeballing them.
+q = s["mrr_amount"].quantile([.5, .9, .99, 1.0])
+iqr = s["mrr_amount"].quantile(.75) - s["mrr_amount"].quantile(.25)
+fence = s["mrr_amount"].quantile(.75) + 1.5 * iqr
+print(q.round(0).to_string())
+print(f"\nTukey upper fence: {fence:,.0f}")
+print(f"rows above it    : {int((s['mrr_amount'] > fence).sum())} ({(s['mrr_amount'] > fence).mean():.1%})")
+print("\nThese are large enterprise contracts, not data errors — kept. The tree")
+print("models are scale-invariant; the linear rungs get StandardScaler in-fold.")
 
-(acc.groupby("plan_tier")["churn_flag"].mean().sort_values()
- .plot(kind="barh", ax=axes[0], color="steelblue"))
-axes[0].axvline(acc["churn_flag"].mean(), color="red", linestyle="--", alpha=0.7, label="Overall")
-axes[0].set_title("Churn Rate by Plan Tier")
-axes[0].set_xlabel("Churn Rate")
-axes[0].legend()
+# %% [markdown]
+# ## §7 — Covariation between features (target not involved)
 
-(acc.groupby("industry")["churn_flag"].mean().sort_values()
- .plot(kind="barh", ax=axes[1], color="coral"))
-axes[1].axvline(acc["churn_flag"].mean(), color="red", linestyle="--", alpha=0.7)
-axes[1].set_title("Churn Rate by Industry")
-axes[1].set_xlabel("Churn Rate")
+# %%
+num = s.select_dtypes(include=[np.number])
+fig, ax = plt.subplots(figsize=(6, 5))
+sns.heatmap(num.corr(), annot=True, fmt=".2f", cmap="RdBu_r", center=0, ax=ax)
+ax.set_title("Subscriptions — numeric correlation")
+plt.tight_layout()
+plt.savefig("../outputs/figures/01_feature_correlation.png", bbox_inches="tight")
+plt.show()
+print("arr_amount ~ mrr_amount at r = 1.00 — the redundancy is visible here too.")
 
+# %% [markdown]
+# # Part B — Target relationships (exploration split only)
+#
+# Everything below uses the target, so from here on we work on a held-out
+# *exploration* split. The confirmation split is not looked at during EDA or
+# feature design.
+
+# %%
+cohort = build_cohort(tables)
+explore_idx, confirm_idx = train_test_split(
+    cohort.index, test_size=0.3, stratify=cohort["churned_next_180d"], random_state=42
+)
+explore = cohort.loc[explore_idx]
+confirm = cohort.loc[confirm_idx]
+
+print(f"exploration split : {len(explore)} accounts, {int(explore['churned_next_180d'].sum())} positives")
+print(f"confirmation split: {len(confirm)} accounts  <- sealed, not inspected here")
+
+# %% [markdown]
+# ## §8 — Understand the target
+
+# %%
+y = explore["churned_next_180d"]
+print(y.value_counts().rename({0: "retained", 1: "churned"}).to_string())
+print(f"\npositive rate: {y.mean():.3f}")
+print(f"majority-class accuracy: {max(y.mean(), 1 - y.mean()):.3f}")
+print("\n-> Imbalance is mild (47/53), so class weights suffice; no SMOTE needed.")
+print("-> Accuracy is useless as a metric here. Use ROC-AUC and average")
+print("   precision read against the base rate.")
+
+# %% [markdown]
+# ## §7 — Covariation with the target, by segment
+
+# %%
+explore_full = explore.copy()
+base = y.mean()
+
+fig, axes = plt.subplots(1, 3, figsize=(16, 4))
+for ax, col in zip(axes, ["plan_tier", "industry", "referral_source"]):
+    rates = explore_full.groupby(col)["churned_next_180d"].agg(["mean", "size"])
+    rates = rates[rates["size"] >= 5].sort_values("mean")
+    rates["mean"].plot(kind="barh", ax=ax, color="steelblue")
+    ax.axvline(base, color="red", ls="--", alpha=.7, label=f"base {base:.2f}")
+    ax.set_title(f"churn rate by {col}")
+    ax.set_xlabel("")
+    ax.legend()
 plt.tight_layout()
 plt.savefig("../outputs/figures/01_churn_by_segment.png", bbox_inches="tight")
 plt.show()
+print("Group sizes are small — bars without a base-rate reference line and an")
+print("n >= 5 filter would be noise dressed as insight.")
 
 # %%
-# signup cohorts
-acc["signup_month"] = acc["signup_date"].dt.to_period("M")
-cohort_churn = acc.groupby("signup_month")["churn_flag"].agg(["mean", "count"])
-cohort_churn.columns = ["churn_rate", "n_accounts"]
-
-fig, ax1 = plt.subplots(figsize=(12, 4))
-ax2 = ax1.twinx()
-cohort_churn["n_accounts"].plot(kind="bar", ax=ax1, alpha=0.4, color="gray", label="# Accounts")
-cohort_churn["churn_rate"].plot(ax=ax2, color="red", marker="o", markersize=4, label="Churn Rate")
-ax1.set_title("Signup Cohorts — Volume & Churn Rate")
-ax1.set_ylabel("# Accounts")
-ax2.set_ylabel("Churn Rate")
-ax1.tick_params(axis="x", rotation=45)
-plt.tight_layout()
-plt.savefig("../outputs/figures/01_cohort_churn.png", bbox_inches="tight")
-plt.show()
+# Segment sizes, so the bars above can be read honestly
+print(explore_full.groupby("plan_tier")["churned_next_180d"].agg(["size", "sum", "mean"]).round(3).to_string())
 
 # %% [markdown]
-# ## 2. Subscriptions
-
-# %%
-print(subs.shape)
-subs.describe(include="all").T.head(20)
-
-# %%
-# active vs. ended subs
-print("Active subscriptions (no end_date):", subs["end_date"].isna().sum())
-print("MRR = 0:", (subs["mrr_amount"] == 0).sum())
-
-# %%
-fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-
-subs["mrr_amount"].clip(upper=10000).hist(bins=40, ax=axes[0], edgecolor="white")
-axes[0].set_title("MRR Distribution (clipped at $10k)")
-axes[0].set_xlabel("MRR ($)")
-
-(subs.groupby("account_id").size()
- .hist(bins=20, ax=axes[1], edgecolor="white", color="coral"))
-axes[1].set_title("Subscriptions per Account")
-axes[1].set_xlabel("# Subscriptions")
-
-plt.tight_layout()
-plt.savefig("../outputs/figures/01_subscription_dist.png", bbox_inches="tight")
-plt.show()
-
-# %%
-# churn rate by plan tier in subscriptions
-subs_churn = (subs.groupby("plan_tier")["churn_flag"].agg(["mean", "count"])
-              .rename(columns={"mean": "churn_rate", "count": "n_subs"})
-              .sort_values("churn_rate"))
-print(subs_churn)
-
-# %%
-# upgrade/downgrade dynamics
-print("Accounts with at least one upgrade:",
-      subs.groupby("account_id")["upgrade_flag"].any().sum())
-print("Accounts with at least one downgrade:",
-      subs.groupby("account_id")["downgrade_flag"].any().sum())
-
-# %% [markdown]
-# ## 3. Feature Usage
-
-# %%
-print(usage.shape)
-usage.head()
-
-# %%
-# usage breadth per account (via subscription bridge)
-bridge = subs[["subscription_id", "account_id"]].drop_duplicates()
-u = usage.merge(bridge, on="subscription_id", how="left").dropna(subset=["account_id"])
-
-feature_freq = (u.groupby("feature_name").size()
-                 .sort_values(ascending=False)
-                 .reset_index(name="usage_events"))
-
-fig, ax = plt.subplots(figsize=(14, 4))
-sns.barplot(data=feature_freq.head(20), x="feature_name", y="usage_events", ax=ax)
-ax.set_title("Top 20 Features by Usage Volume")
-ax.tick_params(axis="x", rotation=45)
-plt.tight_layout()
-plt.savefig("../outputs/figures/01_feature_usage_top20.png", bbox_inches="tight")
-plt.show()
-
-# %%
-# usage breadth vs churn
-breadth = (u.groupby("account_id")["feature_name"].nunique()
-            .reset_index(name="unique_features"))
-breadth = breadth.merge(acc[["account_id", "churn_flag"]], on="account_id")
-
-fig, ax = plt.subplots(figsize=(7, 4))
-breadth.groupby("churn_flag")["unique_features"].plot(
-    kind="hist", bins=20, alpha=0.6, ax=ax, legend=True
-)
-ax.set_title("Feature Breadth: Churned vs Retained")
-ax.set_xlabel("Unique Features Used")
-ax.legend(["Retained (0)", "Churned (1)"])
-plt.tight_layout()
-plt.savefig("../outputs/figures/01_breadth_vs_churn.png", bbox_inches="tight")
-plt.show()
-
-print("Mean unique features — retained:",
-      breadth.loc[breadth["churn_flag"] == False, "unique_features"].mean().round(1))
-print("Mean unique features — churned:",
-      breadth.loc[breadth["churn_flag"] == True, "unique_features"].mean().round(1))
-
-# %%
-# error rate analysis
-err = (u.groupby("account_id")
-       .agg(total_errors=("error_count", "sum"), total_events=("usage_id", "count"))
-       .assign(error_rate=lambda x: x["total_errors"] / x["total_events"])
-       .reset_index())
-err = err.merge(acc[["account_id", "churn_flag"]], on="account_id")
-print(err.groupby("churn_flag")["error_rate"].describe().round(4))
-
-# %% [markdown]
-# ## 4. Support Tickets
-
-# %%
-print(tickets.shape)
-tickets.describe()
-
-# %%
-print("Missing satisfaction_score:", tickets["satisfaction_score"].isna().sum(),
-      f"({tickets['satisfaction_score'].isna().mean():.1%})")
-print("\nPriority distribution:")
-print(tickets["priority"].value_counts())
-
-# %%
-fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-
-tix_by_acc = tickets.groupby("account_id").size().reset_index(name="n_tickets")
-tix_by_acc = tix_by_acc.merge(acc[["account_id", "churn_flag"]], on="account_id")
-
-tix_by_acc.groupby("churn_flag")["n_tickets"].plot(
-    kind="hist", bins=15, alpha=0.6, ax=axes[0], legend=True
-)
-axes[0].set_title("Ticket Volume: Churned vs Retained")
-axes[0].legend(["Retained", "Churned"])
-
-sat_by_acc = tickets.groupby("account_id")["satisfaction_score"].mean().reset_index()
-sat_by_acc = sat_by_acc.merge(acc[["account_id", "churn_flag"]], on="account_id")
-sat_by_acc.boxplot(column="satisfaction_score", by="churn_flag", ax=axes[1])
-axes[1].set_title("Avg Satisfaction: Churned vs Retained")
-axes[1].set_xlabel("Churned (1 = Yes)")
-plt.suptitle("")
-
-plt.tight_layout()
-plt.savefig("../outputs/figures/01_support_vs_churn.png", bbox_inches="tight")
-plt.show()
-
-# %% [markdown]
-# ## 5. Churn Events
-
-# %%
-print(churn_ev.shape)
-churn_ev.head()
-
-# %%
-print("Reason code distribution:")
-print(churn_ev["reason_code"].value_counts())
-
-# %%
-fig, ax = plt.subplots(figsize=(8, 4))
-churn_ev["reason_code"].value_counts().plot(kind="barh", ax=ax, color="salmon")
-ax.set_title("Churn Reason Codes")
-ax.set_xlabel("# Events")
-plt.tight_layout()
-plt.savefig("../outputs/figures/01_churn_reasons.png", bbox_inches="tight")
-plt.show()
-
-# %%
-# refund amounts by reason
-print(churn_ev.groupby("reason_code")["refund_amount_usd"].describe().round(2))
-
-# %%
-# accounts with multiple churn events (reactivated then churned again)
-multi_churn = (churn_ev.groupby("account_id").size()
-               .reset_index(name="n_churn_events")
-               .query("n_churn_events > 1"))
-print(f"Accounts with >1 churn events: {len(multi_churn)}")
-print(multi_churn["n_churn_events"].value_counts())
-
-# %% [markdown]
-# ## 6. Key Takeaways
+# ## §9 — Leakage screen, done here rather than after modelling
 #
-# - **22% churn rate** — moderate imbalance, manageable with class weighting
-# - **Feature breadth** is a strong early signal: churned accounts use fewer features (~14 vs ~18 unique)
-# - **Error rate** is elevated for churned accounts
-# - **Pricing and support** are the top stated churn reasons
-# - **Basic and Pro** plans churn at similar rates; Enterprise is notably lower
-# - Some accounts have churned and reactivated multiple times — worth a separate reactivation model later
-# - Satisfaction score is missing for 41% of tickets — imputed by priority median, which is defensible
+# For every candidate column the question is: **would I have this value on
+# 2024-06-30?** Anything that answers "no" is excluded before a model is fit.
+# Full per-field verdicts in `docs/DATA_DICTIONARY.md`.
+
+# %%
+from sklearn.metrics import roc_auc_score
+
+probe = explore_full[["account_id", "churned_next_180d"]].merge(
+    ce.groupby("account_id").agg(
+        n_churn_events=("churn_event_id", "count"),
+        total_refund_usd=("refund_amount_usd", "sum"),
+    ).reset_index(), on="account_id", how="left").fillna(0)
+
+print("Post-outcome columns, screened on the exploration split:")
+for c in ["n_churn_events", "total_refund_usd"]:
+    a = roc_auc_score(probe["churned_next_180d"], probe[c])
+    print(f"  {c:20s} single-feature AUC = {max(a, 1 - a):.4f}")
+print("\nA single raw column at this level is the label wearing a different name.")
+print("Excluded via config.POST_OUTCOME_COLS; enforced by src/audit.py.")
+
+# %% [markdown]
+# ## Takeaways carried into feature engineering
+#
+# 1. **The label had to be redefined.** `churn_flag` is undated and agrees with
+#    the event log only 37.6% of the time. The target is now a dated,
+#    forward-looking event.
+# 2. **`churn_events` cannot supply features** — those columns reconstruct the
+#    answer.
+# 3. **Missingness needs three different treatments** — structural, genuinely
+#    absent, and not-a-feature. One blanket fill would have been wrong for all
+#    three.
+# 4. **Segment effects are small and the groups are tiny.** Nothing here
+#    justifies a high-capacity model, which is what the model ladder later
+#    confirms.
+# 5. **MRR is heavy-tailed but the tail is real** — enterprise contracts, kept.
+#
+# Next: `02_cleaning.py`, then `06_audit_and_temporal_redesign.py` for the
+# corrected modelling path.
