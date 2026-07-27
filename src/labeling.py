@@ -17,28 +17,36 @@ Nothing observable after CUTOFF can reach the feature matrix.
 import pandas as pd
 import numpy as np
 
-from .config import CUTOFF_DATE, HORIZON_DAYS
+from .config import CUTOFF_DATE, HORIZON_DAYS, BUFFER_DAYS, PREDICTION_START
 
 
 def first_churn_date(churn_events):
     return churn_events.groupby("account_id")["churn_date"].min()
 
 
-def build_cohort(tables, cutoff=CUTOFF_DATE, horizon_days=HORIZON_DAYS):
-    """Return the eligible accounts and their forward-looking label."""
+def build_cohort(tables, cutoff=CUTOFF_DATE, horizon_days=HORIZON_DAYS,
+                 prediction_start=None):
+    """Return the eligible accounts and their forward-looking label.
+
+    `prediction_start` defaults to cutoff + BUFFER_DAYS. Churn occurring inside
+    the buffer is neither a positive nor usable signal — those accounts are
+    dropped, because at scoring time we would have flagged them with no time
+    left to act.
+    """
+    prediction_start = prediction_start or PREDICTION_START
     acc = tables["accounts"]
     fc = first_churn_date(tables["churn_events"])
-    horizon_end = cutoff + pd.Timedelta(days=horizon_days)
+    horizon_end = prediction_start + pd.Timedelta(days=horizon_days)
 
     cohort = acc[acc["signup_date"] < cutoff].copy()
     cohort["first_churn_date"] = cohort["account_id"].map(fc)
 
-    # Exclude accounts that had already churned before the cutoff — they are not
-    # at risk during the prediction window.
-    cohort = cohort[~(cohort["first_churn_date"] < cutoff)].copy()
+    # Not at risk during the prediction window: already gone before it opens.
+    # This also removes anyone who churned during the buffer.
+    cohort = cohort[~(cohort["first_churn_date"] < prediction_start)].copy()
 
     cohort["churned_next_180d"] = (
-        cohort["first_churn_date"].between(cutoff, horizon_end, inclusive="right")
+        cohort["first_churn_date"].between(prediction_start, horizon_end, inclusive="right")
     ).astype(int)
 
     return cohort.drop(columns=["first_churn_date"])
@@ -96,7 +104,9 @@ def cohort_summary(cohort, cutoff=CUTOFF_DATE, horizon_days=HORIZON_DAYS):
     n = len(cohort)
     pos = int(cohort["churned_next_180d"].sum())
     return pd.Series({
-        "cutoff": str(cutoff.date()),
+        "feature_cutoff": str(cutoff.date()),
+        "buffer_days": BUFFER_DAYS,
+        "prediction_start": str(PREDICTION_START.date()),
         "horizon_days": horizon_days,
         "eligible_accounts": n,
         "positives": pos,

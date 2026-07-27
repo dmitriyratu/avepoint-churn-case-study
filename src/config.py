@@ -6,10 +6,20 @@ RAW_DIR = Path(__file__).parents[1] / "data" / "raw"
 PROCESSED_DIR = Path(__file__).parents[1] / "data" / "processed"
 OUTPUTS_DIR = Path(__file__).parents[1] / "outputs"
 
-# Temporal design for the leakage-free cohort.
-# Observation window: everything strictly before CUTOFF_DATE.
-# Prediction window:  first churn in (CUTOFF_DATE, CUTOFF_DATE + HORIZON_DAYS].
-CUTOFF_DATE = pd.Timestamp("2024-06-30")
+# Temporal design.
+#
+#   |<---- observation ---->|<- buffer ->|<---- prediction ---->|
+#   ...                CUTOFF_DATE   PREDICTION_START      + HORIZON_DAYS
+#         features built here                    label defined here
+#
+# The buffer (latency window) is the gap between the last observable day and the
+# first day a churn can count against us. Without it a model can key on the
+# collapse in activity that happens days before someone leaves: the score looks
+# good and arrives too late to act on. The buffer is also the operational reality
+# — a CSM needs lead time between the score landing and the customer going.
+CUTOFF_DATE = pd.Timestamp("2024-05-31")
+BUFFER_DAYS = 30
+PREDICTION_START = CUTOFF_DATE + pd.Timedelta(days=BUFFER_DAYS)
 HORIZON_DAYS = 180
 
 # Columns never fed to a model.

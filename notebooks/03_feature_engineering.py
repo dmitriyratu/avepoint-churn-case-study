@@ -10,12 +10,26 @@
 #    after the cutoff are censored even when the row itself predates it.
 # 2. **Nothing derived from `churn_events` becomes a feature.** Those columns
 #    describe the outcome. See `docs/DATA_DICTIONARY.md`.
+# 3. **A 30-day buffer separates the last observable day from the first day a
+#    churn can count.** Without it a model keys on the collapse in activity that
+#    happens days before someone leaves — accurate and useless. See the
+#    sensitivity analysis at the end of this notebook.
 #
-# Feature blocks:
-# - **Subscription** — MRR level and direction, tenure, plan movement
-# - **Engagement** — usage volume, breadth, recency, momentum, error rate
-# - **Support** — ticket load, responsiveness, escalation, open tickets
-# - **Account** — industry, country, referral, plan tier, seats
+# Feature families follow the standard churn taxonomy (`docs/FEATURE_ENGINEERING.md`):
+#
+# | Family | Purpose |
+# |---|---|
+# | **Recency** | how long since the last meaningful action |
+# | **Frequency** | activity counts over a 30/60/90/180-day ladder |
+# | **Monetary** | MRR level, growth, volatility |
+# | **Acceleration** | short window vs long window — the direction of travel |
+# | **Trend** | fitted slope over weekly activity |
+# | **Regularity** | gaps between active days — rhythm, not just volume |
+# | **Support** | ticket load and its trend |
+# | **Account** | industry, country, referral, plan tier, seats |
+#
+# The level tells you how big an account is. The differences between windows tell
+# you where it is heading, which is what a churn model needs.
 
 # %%
 import sys
@@ -182,3 +196,67 @@ assert passed, "leakage audit failed — do not proceed to modelling"
 # %%
 df.to_csv("../data/processed/features_temporal.csv", index=False)
 print(f"saved features_temporal.csv  {df.shape}")
+
+# %% [markdown]
+# ## The buffer, and why it decides everything
+#
+# Standard practice puts a gap between the last observable day and the first day
+# a churn counts. The reason: without it, a model learns the collapse in activity
+# that happens immediately before someone leaves. That scores well and arrives
+# too late to act on.
+#
+# This sweep is the most important result in the project.
+
+# %%
+sens = pd.read_csv("../outputs/reports/buffer_sensitivity.csv")
+print(sens.to_string(index=False))
+
+# %%
+fig, ax1 = plt.subplots(figsize=(8, 4.5))
+ax1.plot(sens["buffer_days"], sens["cv_auc"], marker="o", color="#264653", label="CV ROC-AUC")
+ax1.fill_between(sens["buffer_days"], sens["ci_lo"], sens["ci_hi"], alpha=.15, color="#264653")
+ax1.axhline(0.5, ls="--", c="r", alpha=.6, label="chance")
+ax1.set_xlabel("buffer (days of lead time required)")
+ax1.set_ylabel("CV ROC-AUC")
+ax2 = ax1.twinx()
+ax2.plot(sens["buffer_days"], sens["perm_p"], marker="s", ls=":", color="#e76f51", label="permutation p")
+ax2.axhline(0.05, ls=":", c="#e76f51", alpha=.5)
+ax2.set_ylabel("permutation p-value")
+ax1.set_title("Signal disappears once the model must be actionable")
+ax1.legend(loc="upper right")
+plt.tight_layout()
+plt.savefig("../outputs/figures/03_buffer_sensitivity.png", bbox_inches="tight")
+plt.show()
+
+# %% [markdown]
+# **Read this carefully.** At buffer = 0 the model beats chance (p = 0.025). At
+# 15 days it does not (p = 0.25), and it never recovers.
+#
+# So the earlier 0.618 was not a weak-but-real churn model. It was a detector for
+# customers who had effectively already left. On this dataset there is **no
+# actionable churn signal at a realistic intervention horizon**.
+#
+# The project defaults to a 30-day buffer because that is the question the
+# business actually has, and the honest answer to it is "not from this data."
+
+# %% [markdown]
+# ## Did the richer feature families help?
+#
+# The window ladder, acceleration ratios, trend slope, gap statistics and MRR
+# volatility added roughly twenty features.
+
+# %% [markdown]
+# | Configuration | CV ROC-AUC |
+# |---|---:|
+# | 30-day buffer, original features | 0.551 |
+# | 30-day buffer, enriched features | **0.548** |
+#
+# They bought nothing — slightly negative, within noise. With 74 positives, extra
+# columns cost more in variance than they return, and L1 shrinks to three terms
+# either way.
+#
+# That is worth stating plainly rather than quietly keeping the bigger set: the
+# binding constraint here is **data, not feature engineering**. 168 accounts, 74
+# positives, usage logs where 19,128 of 24,979 rows predate their own
+# subscription, and a `churn_flag` that disagrees with the event log for 62% of
+# accounts. No feature work fixes any of that.

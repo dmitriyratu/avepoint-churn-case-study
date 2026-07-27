@@ -14,6 +14,12 @@ import numpy as np
 
 from .config import CUTOFF_DATE
 
+# Window ladder for frequency/recency aggregates. Multiple windows plus the
+# ratios between them is the standard churn pattern: the level tells you how big
+# an account is, the differences tell you which way it is heading.
+WINDOWS = (30, 60, 90, 180)
+TREND_WINDOW_DAYS = 180
+
 
 def _safe_div(a, b):
     return a / b.replace(0, np.nan)
@@ -60,6 +66,12 @@ def subscription_features(subs, as_of=CUTOFF_DATE):
     feats["mrr_growth"] = feats["latest_mrr"] - feats["first_mrr"]
     feats["mrr_growth_pct"] = _safe_div(feats["mrr_growth"], feats["first_mrr"]).round(3)
     feats["upgrade_net"] = feats["n_upgrades"] - feats["n_downgrades"]
+
+    # Revenue volatility: an account whose spend swings is a different risk from
+    # one paying the same amount every month.
+    mrr_std = subs.groupby("account_id")["mrr_amount"].std().reset_index(name="mrr_std")
+    feats = feats.merge(mrr_std, on="account_id", how="left")
+    feats["mrr_cv"] = _safe_div(feats["mrr_std"], feats["avg_mrr"]).round(3)
     feats["pct_subs_ended"] = (feats["n_ended_subs"] / feats["n_subscriptions"]).round(3)
 
     # Days since the most recent subscription started — a stalled account stops
@@ -96,23 +108,68 @@ def feature_usage_features(usage, subs, as_of=CUTOFF_DATE):
     feats["error_rate"] = _safe_div(feats["total_errors"], feats["total_usage_events"]).round(4)
     feats["feature_breadth"] = (feats["unique_features_used"] / total_features).round(3)
 
-    # Windowed activity, anchored to the cutoff so these are never all-zero.
-    for w in (30, 90, 180):
+    # --- Frequency across a window ladder -------------------------------------
+    # Standard churn practice is to compute the same metric over several windows
+    # and let the *differences between them* carry the trend, rather than relying
+    # on one lifetime total that hides recent collapse.
+    for w in WINDOWS:
         win = (u[u["days_ago"] <= w].groupby("account_id").size()
                .reset_index(name=f"usage_last_{w}d"))
         feats = feats.merge(win, on="account_id", how="left")
         feats[f"usage_last_{w}d"] = feats[f"usage_last_{w}d"].fillna(0).astype(int)
 
-    # Momentum: recent activity as a share of all activity, and last 90d vs the
-    # 90d before that. Both are the shape of the trend, not its level.
-    feats["recency_ratio_90d"] = _safe_div(feats["usage_last_90d"], feats["total_usage_events"]).round(3)
+        act = (u[u["days_ago"] <= w].groupby("account_id")["usage_date"].nunique()
+               .reset_index(name=f"active_days_last_{w}d"))
+        feats = feats.merge(act, on="account_id", how="left")
+        feats[f"active_days_last_{w}d"] = feats[f"active_days_last_{w}d"].fillna(0).astype(int)
+
+    # --- Acceleration: short window vs long window ----------------------------
+    # A rate above 1 means the account is more active lately than its own
+    # baseline; below 1 means it is winding down. Normalising by window length
+    # keeps the comparison fair.
+    for short, long in [(30, 90), (30, 180), (90, 180)]:
+        s_rate = feats[f"usage_last_{short}d"] / short
+        l_rate = feats[f"usage_last_{long}d"] / long
+        feats[f"accel_{short}d_vs_{long}d"] = _safe_div(s_rate, l_rate).round(3)
+
+    # Consecutive non-overlapping periods — did last quarter beat the one before?
     prior = (u[(u["days_ago"] > 90) & (u["days_ago"] <= 180)].groupby("account_id").size()
              .reset_index(name="usage_prior_90d"))
     feats = feats.merge(prior, on="account_id", how="left")
     feats["usage_prior_90d"] = feats["usage_prior_90d"].fillna(0).astype(int)
-    feats["usage_momentum"] = _safe_div(
-        feats["usage_last_90d"], feats["usage_prior_90d"].replace(0, np.nan)
-    ).round(3)
+    feats["usage_momentum"] = _safe_div(feats["usage_last_90d"],
+                                        feats["usage_prior_90d"].replace(0, np.nan)).round(3)
+    feats["usage_delta_90d"] = feats["usage_last_90d"] - feats["usage_prior_90d"]
+    feats["recency_ratio_90d"] = _safe_div(feats["usage_last_90d"],
+                                           feats["total_usage_events"]).round(3)
+
+    # --- Trend slope ----------------------------------------------------------
+    # Ratios are coarse; a fitted slope over weekly counts captures a steady
+    # decline that a 90-vs-90 comparison can miss.
+    recent = u[u["days_ago"] <= TREND_WINDOW_DAYS].copy()
+    if not recent.empty:
+        recent["week"] = (TREND_WINDOW_DAYS - recent["days_ago"]) // 7
+        weekly = recent.groupby(["account_id", "week"]).size().reset_index(name="n")
+        slopes = (weekly.groupby("account_id")
+                  .apply(lambda g: np.polyfit(g["week"], g["n"], 1)[0]
+                         if len(g) >= 3 else np.nan)
+                  .reset_index(name="usage_trend_slope"))
+        feats = feats.merge(slopes, on="account_id", how="left")
+        feats["usage_trend_slope"] = feats["usage_trend_slope"].round(4)
+
+    # --- Engagement regularity ------------------------------------------------
+    # Lumpy usage is a different risk profile from steady usage at the same
+    # volume. Mean and max gap between active days capture that.
+    gaps = (u.sort_values("days_ago", ascending=False)
+            .groupby("account_id")["days_ago"]
+            .apply(lambda s: pd.Series(np.diff(np.sort(s.unique()))
+                                       if s.nunique() > 1 else [np.nan]))
+            .reset_index())
+    if not gaps.empty and "days_ago" in gaps.columns:
+        g = gaps.groupby("account_id")["days_ago"].agg(["mean", "max"]).reset_index()
+        g.columns = ["account_id", "mean_gap_days", "max_gap_days"]
+        feats = feats.merge(g, on="account_id", how="left")
+        feats[["mean_gap_days", "max_gap_days"]] = feats[["mean_gap_days", "max_gap_days"]].round(1)
 
     return feats
 
@@ -147,10 +204,18 @@ def support_features(tickets, as_of=CUTOFF_DATE):
     feats["urgent_pct"] = (feats["n_urgent_high"] / feats["n_tickets"]).round(3)
     feats["escalation_rate"] = (feats["n_escalations"] / feats["n_tickets"]).round(3)
 
-    recent = (tickets[(as_of - tickets["submitted_at"]).dt.days <= 90]
-              .groupby("account_id").size().reset_index(name="tickets_last_90d"))
-    feats = feats.merge(recent, on="account_id", how="left")
-    feats["tickets_last_90d"] = feats["tickets_last_90d"].fillna(0).astype(int)
+    t = tickets.copy()
+    t["days_ago"] = (as_of - t["submitted_at"]).dt.days
+    for w in (30, 90, 180):
+        win = (t[t["days_ago"] <= w].groupby("account_id").size()
+               .reset_index(name=f"tickets_last_{w}d"))
+        feats = feats.merge(win, on="account_id", how="left")
+        feats[f"tickets_last_{w}d"] = feats[f"tickets_last_{w}d"].fillna(0).astype(int)
+
+    # Rising support load is a classic churn precursor — the ratio matters more
+    # than the count, since heavy users open more tickets in absolute terms.
+    feats["ticket_accel_30d_vs_90d"] = _safe_div(
+        feats["tickets_last_30d"] / 30, feats["tickets_last_90d"] / 90).round(3)
 
     return feats
 
@@ -233,9 +298,21 @@ def build_model_dataset(tables, cohort, as_of=CUTOFF_DATE, prune_collinear=True)
     # inside the model pipeline instead (model._pipe -> OneHotEncoder with
     # handle_unknown="ignore"), so it is fit per fold and safe in production.
 
+    protect = tuple(cohort.columns)
+
+    # Zero-variance columns carry no information and their presence depends on
+    # the cutoff — at an earlier cutoff no support ticket is still open, so
+    # n_open_tickets collapses to a constant. Drop them rather than let the
+    # audit fail on a benign artefact.
+    # nunique() ignores NaN, matching audit.constant_columns — a column holding
+    # one value plus nulls is still constant as far as a model is concerned.
+    const = [c for c in df.columns if c not in protect and df[c].nunique() <= 1]
+    df = df.drop(columns=const)
+    df.attrs["dropped_constant"] = const
+
     if prune_collinear:
-        protect = tuple(cohort.columns)
         df, dropped = drop_collinear(df, threshold=0.98, protect=protect)
         df.attrs["dropped_collinear"] = dropped
+        df.attrs["dropped_constant"] = const
 
     return df

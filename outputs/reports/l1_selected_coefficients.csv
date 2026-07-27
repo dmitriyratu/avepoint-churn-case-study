@@ -1,6 +1,4 @@
 ,coefficient
-num__days_since_signup,-0.2840860925074107
-num__avg_usage_count,0.11560330149467703
-num__n_trial_subs,-0.07868944664370547
-num__avg_first_response_mins,0.019208327498339783
-num__error_rate,-0.006789428866367963
+num__days_since_signup,-0.17475396432241846
+num__avg_usage_count,0.11777381802506612
+num__n_trial_subs,-0.002741054151552607
