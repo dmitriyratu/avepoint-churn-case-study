@@ -54,7 +54,7 @@ Two distinct problems with encoding up front:
 2. **It breaks in production** — an unseen `industry` value changes the column
    set. There is no `handle_unknown` for `get_dummies`.
 
-**Finding.** `features.py` called `pd.get_dummies(df, drop_first=True)` on the
+**Finding.** The feature layer called `pd.get_dummies(df, drop_first=True)` on the
 full frame. Replaced with a `ColumnTransformer` inside every pipeline rung:
 
 ```python
@@ -64,17 +64,11 @@ OneHotEncoder(handle_unknown="ignore", drop="first")
 Categoricals now leave the feature layer as raw strings. An unseen category
 encodes to all-zeros instead of altering the schema.
 
-Measured effect — CV AUC and its interval both improved, because per-fold
-encoding stops the model from relying on levels the fold never saw:
-
-| | before (global `get_dummies`) | after (in-fold `OneHotEncoder`) |
-|---|---|---|
-| CV ROC-AUC | 0.6106 | **0.6175** |
-| 95% CI | [0.4385, 0.7351] | **[0.5011, 0.7400]** |
-| permutation p | 0.0399 | **0.0133** |
-| features L1 keeps | 7 | 5 |
-
-The lower CI bound clearing 0.50 is the substantive change.
+The change was made on correctness grounds rather than for a score. At this
+sample size the measured difference would sit well inside fold-to-fold noise
+(sd ≈ 0.09), so quoting a before/after AUC for it would be reading signal into
+a coin flip — the argument is that global encoding is *invalid*, not that it is
+slower or lower-scoring.
 
 ## 3. Scale inside the pipeline
 
@@ -94,13 +88,18 @@ The MCAR / MAR / MNAR distinction decides what is defensible:
   the missingness mechanism; a plain median fill is not defensible.
 
 **Finding.** `satisfaction_score` is 41.2% missing. Tested rather than assumed:
-missingness is unrelated to churn (t-test p = 0.81) and flat across ticket
-priority (0.405–0.422). Consistent with MCAR, so median imputation is defensible
-— and a `satisfaction_missing` indicator is retained anyway, since "did not
-respond" costs nothing to encode.
+per-account missing rate is unrelated to churn (t-test p = 0.63) and flat across
+ticket priority (0.405–0.422). Consistent with MCAR, so median imputation is
+defensible — and a `satisfaction_missing` indicator is retained anyway, since
+"did not respond" costs nothing to encode.
 
 This also corrected a fabricated rationale: the original justification
 ("response rates differ by ticket severity") is contradicted by the flat rates.
+
+**Separately worth knowing before using the column at all**: the observed values
+are only 3, 4 and 5, in near-equal proportions, against a documented 1–5 scale.
+Whatever we do about the missingness, the column cannot express dissatisfaction.
+See `02_cleaning.py`.
 
 ## 5. Disposition by cause, not by percentage
 
@@ -192,9 +191,9 @@ pipeline behaves identically from memory or from disk.
 | 3 | Scale in-fold, linear models only | `model._pipe` |
 | 4 | Test the missingness mechanism | `02_cleaning.py` |
 | 5 | Disposition by cause, not percentage | `audit.missingness_report` |
-| 6 | Count / recency / rate get different fills | `features.py` |
+| 6 | Count / recency / rate get different fills | `features/assemble.py` |
 | 7 | Deduplicate on every key | `clean.py` |
-| 8 | Drop redundant + collinear, with reasons | `clean.py`, `features.drop_collinear` |
+| 8 | Drop redundant + collinear, with reasons | `clean.py`, `features/assemble.py` |
 | 9 | Quantify outliers, justify the decision | `01_eda.py` |
 | 10 | Range and integrity checks, surfaced | `clean.integrity_report` |
 | 11 | Integer `random_state` everywhere | `model.py` |

@@ -21,7 +21,7 @@
 
 # %%
 import sys
-sys.path.append("..")
+sys.path.insert(0, "..")
 
 import numpy as np
 import pandas as pd
@@ -43,9 +43,10 @@ from sklearn.tree import DecisionTreeClassifier, ExtraTreeClassifier
 import lightgbm as lgb
 import xgboost as xgb
 
-from src import pipeline
 from sklearn.model_selection import RepeatedStratifiedKFold
-from src.model import CV, _pipe, model_ladder
+
+from src import pipeline
+from src.model import CV, SEED, _pipe, scale_pos_weight
 
 # The observed sweep uses the project's 5x10 CV. The null repeats the whole sweep
 # many times over, so it uses a cheaper 5x2 — enough to locate the null's centre
@@ -64,20 +65,34 @@ print(f"{X.shape}, {int(y.sum())} positives ({y.mean():.1%})")
 # A single stratified train/test split, ~30 classifiers, ranked by test score.
 
 # %%
-from lazypredict.Supervised import LazyClassifier
+# lazypredict is an optional demonstration dependency; the notebook's actual
+# argument does not need it, so a missing install degrades rather than fails.
+try:
+    from lazypredict.Supervised import LazyClassifier
+except ImportError:
+    LazyClassifier = None
+    print("lazypredict not installed — skipping section 1 "
+          "(`pip install lazypredict` to run it).")
 
-X_enc = pd.get_dummies(X, drop_first=True).fillna(X.median(numeric_only=True)).fillna(0)
-X_tr, X_te, y_tr, y_te = train_test_split(X_enc, y, test_size=0.3, stratify=y, random_state=42)
-
-lazy = LazyClassifier(verbose=0, ignore_warnings=True, predictions=False)
-scores, _ = lazy.fit(X_tr, X_te, y_tr, y_te)
-print(scores[["ROC AUC", "F1 Score"]].head(12).round(3).to_string())
+best_lazy, n_lazy = None, 0
+if LazyClassifier is not None:
+    X_enc = pd.get_dummies(X, drop_first=True).fillna(X.median(numeric_only=True)).fillna(0)
+    X_tr, X_te, y_tr, y_te = train_test_split(X_enc, y, test_size=0.3,
+                                              stratify=y, random_state=42)
+    lazy = LazyClassifier(verbose=0, ignore_warnings=True, predictions=False)
+    scores, _ = lazy.fit(X_tr, X_te, y_tr, y_te)
+    print(scores[["ROC AUC", "F1 Score"]].head(12).round(3).to_string())
+    best_lazy, n_lazy = scores["ROC AUC"].max(), len(scores)
 
 # %%
-best_lazy = scores["ROC AUC"].max()
-print(f"best single-split ROC AUC across {len(scores)} classifiers: {best_lazy:.3f}")
-print(f"our repeated-CV estimate for the selected model            : 0.583")
-print("\nThe gap is not a better model. It is one lucky split, chosen from ~30 tries.")
+import json
+headline = json.load(open("../outputs/models/config.json"))["cv_auc"]
+if best_lazy is not None:
+    print(f"best single-split ROC AUC across {n_lazy} classifiers: {best_lazy:.3f}")
+    print(f"our repeated-CV estimate for the selected model        : {headline:.3f}")
+    print(f"\nThe gap is not a better model. It is one lucky split of "
+          f"{len(y)} rows, chosen from {n_lazy} tries — "
+          f"a ~{int(0.3 * len(y))}-row test set with ~{int(0.3 * y.sum())} positives.")
 
 # %% [markdown]
 # ## 2. The same families under repeated stratified CV
@@ -86,38 +101,38 @@ print("\nThe gap is not a better model. It is one lucky split, chosen from ~30 t
 # of this comparison that means anything at 177 rows.
 
 # %%
+balanced = dict(class_weight="balanced", random_state=SEED)
+shallow = dict(max_depth=4, min_samples_leaf=8, n_estimators=100, **balanced)
+
 CANDIDATES = {
-    "Logistic (L2)": LogisticRegression(class_weight="balanced", max_iter=2000, random_state=42),
-    "Ridge": RidgeClassifier(class_weight="balanced", random_state=42),
-    "SGD (log loss)": SGDClassifier(loss="log_loss", class_weight="balanced", random_state=42),
-    "LinearSVC": LinearSVC(class_weight="balanced", random_state=42),
+    "Logistic (L2)": LogisticRegression(max_iter=2000, **balanced),
+    "Ridge": RidgeClassifier(**balanced),
+    "SGD (log loss)": SGDClassifier(loss="log_loss", **balanced),
+    "LinearSVC": LinearSVC(**balanced),
     "LDA": LinearDiscriminantAnalysis(),
     "GaussianNB": GaussianNB(),
     "kNN (k=15)": KNeighborsClassifier(n_neighbors=15),
-    "Decision tree (d3)": DecisionTreeClassifier(max_depth=3, class_weight="balanced", random_state=42),
-    "Extra tree": ExtraTreeClassifier(max_depth=3, class_weight="balanced", random_state=42),
-    "Random forest": RandomForestClassifier(n_estimators=100, max_depth=4, min_samples_leaf=8,
-                                            class_weight="balanced", random_state=42),
-    "Extra trees": ExtraTreesClassifier(n_estimators=100, max_depth=4, min_samples_leaf=8,
-                                        class_weight="balanced", random_state=42),
-    "AdaBoost": AdaBoostClassifier(n_estimators=100, learning_rate=0.1, random_state=42),
+    "Decision tree (d3)": DecisionTreeClassifier(max_depth=3, **balanced),
+    "Extra tree": ExtraTreeClassifier(max_depth=3, **balanced),
+    "Random forest": RandomForestClassifier(**shallow),
+    "Extra trees": ExtraTreesClassifier(**shallow),
+    "AdaBoost": AdaBoostClassifier(n_estimators=100, learning_rate=0.1, random_state=SEED),
     "Gradient boosting": GradientBoostingClassifier(n_estimators=100, max_depth=3,
-                                                    learning_rate=0.03, random_state=42),
+                                                    learning_rate=0.03, random_state=SEED),
     "LightGBM": lgb.LGBMClassifier(n_estimators=150, learning_rate=0.03, num_leaves=7,
-                                   max_depth=3, class_weight="balanced",
-                                   random_state=42, verbose=-1),
+                                   max_depth=3, verbose=-1, **balanced),
     "XGBoost": xgb.XGBClassifier(n_estimators=150, learning_rate=0.03, max_depth=3,
-                                 scale_pos_weight=2.28, tree_method="hist",
-                                 random_state=42, verbosity=0),
+                                 scale_pos_weight=scale_pos_weight(y),
+                                 tree_method="hist", random_state=SEED, verbosity=0),
 }
 
 
 def sweep(y_target, cv=CV):
-    rows = []
-    for name, clf in CANDIDATES.items():
-        s = cross_val_score(_pipe(clf), X, y_target, cv=cv, scoring="roc_auc")
-        rows.append({"model": name, "cv_auc": s.mean(), "sd": s.std()})
-    return pd.DataFrame(rows).sort_values("cv_auc", ascending=False).reset_index(drop=True)
+    scores = {name: cross_val_score(_pipe(clf), X, y_target, cv=cv, scoring="roc_auc")
+              for name, clf in CANDIDATES.items()}
+    return (pd.DataFrame([{"model": n, "cv_auc": s.mean(), "sd": s.std()}
+                          for n, s in scores.items()])
+            .sort_values("cv_auc", ascending=False, ignore_index=True))
 
 
 observed = sweep(y)
@@ -126,7 +141,8 @@ observed.to_csv("../outputs/reports/classifier_sweep.csv", index=False)
 
 # %%
 print(f"best under repeated CV : {observed['cv_auc'].max():.4f}  ({observed.iloc[0]['model']})")
-print(f"best under LazyPredict : {best_lazy:.4f}  (single split)")
+if best_lazy is not None:
+    print(f"best under LazyPredict : {best_lazy:.4f}  (single split)")
 print(f"spread across {len(observed)} models: "
       f"{observed['cv_auc'].min():.3f} to {observed['cv_auc'].max():.3f}")
 print(f"typical fold-to-fold sd  : {observed['sd'].mean():.3f}")
@@ -190,36 +206,40 @@ plt.show()
 # %% [markdown]
 # ## What this tells us
 #
-# | | CV ROC-AUC |
-# |---|---:|
-# | individual model, shuffled labels | 0.498 |
-# | **best-of-15, shuffled labels** | **0.567** (max 0.624) |
-# | observed best (AdaBoost) | 0.594 |
-# | **selection-corrected p** | **0.300** |
+# An individual model on shuffled labels averages ~0.50, exactly as it should.
+# **The best of fifteen averages well above that** — on labels with no signal
+# whatsoever. Maximising over candidates is itself a fitting procedure, and
+# nothing regularises it.
 #
-# An individual model on shuffled labels averages 0.498, exactly as it should.
-# **The best of fifteen averages 0.567 and reached 0.624** — on labels with no
-# signal whatsoever. Maximising over candidates is itself a fitting procedure,
-# and nothing regularises it.
-#
-# So the sweep's winner, 0.594, is beaten by **30% of pure-noise runs**. It is not
-# evidence of anything.
+# So the sweep's winner is beaten by a large fraction of pure-noise runs. It is
+# not evidence of anything.
 #
 # ### This applies to our own headline number too
 #
-# The reported L2 logistic result carries a permutation p of 0.076. That test
-# holds the model fixed — but the model was chosen as the top of a ten-rung
-# ladder. The same selection effect applies, less severely with 10 candidates
-# than 15, but it applies.
+# The reported result carries a permutation p that holds the model **fixed** —
+# but that model was chosen as the top of a ten-rung ladder. The same selection
+# effect applies, less severely with 10 candidates than 15, but it applies.
 #
-# **The honest reading is that the selection-corrected p is in the 0.2–0.3 range,
-# not 0.076.** The single-model permutation test understates it, and quoting 0.076
-# without that caveat would be the same error this notebook is about.
-#
-# What would fix it properly: nested cross-validation, with model selection
-# happening inside the outer loop so the reported score never sees the selection.
-# That is the honest way to report a chosen-from-many model, and it is the main
-# methodological gap left in this project.
+# Notebook 04 handles this properly with nested cross-validation: selection
+# happens inside each outer fold, so the reported score never sees it. Compare
+# the two directly:
+
+# %%
+config = json.load(open("../outputs/models/config.json"))
+print(f"  ladder maximum, model held fixed : {config['cv_auc']:.4f} "
+      f"(permutation p = {config['permutation_p']})")
+print(f"  nested CV, selection included    : {config['nested_cv_auc']:.4f} "
+      f"± {config['nested_cv_se']:.4f}")
+print(f"  cost of selection                : {config['selection_cost']:.4f} AUC")
+print(f"\n  sweep winner                     : {observed_best:.4f}")
+print(f"  best-of-{len(observed)} under shuffled labels  : {null_best.mean():.4f} "
+      f"(max {null_best.max():.4f})")
+print(f"  selection-corrected p            : {p_corrected:.3f}")
+
+# %% [markdown]
+# The two corrections agree: once you account for having chosen the model, there
+# is nothing left. The permutation p on a fixed model and the sweep winner's raw
+# score are both measuring the wrong thing.
 #
 # ### Using the sweep well
 #
@@ -230,9 +250,20 @@ plt.show()
 #   the model's performance.
 #
 # The LazyPredict figure illustrates the same trap one level worse: a single 30%
-# split of 177 rows leaves ~53 accounts and ~16 positives, and the best of thirty
-# such splits is worth less than nothing without a correction.
-#
-# The substantive conclusion is unchanged and now better supported: **no model
-# family separates from the others, and the spread between them (0.520–0.594) is
-# smaller than the fold-to-fold noise within any one of them (sd ≈ 0.090).**
+# split leaves a test set of ~50 accounts and ~16 positives, and the best of
+# thirty such splits is worth less than nothing without a correction.
+
+# %%
+spread = observed["cv_auc"].max() - observed["cv_auc"].min()
+noise = observed["sd"].mean()
+print(f"spread across {len(observed)} model families : {spread:.3f} "
+      f"({observed['cv_auc'].min():.3f} to {observed['cv_auc'].max():.3f})")
+print(f"typical fold-to-fold sd within one : {noise:.3f}")
+print(f"\n-> the choice of model family is worth "
+      f"{'less' if spread < noise else 'more'} than the noise in measuring it.")
+
+# %% [markdown]
+# That is the substantive conclusion, and it is the useful one: **no model family
+# separates from the others, and the spread between them is smaller than the
+# fold-to-fold noise within any one of them.** Algorithm choice is not the lever
+# here — notebook 08 finds what is.

@@ -13,7 +13,7 @@
 
 # %%
 import sys
-sys.path.append("..")
+sys.path.insert(0, "..")
 
 import numpy as np
 import pandas as pd
@@ -98,15 +98,16 @@ print("                      the time, so it carries a post-cutoff value")
 threshold, _, oof = oof_threshold(model, X, y)
 pred = (oof >= threshold).astype(int)
 
+CONFUSION = np.array([["TN", "FP"], ["FN", "TP"]])   # [actual][predicted]
+
 err = pd.DataFrame({"proba": oof, "actual": y.values, "pred": pred})
-err["kind"] = np.select(
-    [(err.actual == 1) & (err.pred == 1), (err.actual == 1) & (err.pred == 0),
-     (err.actual == 0) & (err.pred == 1)], ["TP", "FN", "FP"], "TN")
+err["kind"] = CONFUSION[err["actual"], err["pred"]]
 print(f"threshold {threshold}\n")
 print(err["kind"].value_counts().to_string())
 
 # %%
-print(err.groupby("kind")["proba"].describe()[["count", "mean", "min", "max"]].round(3).to_string())
+print(err.groupby("kind")["proba"]
+      .describe()[["count", "mean", "min", "max"]].round(3).to_string())
 
 # %% [markdown]
 # ### Are the false negatives recoverable by moving the threshold?
@@ -121,11 +122,12 @@ print("   confidently safe, so no threshold choice recovers them. This is a")
 print("   signal problem, not a calibration problem.")
 
 # %%
+jitter = np.random.default_rng(0)
 fig, ax = plt.subplots(figsize=(8, 4))
-for kind, colour in [("TN", "#2a9d8f"), ("FP", "#e9c46a"), ("FN", "#e76f51"), ("TP", "#264653")]:
+for row, (kind, colour) in enumerate([("TN", "#2a9d8f"), ("FP", "#e9c46a"),
+                                      ("FN", "#e76f51"), ("TP", "#264653")]):
     sub = err[err.kind == kind]
-    ax.scatter(sub["proba"], np.random.default_rng(0).normal(0, .04, len(sub)) +
-               {"TN": 0, "FP": 1, "FN": 2, "TP": 3}[kind],
+    ax.scatter(sub["proba"], row + jitter.normal(0, .04, len(sub)),
                s=22, alpha=.7, color=colour, label=kind)
 ax.axvline(threshold, ls="--", c="k", alpha=.6, label=f"threshold {threshold}")
 ax.set_yticks(range(4)); ax.set_yticklabels(["TN", "FP", "FN", "TP"])
@@ -249,6 +251,57 @@ plt.show()
 # evidence that sample size, not method, is the binding constraint.
 
 # %% [markdown]
+# ### So get more rows: rolling origin
+#
+# The cohort is small because it is cut at **one** date. Nothing forces that —
+# the whole pipeline takes a cutoff argument. Rebuilding the cohort at several
+# quarterly cutoffs and pooling them multiplies the labelled rows without
+# inventing any data: an account simply contributes a row at each date it was
+# at risk.
+#
+# The catch is that those rows are not independent. The same customer appears at
+# several cutoffs with nearly identical features, so folds must be **grouped by
+# account** or the same account lands on both sides of a split. The ungrouped
+# figure is printed alongside to show the size of that mistake.
+
+# %%
+from src import robustness
+
+cutoffs = robustness.rolling_origin_cutoffs(n=4)
+print("cutoffs:", [str(c.date()) for c in cutoffs])
+
+X_pool, y_pool, groups = robustness.pooled_dataset(cutoffs)
+pooled = robustness.pooled_cv(X_pool, y_pool, groups)
+print()
+print(pooled.to_string())
+
+# %%
+single = cross_val_score(model, X, y, cv=CV, scoring="roc_auc")
+print(f"  single cutoff  n={len(y):>4}  positives={int(y.sum()):>3}  "
+      f"AUC {single.mean():.4f}  sd {single.std():.4f}")
+print(f"  pooled         n={pooled['n']:>4}  positives={pooled['positives']:>3}  "
+      f"AUC {pooled['grouped_auc']:.4f}  sd {pooled['grouped_sd']:.4f}")
+print(f"\n  fold-to-fold sd falls by "
+      f"{1 - pooled['grouped_sd'] / single.std():.0%} — the estimate is much better "
+      "pinned down.")
+print(f"  forgetting to group by account would have added "
+      f"{pooled['grouping_optimism']:+.4f} AUC of optimism.")
+
+# %% [markdown]
+# This is the one lever with direct evidence behind it, and it is the answer to
+# the diagnosis above rather than a restatement of it. Pooling roughly triples
+# the positives and cuts the fold-to-fold spread substantially — so the pooled
+# figure is a far more precise measurement than the single-cutoff headline, even
+# though it lands in the same place.
+#
+# Two caveats worth stating. Quarterly cutoffs 91 days apart with a 90-day
+# horizon means an account's *label windows* barely overlap, but its *features*
+# do heavily — grouping handles the leakage, not the redundancy, so the effective
+# sample size is below the row count. And the cohorts are not identical
+# populations: the positive rate at the two earlier cutoffs is materially lower,
+# so part of the pooled result is averaging over different base rates.
+
+# %% [markdown]
 # ### Is it p ≫ n? Test it directly.
 #
 # 73 features on 54 positives is roughly 0.7 events per variable, so the obvious
@@ -311,8 +364,10 @@ print(f"\nvalidation range across three orders of magnitude of C: "
 #
 # **What would actually move it**, in order of expected value:
 #
-# 1. **More labelled accounts.** The learning curve is still climbing. This is
-#    the only lever with direct evidence behind it.
+# 1. **More labelled rows.** The learning curve is still climbing, and pooling
+#    four quarterly cutoffs — done above — roughly triples the positives and
+#    substantially tightens the estimate. This is the only lever with direct
+#    evidence behind it, and the only one already exercised.
 # 2. **A trustworthy label.** 37.6% agreement between `churn_flag` and the event
 #    log caps everything downstream.
 # 3. **Telemetry with coherent timestamps.** 19,128 of 24,979 usage rows predate

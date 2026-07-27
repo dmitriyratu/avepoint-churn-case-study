@@ -30,6 +30,15 @@ feature-vs-churn boxplots, and target correlations on all 500 accounts. Every
 feature idea that came out of it was informed by the full label set. Now split
 into two passes — see §1.
 
+**How far this actually goes, stated honestly.** The split keeps any individual
+EDA number off the full label set. It does *not* make the headline CV score
+unbiased, because modelling cross-validates over the whole cohort — rows
+inspected in Part B reappear in the folds that produce the reported figure. With
+177 accounts, permanently sacrificing 30% of them to a sealed confirmation set
+would cost more precision than the residual bias is worth. That is a trade-off,
+not a guarantee, and the nested CV in `04_modeling.py` is what carries the
+weight instead.
+
 ## 1. Formulate the question first
 
 Peng's first item, and the one that prevents aimless plotting. The question
@@ -37,8 +46,9 @@ determines the unit of analysis and the label.
 
 **Finding**: "why do users churn" is not a modelling question. Sharpened to:
 *given what we know about an account on 2024-06-30, will it churn in the next
-180 days?* That immediately implies an observation window and a cohort, which is
-what the first pass was missing.
+90 days?* That immediately implies an observation window and a cohort, which is
+what the first pass was missing. The horizon itself is swept rather than
+assumed — see `FEATURE_ENGINEERING.md`.
 
 ## 2. Check the packaging
 
@@ -61,11 +71,15 @@ tail.
 Count things you can independently verify. Peng's point is that a count you can
 reason about is the cheapest bug detector available.
 
-**Finding**: 500 accounts vs 352 accounts appearing in `churn_events` vs 110
-with `churn_flag = True`. Those three numbers cannot all be describing the same
+**Finding**: 500 accounts vs 352 appearing in `churn_events` vs 110 with
+`churn_flag = True`. Those three numbers cannot all be describing the same
 thing — and they aren't. `churn_flag` agrees with the event log for only 37.6%
 of accounts. This was the single most important EDA finding in the project and
 the first version missed it entirely.
+
+Counting the same concept a *fourth* way (accounts with an ended subscription)
+makes it worse, and it turns out to matter for the cohort rule as well as the
+label — see `10_sanity_checks.py`.
 
 ## 5. Validate against an external source
 
@@ -113,10 +127,14 @@ For classification specifically:
 - [x] Is the label well-defined, dated, and internally consistent?
 - [x] Base rate, so AP can be read against something
 
-**Finding**: 47% positive in the temporal cohort (mild imbalance; class weights
-suffice, no SMOTE). Accuracy is unusable as a metric — a majority-class
-predictor scores 53%. Reporting ROC-AUC plus average precision against the
+**Finding**: 30.5% positive in the temporal cohort (mild imbalance; class
+weights suffice, no SMOTE). Accuracy is unusable as a metric — a majority-class
+predictor scores 69.5%. Reporting ROC-AUC plus average precision against the
 base rate instead.
+
+Also found here, and more consequential: `satisfaction_score` is documented as
+1–5 but only ever takes the values 3, 4 and 5, near-uniformly. A field that
+cannot record dissatisfaction will not predict churn.
 
 ## 9. Leakage screen — do this in EDA, not after modelling
 
@@ -129,9 +147,16 @@ base rate instead.
 - [x] Fields that resolve *after* the row is created (censoring)
 
 **Finding**: `churn_events` columns reconstruct the label — restoring them takes
-CV AUC to 0.997. Also caught 5 support tickets opened before the cutoff but
-closed after it, whose resolution fields were unknowable at prediction time.
-Automated in `src/audit.py`; per-field verdicts in `DATA_DICTIONARY.md`.
+CV AUC from ~0.54 to ~0.91 (measured in `06_leakage_quantification.py`). Also
+caught 5 support tickets opened before the cutoff but closed after it, whose
+resolution fields were unknowable at prediction time. Automated in
+`src/audit.py`; per-field verdicts in `DATA_DICTIONARY.md`.
+
+Worth noting *which* leak the statistical gate would have caught.
+`n_churn_events` scores 0.92 on its own and trips it immediately.
+`total_refund_usd` scores 0.64 and sails through — despite being a column that
+exists only because the customer left. Leakage is a property of provenance, not
+of effect size, which is why `audit.forbidden_columns` checks by name.
 
 ## 10. Try the easy solution first, then challenge it
 
@@ -139,9 +164,11 @@ Peng's last three items. Establish a floor, then make the result work to beat it
 then try to break your own conclusion.
 
 **Finding**: the floor (`DummyClassifier`) was never established in the first
-pass, so 0.55 AUC looked like a result rather than noise. The model ladder now
-starts at a prior-only classifier and a 300-shuffle permutation test decides
-whether anything above it is real (p = 0.040 — marginal, and reported as such).
+pass, so ~0.55 AUC looked like a result rather than noise. The model ladder now
+starts at a prior-only classifier, a 300-shuffle permutation test asks whether
+anything above it is real, and — because the reported model was *chosen* as the
+ladder maximum — nested CV asks the same question about the selection itself.
+The second check is the one that changes the answer; see `04_modeling.py`.
 
 ## 11. Document decisions as you go
 

@@ -19,7 +19,7 @@
 
 # %%
 import sys
-sys.path.append("..")
+sys.path.insert(0, "..")
 
 import pandas as pd
 import numpy as np
@@ -32,8 +32,8 @@ from sklearn.model_selection import train_test_split
 
 from src.load_data import load_all, TABLES
 from src.clean import clean_all, integrity_report
-from src.labeling import build_cohort, truncate_tables, cohort_summary
-from src.config import CUTOFF_DATE, HORIZON_DAYS
+from src.labeling import build_cohort, cohort_summary
+from src.config import CUTOFF_DATE, HORIZON_DAYS, TARGET
 
 sns.set_theme(style="whitegrid", palette="muted")
 pd.set_option("display.max_columns", 40)
@@ -249,29 +249,41 @@ print("arr_amount ~ mrr_amount at r = 1.00 — the redundancy is visible here to
 # Everything below uses the target, so from here on we work on a held-out
 # *exploration* split. The confirmation split is not looked at during EDA or
 # feature design.
+#
+# **What this does and does not buy, stated plainly.** It stops any single
+# number below from being read off the whole label set, which is the thing that
+# quietly biases feature ideas. It does **not** make the eventual CV score
+# unbiased: modelling in notebook 04 cross-validates over the full cohort, so
+# rows inspected here reappear in the folds that produce the headline. With 177
+# accounts, permanently sacrificing 30% of them to a confirmation set would cost
+# more precision than the residual bias is worth — but that is a trade-off, not a
+# clean guarantee, and the nested CV in notebook 04 is what actually keeps the
+# reported number honest.
 
 # %%
 cohort = build_cohort(tables)
 explore_idx, confirm_idx = train_test_split(
-    cohort.index, test_size=0.3, stratify=cohort["churned_next_90d"], random_state=42
+    cohort.index, test_size=0.3, stratify=cohort[TARGET], random_state=42
 )
 explore = cohort.loc[explore_idx]
 confirm = cohort.loc[confirm_idx]
 
-print(f"exploration split : {len(explore)} accounts, {int(explore['churned_next_90d'].sum())} positives")
+print(f"exploration split : {len(explore)} accounts, {int(explore[TARGET].sum())} positives")
 print(f"confirmation split: {len(confirm)} accounts  <- sealed, not inspected here")
 
 # %% [markdown]
 # ## §8 — Understand the target
 
 # %%
-y = explore["churned_next_90d"]
+y = explore[TARGET]
 print(y.value_counts().rename({0: "retained", 1: "churned"}).to_string())
 print(f"\npositive rate: {y.mean():.3f}")
 print(f"majority-class accuracy: {max(y.mean(), 1 - y.mean()):.3f}")
-print("\n-> Imbalance is mild (47/53), so class weights suffice; no SMOTE needed.")
-print("-> Accuracy is useless as a metric here. Use ROC-AUC and average")
-print("   precision read against the base rate.")
+print(f"\n-> Imbalance is mild ({y.mean():.0%}/{1 - y.mean():.0%}), so class weights")
+print("   suffice; no SMOTE needed.")
+print("-> Accuracy is useless as a metric here — a majority-class predictor already")
+print(f"   scores {max(y.mean(), 1 - y.mean()):.0%}. Use ROC-AUC and average precision")
+print("   read against the base rate.")
 
 # %% [markdown]
 # ## §7 — Covariation with the target, by segment
@@ -282,7 +294,7 @@ base = y.mean()
 
 fig, axes = plt.subplots(1, 3, figsize=(16, 4))
 for ax, col in zip(axes, ["plan_tier", "industry", "referral_source"]):
-    rates = explore_full.groupby(col)["churned_next_90d"].agg(["mean", "size"])
+    rates = explore_full.groupby(col)[TARGET].agg(["mean", "size"])
     rates = rates[rates["size"] >= 5].sort_values("mean")
     rates["mean"].plot(kind="barh", ax=ax, color="steelblue")
     ax.axvline(base, color="red", ls="--", alpha=.7, label=f"base {base:.2f}")
@@ -297,7 +309,7 @@ print("n >= 5 filter would be noise dressed as insight.")
 
 # %%
 # Segment sizes, so the bars above can be read honestly
-print(explore_full.groupby("plan_tier")["churned_next_90d"].agg(["size", "sum", "mean"]).round(3).to_string())
+print(explore_full.groupby("plan_tier")[TARGET].agg(["size", "sum", "mean"]).round(3).to_string())
 
 # %% [markdown]
 # ## §9 — Leakage screen, done here rather than after modelling
@@ -309,7 +321,7 @@ print(explore_full.groupby("plan_tier")["churned_next_90d"].agg(["size", "sum", 
 # %%
 from sklearn.metrics import roc_auc_score
 
-probe = explore_full[["account_id", "churned_next_90d"]].merge(
+probe = explore_full[["account_id", TARGET]].merge(
     ce.groupby("account_id").agg(
         n_churn_events=("churn_event_id", "count"),
         total_refund_usd=("refund_amount_usd", "sum"),
@@ -317,7 +329,7 @@ probe = explore_full[["account_id", "churned_next_90d"]].merge(
 
 print("Post-outcome columns, screened on the exploration split:")
 for c in ["n_churn_events", "total_refund_usd"]:
-    a = roc_auc_score(probe["churned_next_90d"], probe[c])
+    a = roc_auc_score(probe[TARGET], probe[c])
     print(f"  {c:20s} single-feature AUC = {max(a, 1 - a):.4f}")
 print("\nA single raw column at this level is the label wearing a different name.")
 print("Excluded via config.POST_OUTCOME_COLS; enforced by src/audit.py.")

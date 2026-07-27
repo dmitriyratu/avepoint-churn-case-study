@@ -14,15 +14,15 @@ IDENTIFIER_AUC_MAX = 0.60
 
 
 def _auc(y, values):
-    """Direction-agnostic AUC — a perfectly inverted feature leaks just as much."""
+    """Direction-agnostic: a perfectly inverted feature leaks just as much."""
     score = roc_auc_score(y, values)
     return round(max(score, 1 - score), 4)
 
 
 def encode_for_audit(X):
     """Flat numeric view for the checks below. Never feeds a model."""
-    categorical = [c for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
-    return pd.get_dummies(X, columns=categorical, drop_first=True, dtype=int) if categorical else X
+    categorical = X.columns[~X.apply(pd.api.types.is_numeric_dtype)]
+    return pd.get_dummies(X, columns=list(categorical), drop_first=True, dtype=int)
 
 
 def temporal_provenance(tables, cutoff):
@@ -40,14 +40,14 @@ def temporal_provenance(tables, cutoff):
 
 def single_feature_auc(X, y):
     """Standalone discriminative power. A lone strong column is usually the label."""
-    X = encode_for_audit(X)
-    usable = {c: pd.to_numeric(X[c], errors="coerce").astype(float) for c in X.columns}
-    rows = [{"feature": c, "auc": _auc(y, v.fillna(v.median()))}
-            for c, v in usable.items() if v.notna().any() and v.std() > 0]
+    cols = encode_for_audit(X).apply(pd.to_numeric, errors="coerce").astype(float)
+    rows = [{"feature": c, "auc": _auc(y, s.fillna(s.median()))}
+            for c, s in cols.items() if s.notna().any() and s.std() > 0]
 
-    out = pd.DataFrame(rows).sort_values("auc", ascending=False).reset_index(drop=True)
-    out["verdict"] = pd.cut(out["auc"], [0, SINGLE_FEATURE_AUC_WARN, SINGLE_FEATURE_AUC_FAIL, 1],
-                            labels=["ok", "WARN — inspect", "FAIL — near-certain leak"])
+    out = pd.DataFrame(rows).sort_values("auc", ascending=False, ignore_index=True)
+    out["verdict"] = pd.cut(
+        out["auc"], [0, SINGLE_FEATURE_AUC_WARN, SINGLE_FEATURE_AUC_FAIL, 1],
+        labels=["ok", "WARN — inspect", "FAIL — near-certain leak"])
     return out
 
 
@@ -75,30 +75,32 @@ def identifier_leakage(df, y, id_col="account_id"):
 def duplicate_rows(X, df=None, id_col="account_id"):
     rows = [{"check": "identical feature vectors", "n": int(X.duplicated().sum())}]
     if df is not None and id_col in df.columns:
-        rows.append({"check": f"duplicate {id_col}", "n": int(df[id_col].duplicated().sum())})
+        rows.append({"check": f"duplicate {id_col}",
+                     "n": int(df[id_col].duplicated().sum())})
     return pd.DataFrame(rows).assign(**{"pass": lambda d: d["n"] == 0})
 
 
 def collinear_pairs(X, threshold=COLLINEARITY_THRESHOLD):
-    corr = encode_for_audit(X).select_dtypes(include=[np.number]).corr().abs()
-    pairs = (corr.where(np.triu(np.ones(corr.shape), k=1).astype(bool))
-             .stack().rename("abs_r").reset_index())
-    pairs.columns = ["feature_a", "feature_b", "abs_r"]
+    corr = encode_for_audit(X).corr(numeric_only=True).abs()
+    pairs = (corr.where(np.triu(np.ones(corr.shape, dtype=bool), k=1))
+             .stack().rename("abs_r").rename_axis(["feature_a", "feature_b"])
+             .reset_index())
     return (pairs[pairs["abs_r"] > threshold]
-            .sort_values("abs_r", ascending=False).round(4).reset_index(drop=True))
+            .sort_values("abs_r", ascending=False, ignore_index=True).round(4))
 
 
 def forbidden_columns(X):
     """Outcome and point-in-time-unsafe columns must never reach the model.
 
-    The single-feature AUC gate only catches a leak that is *strongly*
-    predictive. `churn_flag` scored 0.51 here — categorically the outcome
-    variable, statistically invisible — so it needs a check by name.
+    The single-feature gate only catches a *strongly* predictive leak.
+    `churn_flag` scores 0.51 here — categorically the outcome, statistically
+    invisible — so it needs a check by name.
     """
     from .config import POINT_IN_TIME_UNSAFE_COLS, POST_OUTCOME_COLS
 
-    forbidden = {c: "outcome variable" for c in POST_OUTCOME_COLS}
-    forbidden |= {c: "not knowable as of the cutoff" for c in POINT_IN_TIME_UNSAFE_COLS}
+    forbidden = ({c: "outcome variable" for c in POST_OUTCOME_COLS}
+                 | {c: "not knowable as of the cutoff"
+                    for c in POINT_IN_TIME_UNSAFE_COLS})
     rows = [{"column": c, "reason": why, "pass": False}
             for c, why in forbidden.items() if c in X.columns]
     return pd.DataFrame(rows, columns=["column", "reason", "pass"])
@@ -133,7 +135,11 @@ def missingness_report(tables, structural=None):
 
 
 def run_all(X, y, df, tables, cutoff, raw_tables=None):
-    """Full suite. Returns (results, passed)."""
+    """Full suite. Returns (results, passed).
+
+    `collinear_pairs` and `missingness` are reported but not gated: they inform
+    a judgement call rather than define a violation.
+    """
     results = {
         "temporal_provenance": temporal_provenance(tables, cutoff),
         "forbidden_columns": forbidden_columns(X),
@@ -147,10 +153,11 @@ def run_all(X, y, df, tables, cutoff, raw_tables=None):
     if raw_tables is not None:
         results["missingness"] = missingness_report(raw_tables)
 
-    gated = ["temporal_provenance", "identifier_leakage", "duplicate_rows"]
-    passed = (all(results[k]["pass"].all() for k in gated)
-              and (results["single_feature_auc"]["auc"] < SINGLE_FEATURE_AUC_FAIL).all()
-              and results["perfect_separation"].empty
-              and results["forbidden_columns"].empty
-              and results["constant_columns"].empty)
+    passed = (
+        all(results[k]["pass"].all() for k in
+            ("temporal_provenance", "identifier_leakage", "duplicate_rows"))
+        and (results["single_feature_auc"]["auc"] < SINGLE_FEATURE_AUC_FAIL).all()
+        and all(results[k].empty for k in
+                ("perfect_separation", "forbidden_columns", "constant_columns"))
+    )
     return results, passed

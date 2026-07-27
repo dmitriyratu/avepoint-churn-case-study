@@ -1,15 +1,25 @@
-pandas>=2.0
-numpy>=1.24
-scikit-learn>=1.3
-lightgbm>=4.0
-xgboost>=2.0
-shap>=0.44
-imbalanced-learn>=0.11
-matplotlib>=3.7
-seaborn>=0.13
-joblib>=1.3
-jupytext>=1.16
-notebook>=7.0
-ipykernel>=6.0
-pytest>=8.0
-lazypredict>=0.2
+# Pinned to a compatible range, not just a floor. The scores in this project are
+# separated by less than 0.05 AUC, which is inside the drift between estimator
+# versions — an unpinned `>=` environment reproduces the narrative but not the
+# numbers.
+pandas~=2.3.3
+numpy~=2.3.5
+scikit-learn~=1.7.2
+lightgbm~=4.6.0
+xgboost~=3.3.0
+scipy~=1.16.3
+matplotlib~=3.10.0
+seaborn~=0.13.2
+joblib~=1.5.2
+
+# Notebook tooling
+jupytext~=1.16
+notebook~=7.0
+ipykernel~=6.0
+
+# Tests
+pytest~=8.0
+
+# Optional. Notebook 09 demonstrates the LazyPredict failure mode; it skips that
+# section cleanly if this is absent, and its argument does not depend on it.
+# lazypredict~=0.2

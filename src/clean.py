@@ -26,11 +26,11 @@ def clean_all(tables):
     # Duplicated usage_id would inflate per-account event counts.
     out["feature_usage"] = out["feature_usage"].drop_duplicates(subset="usage_id")
 
-    # Missingness is recorded, never filled — see module docstring.
+    # Missingness is recorded, never filled — see module docstring. Only the
+    # ticket flag is kept: churn_events supplies no features at all, so a
+    # missingness indicator on its feedback text has nowhere to go.
     out["support_tickets"] = out["support_tickets"].assign(
         satisfaction_missing=lambda d: d["satisfaction_score"].isna().astype(int))
-    out["churn_events"] = out["churn_events"].assign(
-        feedback_missing=lambda d: d["feedback_text"].isna().astype(int))
 
     return out
 

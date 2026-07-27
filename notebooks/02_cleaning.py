@@ -1,21 +1,25 @@
 # %% [markdown]
 # # 02 — Data Cleaning
 #
-# Mostly light work here since the dataset is synthetic and pre-structured.
-# Main issues to handle:
-# 1. Date columns stored as strings
-# 2. Missing `satisfaction_score` (~41% of support tickets)
-# 3. Missing `feedback_text` in churn events (~25%)
-# 4. Trial subscriptions with MRR = 0
+# Cleaning here is deliberately thin, and the reason is the organising principle
+# in `docs/CLEANING_CHECKLIST.md`: a step that **learns a parameter from the
+# data** — a median to fill with, a mean to scale by, a set of category levels —
+# belongs inside the CV pipeline, not here. This module only does things whose
+# answer is the same row by row.
+#
+# So this notebook covers:
+#
+# 1. Date columns stored as strings — stateless, done here
+# 2. Redundant and duplicate rows — stateless, done here
+# 3. Missing `satisfaction_score` (~41%) — **recorded, not filled**; the
+#    imputation happens per fold in `model._pipe`
+# 4. Trial subscriptions with MRR = 0 — inspected, kept
 
 # %%
 import sys
-sys.path.append("..")
+sys.path.insert(0, "..")
 
-import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 from src.load_data import load_all
 from src.clean import clean_all
@@ -47,32 +51,55 @@ for name, df in tables.items():
         print(f"\n--- {name} ---")
         print(missing[missing > 0])
 
-# %%
-# satisfaction_score: fill with per-priority median
-# Rationale: response rates differ by ticket type; low-priority tickets are more likely skipped
-raw_sat = tables_raw["support_tickets"]["satisfaction_score"]
-clean_sat = tables["support_tickets"]["satisfaction_score"]
+# %% [markdown]
+# ### `satisfaction_score` is left as `NaN` on purpose
+#
+# An earlier version filled it with a per-priority median right here, justified
+# by "response rates differ by ticket severity." Two things were wrong with that.
+#
+# The justification is false — missing rates are flat across all four
+# priorities. And the fill itself is a leak: a median computed over all 2,000
+# tickets lets validation rows influence the value applied to training rows.
+# `clean_all` now records the missingness and leaves the value alone.
 
-fig, axes = plt.subplots(1, 2, figsize=(10, 3))
-raw_sat.hist(bins=20, ax=axes[0])
-axes[0].set_title("Satisfaction Score — Raw (with NaN)")
-clean_sat.hist(bins=20, ax=axes[1], color="coral")
-axes[1].set_title("Satisfaction Score — After Imputation")
+# %%
+tix = tables_raw["support_tickets"]
+print("missing rate by priority (the claim that justified filling):")
+print(tix.groupby("priority")["satisfaction_score"].apply(lambda s: s.isna().mean())
+      .round(3).to_string())
+print("\nFlat — there is no per-priority pattern to fill against.")
+print(f"\nsatisfaction_score after clean_all: "
+      f"{tables['support_tickets']['satisfaction_score'].isna().sum()} still NaN")
+print("satisfaction_missing indicator added:",
+      "satisfaction_missing" in tables["support_tickets"].columns)
+
+# %% [markdown]
+# ### What the column actually contains
+#
+# Worth plotting before trusting it as a feature. The schema documents a 1–5
+# scale; the data uses **three** of those five values.
+
+# %%
+counts = tix["satisfaction_score"].value_counts(dropna=False).sort_index()
+print(counts.to_string())
+
+fig, ax = plt.subplots(figsize=(7, 3.5))
+observed = tix["satisfaction_score"].dropna()
+ax.hist(observed, bins=[0.5 + i for i in range(6)], edgecolor="white", color="steelblue")
+ax.set_xticks(range(1, 6))
+ax.set_xlabel("satisfaction score (schema says 1–5)")
+ax.set_ylabel("tickets")
+ax.set_title("Scores 1 and 2 never occur — the bottom of the scale is unused")
 plt.tight_layout()
-plt.savefig("../outputs/figures/02_satisfaction_imputation.png", bbox_inches="tight")
+plt.savefig("../outputs/figures/02_satisfaction_distribution.png", bbox_inches="tight")
 plt.show()
 
-# check imputed vs original means stay close
-print("Original mean (non-null):", raw_sat.mean().round(3))
-print("Imputed mean:            ", clean_sat.mean().round(3))
-
-# %%
-# per-priority medians (what we actually filled with)
-(tables_raw["support_tickets"]
- .groupby("priority")["satisfaction_score"]
- .agg(["median", "count", lambda x: x.isna().mean()])
- .rename(columns={"<lambda_0>": "missing_pct"})
- .round(3))
+# %% [markdown]
+# A dissatisfaction signal that cannot express dissatisfaction. Near-uniform over
+# {3, 4, 5}, which is what an independent random draw looks like — and it is a
+# small, early piece of evidence for the conclusion notebook 10 reaches the
+# expensive way: this generator did not build a relationship between behaviour
+# and churn.
 
 # %% [markdown]
 # ## 3. Subscriptions — trial rows with MRR = 0
@@ -81,40 +108,49 @@ print("Imputed mean:            ", clean_sat.mean().round(3))
 subs = tables["subscriptions"]
 zero_mrr = subs[subs["mrr_amount"] == 0]
 print(f"Zero-MRR rows: {len(zero_mrr)} ({len(zero_mrr)/len(subs):.1%})")
-print(zero_mrr[["is_trial", "plan_tier", "churn_flag"]].value_counts())
-
-# These are legitimate trial subscriptions that either:
-# (a) never converted — captured in churn_flag
-# (b) were $0 enterprise pilots
-# Decision: keep as-is. We'll engineer a trial_conversion feature downstream.
+print(zero_mrr["is_trial"].value_counts().to_string())
 
 # %% [markdown]
-# ## 4. Churn events — `end_date` nulls in subscriptions
+# Every zero-MRR row is a trial. Kept as-is: a $0 trial is a real state, not a
+# missing price. It reaches the model as `n_trial_subs` and `latest_is_trial`,
+# both built from the truncated subscription history rather than from
+# `accounts.is_trial`, which is current-as-of-extraction.
+
+# %% [markdown]
+# ## 4. `end_date` nulls are structural
 
 # %%
-print("Subscriptions with null end_date (active):",
-      subs["end_date"].isna().sum(), "/", len(subs))
+print("Subscriptions with null end_date:",
+      f"{subs['end_date'].isna().sum()} / {len(subs)} "
+      f"({subs['end_date'].isna().mean():.1%})")
 
-# Null end_date = subscription still active as of dataset creation.
-# We'll treat these as "active" and use REFERENCE_DATE as the de-facto end for tenure calcs.
+# %% [markdown]
+# A null `end_date` means the subscription is still open — that is information,
+# not absence. A ">60% missing, drop the column" rule would discard one of the
+# most informative fields in the table. It is encoded as `n_ended_subs` /
+# `pct_subs_ended` instead, and `truncate_tables` re-nulls any end date that
+# falls after the cutoff, so a subscription that ends later still reads as open
+# at prediction time.
 
 # %% [markdown]
 # ## 5. Duplicate / consistency checks
+#
+# On *every* key, not just the obvious ones. The first version checked
+# `account_id` and `subscription_id` and never looked at `usage_id` — which is
+# where the only duplicates actually are.
 
 # %%
-# Each account should appear once in accounts table
-assert tables["accounts"]["account_id"].nunique() == len(tables["accounts"]), \
-    "Duplicate account_ids found!"
+for name, key in [("accounts", "account_id"), ("subscriptions", "subscription_id"),
+                  ("feature_usage", "usage_id"), ("support_tickets", "ticket_id"),
+                  ("churn_events", "churn_event_id")]:
+    dupes = int(tables_raw[name][key].duplicated().sum())
+    note = "  <- dropped in clean.py" if dupes else ""
+    print(f"  {name:16s} {key:18s} {dupes}{note}")
 
-# Subscription IDs are unique
-assert tables["subscriptions"]["subscription_id"].nunique() == len(tables["subscriptions"]), \
-    "Duplicate subscription_ids!"
-
-# All subscriptions belong to known accounts
 subs_no_match = ~tables["subscriptions"]["account_id"].isin(tables["accounts"]["account_id"])
-print("Subscriptions with no matching account:", subs_no_match.sum())
-
-print("\nAll checks passed.")
+print("\nSubscriptions with no matching account:", int(subs_no_match.sum()))
+print(f"feature_usage rows after dedup: {len(tables['feature_usage'])} "
+      f"(from {len(tables_raw['feature_usage'])})")
 
 # %% [markdown]
 # ## 6. Save cleaned tables

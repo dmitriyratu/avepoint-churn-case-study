@@ -1,12 +1,9 @@
 """One-call construction of the modelling dataset.
 
-Every notebook needs the same chain — load, clean, build the cohort, truncate to
-the observation window, assemble features, split into X and y. `build()` does it
-once and hands back the intermediates, so a notebook that only wants `X, y` does
-not have to restate the pipeline to get them.
-
-Parameterising it on the cutoff also makes the buffer sweep in
-`03_feature_engineering.py` a one-liner per configuration.
+load -> clean -> cohort -> truncate -> features -> X, y. `build()` runs the
+chain and hands back the intermediates, so a notebook wanting only `X, y` does
+not have to restate it. Taking the cutoff as an argument is also what makes the
+sweeps and the rolling-origin pooling a line apiece.
 """
 from dataclasses import dataclass
 
@@ -33,14 +30,18 @@ class Dataset:
     X: pd.DataFrame
     y: pd.Series
     cutoff: pd.Timestamp
+    prediction_start: pd.Timestamp
+    horizon_days: int
 
     @property
     def summary(self):
-        return cohort_summary(self.cohort, self.cutoff)
+        return cohort_summary(self.cohort, self.cutoff, self.horizon_days,
+                              self.prediction_start)
 
     @property
     def dropped(self):
-        return {k: self.frame.attrs.get(k, []) for k in ("dropped_constant", "dropped_collinear")}
+        return {k: self.frame.attrs.get(k, [])
+                for k in ("dropped_constant", "dropped_collinear")}
 
     def audit(self):
         """Run the full leakage suite. Returns (results, passed)."""
@@ -52,7 +53,7 @@ def build(cutoff=CUTOFF_DATE, prediction_start=PREDICTION_START,
           horizon_days=HORIZON_DAYS, prune=True, verify=False):
     """Assemble the dataset as of `cutoff`.
 
-    Set `verify=True` to assert the leakage suite before returning — worth doing
+    `verify=True` asserts the leakage suite before returning; worth doing
     anywhere a score will be reported.
     """
     raw = load_all()
@@ -62,7 +63,8 @@ def build(cutoff=CUTOFF_DATE, prediction_start=PREDICTION_START,
     frame = build_model_dataset(observed, cohort, cutoff, prune=prune)
     X, y = prep_xy(frame)
 
-    data = Dataset(raw, tables, cohort, observed, frame, X, y, cutoff)
+    data = Dataset(raw, tables, cohort, observed, frame, X, y, cutoff,
+                   prediction_start, horizon_days)
     if verify:
         _, passed = data.audit()
         assert passed, "leakage audit failed — refusing to return a dataset"

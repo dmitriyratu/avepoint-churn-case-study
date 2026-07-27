@@ -1,20 +1,16 @@
-"""Model ladder and evaluation.
+"""Model ladder, nested selection, and evaluation.
 
-Rungs are ordered by flexibility, cheapest first, and share one CV splitter so
-the comparison is like-for-like. Every score carries an interval: with ~170 rows
-a point estimate implies precision the data cannot support.
-
-All preprocessing that learns a parameter — imputation, scaling, encoding — sits
-inside the pipeline so it is refit per fold.
+Rungs run cheapest first and share one splitter, so the comparison is
+like-for-like. Anything that learns a parameter — imputation, scaling, encoding —
+lives inside the pipeline and is refit per fold.
 """
 import os
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
-
 import joblib
 import lightgbm as lgb
+import numpy as np
+import pandas as pd
 import xgboost as xgb
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer, make_column_selector
@@ -22,37 +18,27 @@ from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import f1_score, roc_auc_score
+from sklearn.metrics import precision_recall_curve
 from sklearn.model_selection import (GridSearchCV, RepeatedStratifiedKFold,
                                      StratifiedKFold, cross_val_predict,
-                                     cross_val_score, permutation_test_score)
+                                     cross_val_score, cross_validate,
+                                     permutation_test_score)
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.tree import DecisionTreeClassifier
 
-from .config import (ID_COLS, POINT_IN_TIME_UNSAFE_COLS, POST_OUTCOME_COLS,
-                     TARGET)
+from .config import ID_COLS, POINT_IN_TIME_UNSAFE_COLS, POST_OUTCOME_COLS, TARGET
 
 MODELS_DIR = Path(__file__).parents[1] / "outputs" / "models"
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
-CV = RepeatedStratifiedKFold(n_splits=5, n_repeats=10, random_state=42)
-INNER_CV = StratifiedKFold(5, shuffle=True, random_state=42)
 SEED = 42
+CV = RepeatedStratifiedKFold(n_splits=5, n_repeats=10, random_state=SEED)
+INNER_CV = StratifiedKFold(5, shuffle=True, random_state=SEED)
 
-# Parallelism lives at the outer CV loop only — the forests are pinned to
-# n_jobs=1 so the two levels cannot fork against each other.
-#
-# Defaults to serial because n_jobs=-1 deadlocks under some sandboxed and
-# container runtimes. Set CHURN_N_JOBS to a core count to opt in; 4 roughly
-# halves the full notebook run.
-N_JOBS_OUTER = int(os.environ.get("CHURN_N_JOBS", "1"))
-
-# XGBoost takes no class_weight; scale_pos_weight is the equivalent lever.
-def scale_pos_weight(y):
-    """Negative-to-positive ratio, XGBoost's analogue of class_weight='balanced'."""
-    positives = int(y.sum())
-    return (len(y) - positives) / positives if positives else 1.0
+# Serial by default: n_jobs=-1 deadlocks under some container runtimes. Set
+# CHURN_N_JOBS to opt in — parallelism stays at the outer loop, estimators at 1.
+N_JOBS = int(os.environ.get("CHURN_N_JOBS", "1"))
 
 LGBM_PARAMS = dict(n_estimators=250, learning_rate=0.03, num_leaves=7, max_depth=3,
                    min_child_samples=15, subsample=0.8, subsample_freq=1,
@@ -62,32 +48,32 @@ LGBM_PARAMS = dict(n_estimators=250, learning_rate=0.03, num_leaves=7, max_depth
 _BOOLISH = {"True", "False", "0", "1", "0.0", "1.0"}
 
 
+def scale_pos_weight(y):
+    """XGBoost's equivalent of class_weight='balanced'."""
+    positives = int(y.sum())
+    return (len(y) - positives) / positives if positives else 1.0
+
+
+def _coerce(col):
+    """A CSV round-trip returns booleans as 'True'/'False'; genuine text stays text."""
+    if pd.api.types.is_bool_dtype(col):
+        return col.astype(int)
+    if pd.api.types.is_numeric_dtype(col):
+        return col.replace([np.inf, -np.inf], np.nan)
+    text = col.astype(str).str.strip()
+    if set(text) <= _BOOLISH:
+        return pd.to_numeric(text.replace({"True": "1", "False": "0"}), errors="coerce")
+    return text
+
+
 def prep_xy(df, target=TARGET):
-    """Split into (X, y), coercing dtypes but preserving NaN and categoricals.
+    """(X, y) with identifiers, outcomes and point-in-time-unsafe columns dropped.
 
-    Drops identifiers, outcome variables, and columns whose value is only known
-    as of data extraction rather than as of the cutoff (see config).
-
-    A CSV round-trip turns booleans into "True"/"False" strings, and filling a
-    boolean column with 0 leaves a three-valued mix; both are coerced back to
-    numeric here. Genuine categoricals stay as strings for the pipeline encoder,
-    and NaN is preserved for in-fold imputation.
+    Categoricals stay as strings and NaN stays NaN; both are handled per fold.
     """
     excluded = ID_COLS + POST_OUTCOME_COLS + POINT_IN_TIME_UNSAFE_COLS + [target]
-    X = df.drop(columns=[c for c in excluded if c in df.columns]).copy()
-    y = df[target].astype(int)
-
-    for c in X.columns:
-        if pd.api.types.is_bool_dtype(X[c]):
-            X[c] = X[c].astype(int)
-        elif not pd.api.types.is_numeric_dtype(X[c]):
-            text = X[c].astype(str).str.strip()
-            X[c] = (pd.to_numeric(text.replace({"True": "1", "False": "0"}), errors="coerce")
-                    if set(text.dropna()) <= _BOOLISH else text)
-
-    numeric = X.select_dtypes(include=[np.number]).columns
-    X[numeric] = X[numeric].replace([np.inf, -np.inf], np.nan)
-    return X, y
+    X = df.drop(columns=[c for c in excluded if c in df.columns])
+    return X.apply(_coerce), df[target].astype(int)
 
 
 def categorical_columns(X):
@@ -97,8 +83,8 @@ def categorical_columns(X):
 def _pipe(clf, scale=True):
     """Preprocessing plus estimator.
 
-    OneHotEncoder(handle_unknown="ignore") keeps an unseen category from changing
-    the column set at serving time, which `pd.get_dummies` cannot do.
+    handle_unknown='ignore' keeps an unseen category from changing the column set
+    at serving time, which get_dummies cannot do.
     """
     numeric = [("impute", SimpleImputer(strategy="median"))]
     if scale:
@@ -122,26 +108,18 @@ def feature_names(fitted_pipe, X):
 class AsCategory(BaseEstimator, TransformerMixin):
     """Cast object columns to pandas `category`, leaving NaN intact.
 
-    Gradient boosters handle both natively and generally better than the
-    preprocessing in `_pipe`: missingness gets its own learned split direction
-    instead of being replaced by a median, and categoricals get native splits
-    instead of a one-hot expansion that fragments the feature.
-
-    Categories are learned on the training fold only. A level unseen in training
-    becomes NaN at transform time, which the booster routes like any other
-    missing value — the same guarantee `handle_unknown="ignore"` gives.
+    Levels are learned on the training fold; anything unseen becomes NaN, which
+    a booster routes like any other missing value.
     """
 
     def fit(self, X, y=None):
-        self.columns_ = [c for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
-        self.categories_ = {c: pd.Index(X[c].dropna().unique()) for c in self.columns_}
+        self.categories_ = {c: pd.Index(X[c].dropna().unique())
+                            for c in categorical_columns(X)}
         return self
 
     def transform(self, X):
-        X = X.copy()
-        for c in self.columns_:
-            X[c] = pd.Categorical(X[c], categories=self.categories_[c])
-        return X
+        return X.assign(**{c: pd.Categorical(X[c], categories=levels)
+                           for c, levels in self.categories_.items()})
 
 
 def _native_pipe(clf):
@@ -152,8 +130,8 @@ def _native_pipe(clf):
 def model_ladder(pos_weight=2.28):
     """Rungs in increasing flexibility. Rung 0 uses no features at all.
 
-    `pos_weight` is XGBoost's imbalance lever; pass `scale_pos_weight(y)` to
-    derive it from the cohort rather than relying on the default.
+    `pos_weight` is XGBoost's imbalance lever; callers pass `scale_pos_weight(y)`
+    so a different horizon does not leave rung 8 weighted for another cohort.
     """
     return [
         ("0. Prior (no features)",
@@ -195,54 +173,60 @@ def model_ladder(pos_weight=2.28):
 def evaluate_ladder(X, y, cv=CV, scoring="roc_auc"):
     """Score every rung on identical folds, with a 95% interval."""
     rows = []
-    for name, est in model_ladder():
-        s = cross_val_score(est, X, y, cv=cv, scoring=scoring, n_jobs=N_JOBS_OUTER)
+    for name, est in model_ladder(scale_pos_weight(y)):
+        s = cross_val_score(est, X, y, cv=cv, scoring=scoring, n_jobs=N_JOBS)
         rows.append({"model": name, f"{scoring}_mean": s.mean(), "sd": s.std(),
                      "ci_lo": np.percentile(s, 2.5), "ci_hi": np.percentile(s, 97.5)})
     return pd.DataFrame(rows).round(4)
 
 
-def nested_ladder_cv(X, y, outer_cv=None, inner_cv=None, scoring="roc_auc"):
-    """Score the *procedure* "pick the best ladder rung by CV", not a fixed model.
+def ladder_search(y, cv=INNER_CV, scoring="roc_auc"):
+    """The ladder as a single estimator: a search whose grid is the rungs.
 
-    `evaluate_ladder` reports each rung honestly, but quoting the winner's score
-    is optimistic: choosing a maximum over ten candidates is itself a fitting
-    step, and nothing cross-validates it. Here selection happens inside each
-    outer fold, on data the outer fold never sees, so the returned scores include
-    the cost of selection.
+    Making selection an estimator is what turns nested CV into one
+    `cross_validate` call — the choice is refit inside every outer fold.
 
-    Returns (per-fold frame, summary). The summary's `nested_auc` is the number
-    that should be quoted for a chosen-from-many model.
+    The wrapper is seeded with rung 0 rather than "passthrough" so the pipeline
+    reads as a classifier; every grid candidate replaces it anyway.
     """
-    outer_cv = outer_cv or StratifiedKFold(5, shuffle=True, random_state=SEED)
-    inner_cv = inner_cv or StratifiedKFold(4, shuffle=True, random_state=SEED)
+    rungs = model_ladder(scale_pos_weight(y))
+    return GridSearchCV(Pipeline([("rung", rungs[0][1])]),
+                        [{"rung": [est]} for _, est in rungs],
+                        scoring=scoring, cv=cv, n_jobs=N_JOBS)
 
-    rows = []
-    for fold, (train, test) in enumerate(outer_cv.split(X, y), 1):
-        X_tr, X_te = X.iloc[train], X.iloc[test]
-        y_tr, y_te = y.iloc[train], y.iloc[test]
 
-        inner = [(name, cross_val_score(est, X_tr, y_tr, cv=inner_cv,
-                                        scoring=scoring, n_jobs=N_JOBS_OUTER).mean())
-                 for name, est in model_ladder()]
-        chosen, inner_score = max(inner, key=lambda pair: pair[1])
+def nested_ladder_cv(X, y, n_repeats=5, scoring="roc_auc"):
+    """Cross-validate the procedure "pick the best rung", not a fixed model.
 
-        est = dict(model_ladder())[chosen]
-        est.fit(X_tr, y_tr)
-        outer_score = roc_auc_score(y_te, est.predict_proba(X_te)[:, 1])
+    Quoting the ladder maximum is optimistic: choosing among ten candidates is
+    itself a fitting step, and nothing cross-validates it. Repeated because a
+    single 5-fold split swings ~0.09 AUC on the seed alone — see
+    `repeat_spread` in the summary.
+    """
+    n_splits = 5
+    names = [name for name, _ in model_ladder()]
+    outer = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n_repeats,
+                                    random_state=SEED)
+    run = cross_validate(ladder_search(y, scoring=scoring), X, y, cv=outer,
+                         scoring=scoring, return_estimator=True, n_jobs=N_JOBS)
 
-        rows.append({"fold": fold, "selected": chosen,
-                     "inner_auc": round(inner_score, 4),
-                     "outer_auc": round(outer_score, 4)})
+    per_fold = pd.DataFrame({
+        "repeat": np.repeat(np.arange(1, n_repeats + 1), n_splits),
+        "fold": np.tile(np.arange(1, n_splits + 1), n_repeats),
+        "selected": [names[s.best_index_] for s in run["estimator"]],
+        "inner_auc": [s.best_score_ for s in run["estimator"]],
+        "outer_auc": run["test_score"],
+    }).round(4)
 
-    per_fold = pd.DataFrame(rows)
+    by_repeat = per_fold.groupby("repeat")["outer_auc"].mean()
     summary = pd.Series({
-        "nested_auc": round(per_fold["outer_auc"].mean(), 4),
-        "nested_sd": round(per_fold["outer_auc"].std(), 4),
-        "mean_inner_auc": round(per_fold["inner_auc"].mean(), 4),
-        "optimism": round(per_fold["inner_auc"].mean() - per_fold["outer_auc"].mean(), 4),
+        "nested_auc": per_fold["outer_auc"].mean(),
+        "nested_se": by_repeat.sem(),
+        "repeat_spread": by_repeat.max() - by_repeat.min(),
+        "mean_inner_auc": per_fold["inner_auc"].mean(),
+        "optimism": per_fold["inner_auc"].mean() - per_fold["outer_auc"].mean(),
         "n_distinct_winners": per_fold["selected"].nunique(),
-    })
+    }).round(4)
     return per_fold, summary
 
 
@@ -254,27 +238,35 @@ def tune_lightgbm(X, y, cv=INNER_CV):
     base = _native_pipe(lgb.LGBMClassifier(
         n_estimators=300, class_weight="balanced", subsample=0.8, subsample_freq=1,
         colsample_bytree=0.7, min_child_samples=15, random_state=SEED, verbose=-1))
-    return GridSearchCV(base, grid, scoring="roc_auc", cv=cv, n_jobs=N_JOBS_OUTER).fit(X, y)
+    return GridSearchCV(base, grid, scoring="roc_auc", cv=cv, n_jobs=N_JOBS).fit(X, y)
 
 
 def permutation_significance(estimator, X, y, n_permutations=300, cv=INNER_CV):
-    """Compare the observed score against a shuffled-label null."""
+    """Observed score against a shuffled-label null."""
     score, null, p = permutation_test_score(
         estimator, X, y, cv=cv, scoring="roc_auc",
-        n_permutations=n_permutations, random_state=SEED, n_jobs=N_JOBS_OUTER)
+        n_permutations=n_permutations, random_state=SEED, n_jobs=N_JOBS)
     return {"observed_auc": round(score, 4), "null_mean": round(null.mean(), 4),
             "null_sd": round(null.std(), 4), "null_p95": round(np.percentile(null, 95), 4),
             "p_value": round(p, 4)}
 
 
+def best_f1_threshold(y, proba):
+    """Threshold maximising F1, read off the PR curve's own breakpoints."""
+    precision, recall, thresholds = precision_recall_curve(y, proba)
+    total = precision + recall
+    f1 = np.divide(2 * precision * recall, total, out=np.zeros_like(total),
+                   where=total > 0)[:-1]
+    best = int(f1.argmax())
+    return float(thresholds[best]), float(f1[best])
+
+
 def oof_threshold(estimator, X, y, cv=INNER_CV):
     """Pick the decision threshold out-of-fold. Returns (threshold, f1, proba)."""
     proba = cross_val_predict(estimator, X, y, cv=cv, method="predict_proba",
-                              n_jobs=N_JOBS_OUTER)[:, 1]
-    grid = np.linspace(0.05, 0.95, 91)
-    scores = [f1_score(y, proba >= t, zero_division=0) for t in grid]
-    best = int(np.argmax(scores))
-    return round(float(grid[best]), 3), round(scores[best], 4), proba
+                              n_jobs=N_JOBS)[:, 1]
+    threshold, f1 = best_f1_threshold(y, proba)
+    return round(threshold, 3), round(f1, 4), proba
 
 
 def save_model(model, name):

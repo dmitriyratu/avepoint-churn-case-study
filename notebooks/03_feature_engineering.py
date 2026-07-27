@@ -10,10 +10,10 @@
 #    after the cutoff are censored even when the row itself predates it.
 # 2. **Nothing derived from `churn_events` becomes a feature.** Those columns
 #    describe the outcome. See `docs/DATA_DICTIONARY.md`.
-# 3. **A 30-day buffer separates the last observable day from the first day a
-#    churn can count.** Without it a model keys on the collapse in activity that
-#    happens days before someone leaves — accurate and useless. See the
-#    sensitivity analysis at the end of this notebook.
+#
+# The primary framing is a 90-day horizon with **no buffer** — score today, act
+# today, which is the standard default. A buffer demands lead time instead, and
+# both dials are swept at the end of this notebook rather than assumed.
 #
 # Feature families follow the standard churn taxonomy (`docs/FEATURE_ENGINEERING.md`):
 #
@@ -26,25 +26,23 @@
 # | **Trend** | fitted slope over weekly activity |
 # | **Regularity** | gaps between active days — rhythm, not just volume |
 # | **Support** | ticket load and its trend |
-# | **Account** | industry, country, referral, plan tier, seats |
+# | **Account** | industry, country, referral, plan tier, `latest_seats` |
 #
 # The level tells you how big an account is. The differences between windows tell
 # you where it is heading, which is what a churn model needs.
 
 # %%
 import sys
-sys.path.append("..")
+sys.path.insert(0, "..")
 
-import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
 warnings.filterwarnings("ignore")
 
-from src import pipeline
+from src import pipeline, robustness
 from src.features import subscription_features, support_features, usage_features
-from src.config import CUTOFF_DATE
+from src.config import CUTOFF_DATE, HORIZON_DAYS
 
 sns.set_theme(style="whitegrid", palette="muted")
 
@@ -132,9 +130,9 @@ print(f"pruned: {data.dropped}")
 print(f"events per variable: {y.sum()/X.shape[1]:.2f}   (want >= 10)")
 
 # %% [markdown]
-# 1.16 events per variable is severely under-powered. This is the number that
-# predicts the modelling result in notebook 04: with 62 raw columns (75 after
-# in-fold encoding) and 88 positives, regularisation matters more than capacity.
+# Well under one event per variable — severely under-powered, and the number
+# that predicts the modelling result in notebook 04. With this many columns and
+# this few positives, regularisation matters more than capacity.
 
 # %% [markdown]
 # ## Missing values: three meanings, three treatments
@@ -154,8 +152,9 @@ print("rates   -> NaN, imputed inside the CV fold by model._pipe")
 # %% [markdown]
 # ## Association with the target
 #
-# Reported here for orientation only — feature *selection* is done by the L1
-# penalty inside cross-validation, not by picking winners off this list.
+# Reported here for orientation only — nothing is selected off this list.
+# Regularisation inside cross-validation decides what the model leans on, and
+# the selected rung is L2, which shrinks rather than drops.
 
 # %%
 from src.audit import encode_for_audit
@@ -170,7 +169,7 @@ fig, ax = plt.subplots(figsize=(8, 6))
 vals = corr[top]
 vals.plot(kind="barh", ax=ax, color=["salmon" if v > 0 else "steelblue" for v in vals])
 ax.axvline(0, color="black", lw=.8)
-ax.set_title("Top 15 features by |correlation| with 180-day churn")
+ax.set_title(f"Top 15 features by |correlation| with {HORIZON_DAYS}-day churn")
 ax.set_xlabel("Pearson r")
 plt.tight_layout()
 plt.savefig("../outputs/figures/03_feature_correlations.png", bbox_inches="tight")
@@ -191,65 +190,98 @@ df.to_csv("../data/processed/features_temporal.csv", index=False)
 print(f"saved features_temporal.csv  {df.shape}")
 
 # %% [markdown]
-# ## The buffer, and why it decides everything
+# ## The two design dials
 #
-# Standard practice puts a gap between the last observable day and the first day
-# a churn counts. The reason: without it, a model learns the collapse in activity
-# that happens immediately before someone leaves. That scores well and arrives
-# too late to act on.
+# Two choices decide what question is being asked, and both have to be swept
+# rather than assumed:
 #
-# This sweep is the most important result in the project.
+# - **Horizon** — how far forward the label looks. "Churn in the next N days."
+# - **Buffer** — how much lead time the model must give. Zero is the standard
+#   default (score today, act today). A non-zero buffer pulls the feature cutoff
+#   back, forcing the model to warn *before* the customer is visibly leaving.
+#   Accounts that churn during the buffer drop out, which is the point: at
+#   scoring time nobody could have acted on them.
+#
+# Computed here rather than read from a file. An earlier version of this
+# notebook loaded a committed CSV; when the cohort definition changed, the CSV
+# went on reporting the old population and nothing caught it.
+#
+# Each cell carries an interval but **no permutation test**. Twelve p-values,
+# with the smallest one highlighted, is the same selection error notebook 09 is
+# about: under a true null the minimum of twelve is small by construction. The
+# significance test is run once, below, on the pre-specified primary cell.
 
 # %%
-sens = pd.read_csv("../outputs/reports/buffer_sensitivity.csv")
-print(sens.to_string(index=False))
+sweep = robustness.horizon_buffer_sweep()
+print(sweep.to_string(index=False))
+sweep.to_csv("../outputs/reports/horizon_buffer_sweep.csv", index=False)
 
 # %%
-fig, ax1 = plt.subplots(figsize=(8, 4.5))
-ax1.plot(sens["buffer_days"], sens["cv_auc"], marker="o", color="#264653", label="CV ROC-AUC")
-ax1.fill_between(sens["buffer_days"], sens["ci_lo"], sens["ci_hi"], alpha=.15, color="#264653")
-ax1.axhline(0.5, ls="--", c="r", alpha=.6, label="chance")
-ax1.set_xlabel("buffer (days of lead time required)")
-ax1.set_ylabel("CV ROC-AUC")
-ax2 = ax1.twinx()
-ax2.plot(sens["buffer_days"], sens["perm_p"], marker="s", ls=":", color="#e76f51", label="permutation p")
-ax2.axhline(0.05, ls=":", c="#e76f51", alpha=.5)
-ax2.set_ylabel("permutation p-value")
-ax1.set_title("Signal disappears once the model must be actionable")
-ax1.legend(loc="upper right")
+fig, ax = plt.subplots(figsize=(8.5, 4.5))
+for buffer, group in sweep.groupby("buffer"):
+    ax.errorbar(group["horizon"], group["cv_auc"],
+                yerr=[group["cv_auc"] - group["ci_lo"],
+                      group["ci_hi"] - group["cv_auc"]],
+                marker="o", capsize=3, label=f"buffer {buffer}d")
+ax.axhline(0.5, ls="--", c="r", alpha=.6, label="chance")
+ax.set(xlabel="horizon (days)", ylabel="CV ROC-AUC",
+       title="Every interval spans chance, at every horizon and lead time")
+ax.legend(fontsize=8)
 plt.tight_layout()
-plt.savefig("../outputs/figures/03_buffer_sensitivity.png", bbox_inches="tight")
+plt.savefig("../outputs/figures/03_horizon_buffer_sweep.png", bbox_inches="tight")
 plt.show()
 
+# %%
+clears = sweep[sweep["ci_lo"] > 0.5]
+print(f"cells whose interval clears chance: {len(clears)} of {len(sweep)}")
+print(f"AUC range across the grid          : {sweep['cv_auc'].min():.3f} "
+      f"to {sweep['cv_auc'].max():.3f}")
+print(f"typical half-width of one interval : "
+      f"{((sweep['ci_hi'] - sweep['ci_lo']) / 2).mean():.3f}")
+print("\n-> The spread across twelve design choices is smaller than the "
+      "uncertainty\n   in measuring any one of them.")
+
 # %% [markdown]
-# **Read this carefully.** At buffer = 0 the model beats chance (p = 0.025). At
-# 15 days it does not (p = 0.25), and it never recovers.
+# ### The one significance test, on the pre-specified cell
 #
-# So the earlier 0.618 was not a weak-but-real churn model. It was a detector for
-# customers who had effectively already left. On this dataset there is **no
-# actionable churn signal at a realistic intervention horizon**.
-#
-# The project defaults to a 30-day buffer because that is the question the
-# business actually has, and the honest answer to it is "not from this data."
+# 90-day horizon, no buffer — the project's primary framing, chosen because it
+# is the standard SaaS formulation, not because it scored well.
+
+# %%
+primary = robustness.primary_significance(X, y)
+for k, v in primary.items():
+    print(f"  {k:14s} {v}")
+
+# %% [markdown]
+# Two caveats that have to travel with that number. It holds the **model** fixed,
+# and the model was chosen as the top of a ten-rung ladder — notebook 04's nested
+# CV is the estimate that accounts for that. And the short-horizon cells above are
+# **underpowered rather than proven null**: at 30 days there are too few positives
+# to detect a modest effect, so "no signal" is not what that row says.
+
+# %%
+short = sweep.query("horizon == 30 and buffer == 0").iloc[0]
+print(f"30-day horizon, no buffer: {int(short['positives'])} positives "
+      f"in {int(short['n'])} accounts ({short['rate']:.1%})")
+print("Too few events to distinguish a modest effect from nothing.")
 
 # %% [markdown]
 # ## Did the richer feature families help?
 #
 # The window ladder, acceleration ratios, trend slope, gap statistics and MRR
-# volatility added roughly twenty features.
+# volatility added roughly twenty features. Measured against the set without
+# them, on identical folds.
+
+# %%
+comparison, enriched_cols = robustness.feature_set_comparison(X, y)
+print(comparison.to_string(index=False))
+print(f"\nenriched families contribute {len(enriched_cols)} of {X.shape[1]} columns")
+comparison.to_csv("../outputs/reports/feature_set_comparison.csv", index=False)
 
 # %% [markdown]
-# | Configuration | CV ROC-AUC |
-# |---|---:|
-# | 30-day buffer, original features | 0.551 |
-# | 30-day buffer, enriched features | **0.548** |
-#
-# They bought nothing — slightly negative, within noise. With 74 positives, extra
-# columns cost more in variance than they return, and L1 shrinks to three terms
-# either way.
-#
-# That is worth stating plainly rather than quietly keeping the bigger set: the
-# binding constraint here is **data, not feature engineering**. 168 accounts, 74
-# positives, usage logs where 19,128 of 24,979 rows predate their own
-# subscription, and a `churn_flag` that disagrees with the event log for 62% of
-# accounts. No feature work fixes any of that.
+# Reporting this rather than quietly keeping the richer set is the point. At this
+# many positives, extra columns cost about as much in variance as they return in
+# signal — so the binding constraint is **data, not feature engineering**. The
+# usage logs have 19,128 of 24,979 rows predating their own subscription, and
+# `churn_flag` disagrees with the event log for 62% of accounts. No feature work
+# fixes either.

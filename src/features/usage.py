@@ -33,8 +33,8 @@ def usage_features(usage, subs, as_of=CUTOFF_DATE):
         trailing(u, WINDOWS, "active_days_last", column="usage_date"),
     ], axis=1)
 
-    # Acceleration: recent rate against the account's own longer-run baseline.
-    # Length-normalised so windows of different sizes compare fairly.
+    # Recent rate against the account's own baseline, length-normalised so
+    # windows of different sizes compare fairly.
     for short, long in [(30, 90), (30, 180), (90, 180)]:
         feats[f"accel_{short}d_vs_{long}d"] = safe_div(
             feats[f"usage_last_{short}d"] / short, feats[f"usage_last_{long}d"] / long)
@@ -51,11 +51,11 @@ def usage_features(usage, subs, as_of=CUTOFF_DATE):
     weekly = recent.groupby(["account_id", "week"]).size().rename("n").reset_index()
     feats["usage_trend_slope"] = group_slope(weekly, "account_id", "week", "n")
 
-    # Rhythm: two accounts with equal volume but different spacing are different
-    # risks.
+    # Rhythm: equal volume spread differently is a different risk.
     days = (u[["account_id", "days_ago"]].drop_duplicates()
             .sort_values(["account_id", "days_ago"]))
     gaps = days.groupby("account_id")["days_ago"].diff()
-    feats[["mean_gap_days", "max_gap_days"]] = gaps.groupby(days["account_id"]).agg(["mean", "max"])
+    feats[["mean_gap_days", "max_gap_days"]] = (
+        gaps.groupby(days["account_id"]).agg(["mean", "max"]))
 
     return feats

@@ -15,10 +15,9 @@
 
 # %%
 import sys
-sys.path.append("..")
+sys.path.insert(0, "..")
 
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
@@ -28,7 +27,7 @@ from sklearn.model_selection import cross_val_score
 
 from src import pipeline
 from src.features import build_model_dataset
-from src.model import prep_xy, model_ladder, CV
+from src.model import prep_xy, model_ladder, scale_pos_weight, CV
 from src.config import CUTOFF_DATE, POST_OUTCOME_COLS
 import src.model as model_module
 
@@ -36,7 +35,10 @@ sns.set_theme(style="whitegrid")
 
 data = pipeline.build()
 tables, observed, cohort = data.tables, data.observed, data.cohort
-_, estimator = model_ladder()[4]
+
+# The same rung the project ships, so design A is directly comparable with the
+# headline in notebook 04 rather than being a different model's score.
+_, estimator = model_ladder(scale_pos_weight(data.y))[2]
 
 
 def score(df):
@@ -88,16 +90,39 @@ plt.show()
 
 # %% [markdown]
 # **Design C is the one that matters.** `n_churn_events`, `total_refund_usd` and
-# `had_reactivation` reconstruct the label almost exactly — a refund is issued
-# *because* the customer left — and the model goes to near-perfect.
+# `had_reactivation` partly reconstruct the label — a refund is issued *because*
+# the customer left — and the score jumps from indistinguishable-from-chance to
+# clearly above it.
 #
-# That is the signature worth recognising: an AUC near 1.0 on a churn problem is
-# a bug report, not a result. `config.POST_OUTCOME_COLS` excludes these columns
-# and `model.prep_xy` drops them unconditionally.
+# Read C against **B**, not against A: C is built on B's frame, so the difference
+# between them isolates what the outcome columns alone are worth.
+
+# %%
+print(f"  A correct                       {design_a.mean():.4f}")
+print(f"  B + post-cutoff rows            {design_b.mean():.4f}   "
+      f"({design_b.mean() - design_a.mean():+.4f} vs A)")
+print(f"  C + outcome columns             {design_c.mean():.4f}   "
+      f"({design_c.mean() - design_b.mean():+.4f} vs B — the outcome columns alone)")
+
+# %% [markdown]
+# Two things worth taking from this.
 #
-# Design B barely moves. Seeing post-cutoff rows adds mostly noise here, which is
-# a useful reminder that leakage is not always *helpful* to the model — it is
-# simply invalid.
+# **Leakage is not always *helpful*, and that is the trap.** Design B — allowed to
+# see rows dated after the cutoff — scores *below* A. Post-cutoff rows here add
+# mostly noise, so a leak of this kind would not announce itself with a suspicious
+# score. It is invalid whether or not it flatters the model, which is why the
+# defence has to be structural (`truncate_tables`) rather than "watch for a number
+# that looks too good".
+#
+# **How big a jump should trigger a hunt?** Not "near 1.0" — that is the easy
+# case. Here the outcome columns are worth roughly +0.37, taking a model from
+# below chance to well above it, and 0.79 is not an implausible-looking AUC for a
+# churn model. A leak that lands at 0.79 is far more dangerous than one that lands
+# at 0.99, because only the second one is obviously wrong.
+#
+# `config.POST_OUTCOME_COLS` excludes these columns by name and `model.prep_xy`
+# drops them unconditionally, precisely because the statistical signature is not
+# reliable enough to depend on.
 
 # %% [markdown]
 # ## Why the label had to be redefined
@@ -127,9 +152,10 @@ print(pd.crosstab(accounts["churn_flag"], has_event.rename("has_churn_event")))
 # %% [markdown]
 # ## Where this leaves the project
 #
-# - Post-outcome leakage is worth **+0.45 AUC** here, and is excluded.
+# - Post-outcome columns are worth roughly **+0.37 AUC**, and are excluded by
+#   name rather than by threshold.
 # - The label is internally inconsistent for 62% of accounts.
-# - Once a realistic intervention buffer is required, no configuration beats
-#   chance — see the sensitivity sweep in `03_feature_engineering.py`.
+# - Requiring any realistic intervention lead time drops every horizon to chance
+#   or below — see the horizon/buffer sweep in `03_feature_engineering.py`.
 #
 # Full audit gates run in `07_leakage_audit.py`.

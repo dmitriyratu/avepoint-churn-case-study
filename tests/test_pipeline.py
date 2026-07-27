@@ -1,9 +1,8 @@
 """Invariants that must hold for any cutoff, horizon, or buffer.
 
-Most of the bugs in this project's history were leaks and point-in-time errors
-that looked fine in review and produced plausible numbers. These tests assert the
-properties that would have caught them, so a future change cannot reintroduce
-them silently.
+Most bugs in this project's history were leaks and point-in-time errors that
+looked fine in review and produced plausible numbers. These assert the
+properties that would have caught them.
 
     pytest tests/ -q
 """
@@ -16,10 +15,11 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from src import audit, pipeline
-from src.config import (CUTOFF_DATE, HORIZON_DAYS, POINT_IN_TIME_UNSAFE_COLS,
+from src import audit, pipeline, robustness
+from src.config import (HORIZON_DAYS, POINT_IN_TIME_UNSAFE_COLS,
                         POST_OUTCOME_COLS, PREDICTION_START, TARGET)
-from src.labeling import build_cohort, first_churn_date, truncate_tables
+from src.labeling import (at_risk_accounts, build_cohort, cohort_summary,
+                          first_churn_date, truncate_tables)
 from src.model import prep_xy, scale_pos_weight
 
 ALT_CUTOFFS = [pd.Timestamp("2024-03-31"), pd.Timestamp("2024-06-30")]
@@ -80,10 +80,8 @@ def test_no_account_already_churned_before_the_window_opens(data):
 
 def test_every_cohort_account_is_at_risk(data):
     """At risk means holding a subscription open at the cutoff."""
-    subs = data.tables["subscriptions"]
-    live = subs[(subs["start_date"] < data.cutoff)
-                & (subs["end_date"].isna() | (subs["end_date"] >= data.cutoff))]
-    assert data.cohort["account_id"].isin(live["account_id"]).all()
+    live = at_risk_accounts(data.tables["subscriptions"], data.cutoff)
+    assert data.cohort["account_id"].isin(live).all()
 
 
 def test_buffer_shifts_the_window_not_the_features():
@@ -175,3 +173,69 @@ def test_build_is_deterministic():
 def test_verify_flag_asserts_the_audit():
     """build(verify=True) must not return a dataset that fails the suite."""
     assert pipeline.build(verify=True) is not None
+
+
+# --------------------------------------------------------------------------
+# Reporting honesty
+# --------------------------------------------------------------------------
+
+def test_summary_describes_the_cohort_actually_built():
+    """The summary must reflect its arguments, not the configured default.
+
+    It used to read `BUFFER_DAYS` straight from config, so every row of the
+    buffer sweep reported a buffer of zero regardless of the cutoff used.
+    """
+    start = PREDICTION_START
+    cutoff = start - pd.Timedelta(days=30)
+    cohort = build_cohort(pipeline.clean_all(pipeline.load_all()), cutoff=cutoff,
+                          prediction_start=start)
+    summary = cohort_summary(cohort, cutoff, HORIZON_DAYS, start)
+
+    assert summary["buffer_days"] == 30
+    assert summary["feature_cutoff"] == str(cutoff.date())
+    assert summary["prediction_start"] == str(start.date())
+
+
+# --------------------------------------------------------------------------
+# Rolling-origin pooling
+# --------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def pooled():
+    cutoffs = robustness.rolling_origin_cutoffs(n=3)
+    return cutoffs, robustness.pooled_dataset(cutoffs)
+
+
+def test_pooling_adds_rows_without_duplicating_account_cutoff_pairs(data, pooled):
+    cutoffs, (X_pool, y_pool, groups) = pooled
+
+    assert len(X_pool) > len(data.X), "pooling should add rows"
+    assert len(X_pool) == len(y_pool) == len(groups)
+    # An account may appear once per cutoff, never twice within one.
+    assert groups.value_counts().max() <= len(cutoffs)
+
+
+def test_pooled_columns_are_shared_across_every_cutoff(pooled):
+    """Pooling must not silently align frames with different column sets."""
+    cutoffs, (X_pool, _, _) = pooled
+    for cutoff in cutoffs:
+        built = pipeline.build(cutoff=cutoff, prediction_start=cutoff,
+                               horizon_days=HORIZON_DAYS, prune=False)
+        assert set(X_pool.columns) <= set(built.X.columns)
+
+
+def test_grouping_by_account_is_not_a_no_op(pooled):
+    """If accounts never recurred across cutoffs, grouping would prove nothing."""
+    _, (_, _, groups) = pooled
+    assert (groups.value_counts() > 1).any(), (
+        "no account appears at more than one cutoff — grouped CV would be "
+        "equivalent to ungrouped, and the pooling result would not need it")
+
+
+def test_enriched_feature_split_is_a_strict_subset(data):
+    """The baseline/enriched comparison must actually remove something."""
+    enriched = [c for c in data.X.columns
+                if c.startswith(robustness.ENRICHED_PREFIXES)
+                or c in robustness.ENRICHED_NAMES]
+    assert enriched, "the enriched-family split matched no columns"
+    assert set(enriched) < set(data.X.columns), "it must not match everything"

@@ -14,10 +14,8 @@
 
 # %%
 import sys
-sys.path.append("..")
+sys.path.insert(0, "..")
 
-import pandas as pd
-import numpy as np
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -53,13 +51,13 @@ assert tp["pass"].all(), "temporal provenance violated"
 # %% [markdown]
 # `labeling.truncate_tables` now censors those fields rather than dropping the
 # rows — the ticket *existing* before the cutoff is legitimate information; only
-# its resolution is not.
+# its resolution is not. `ticket_open_at_cutoff` replaces the lost signal with
+# something genuinely observable.
 #
-# Measured when it was fixed, censoring moved CV AUC from 0.635 to 0.611. A leak
-# that only costs 0.024 is still a leak, and it is the kind that scales badly: on
-# real data where support outcomes are more predictive, the same bug would inflate
-# the score much more. (The current headline figure is 0.618 — a later change moved
-# one-hot encoding in-fold, which is independent of this fix.)
+# The leak was small here — only 5 tickets — but it is the kind that scales
+# badly. On real data where support outcomes are more predictive, the same
+# pipeline bug would inflate the score much more, and nothing about the code
+# would look different.
 
 # %% [markdown]
 # ## Gate 2 — Single-feature AUC
@@ -78,15 +76,29 @@ print(f"\nmax {sf['auc'].max():.4f} | warn {(sf['verdict'].str.startswith('WARN'
 # Nothing exceeds 0.65. Compare against the excluded post-outcome columns:
 
 # %%
+from sklearn.metrics import roc_auc_score
+from src.config import TARGET
+
 ce = tables["churn_events"].groupby("account_id").agg(
     n_churn_events=("churn_event_id", "count"),
     total_refund_usd=("refund_amount_usd", "sum")).reset_index()
-probe = cohort[["account_id", "churned_next_90d"]].merge(ce, on="account_id", how="left").fillna(0)
+probe = cohort[["account_id", TARGET]].merge(ce, on="account_id", how="left").fillna(0)
 for c in ["n_churn_events", "total_refund_usd"]:
-    from sklearn.metrics import roc_auc_score
-    a = roc_auc_score(probe["churned_next_90d"], probe[c])
-    print(f"  {c:20s} single-feature AUC = {max(a, 1-a):.4f}   <- would trip the FAIL gate")
+    a = roc_auc_score(probe[TARGET], probe[c])
+    auc = max(a, 1 - a)
+    verdict = ("would trip the FAIL gate" if auc >= audit.SINGLE_FEATURE_AUC_FAIL
+               else "below the FAIL gate — excluded by name, not by statistic")
+    print(f"  {c:20s} single-feature AUC = {auc:.4f}   <- {verdict}")
 print(f"\nExcluded via config.POST_OUTCOME_COLS = {POST_OUTCOME_COLS}")
+
+# %% [markdown]
+# Worth noting which of those two the statistical gate would actually have
+# caught. `n_churn_events` is far over the threshold and obvious.
+# `total_refund_usd` is not — it sits well below 0.80 and would have sailed
+# through, despite being a column that only exists *because* the customer left.
+#
+# That is the argument for `audit.forbidden_columns`: a leak is defined by
+# provenance, not by how strongly it happens to predict in this sample.
 
 # %% [markdown]
 # ## Gates 3-6 — separation, identifiers, duplicates, constants
@@ -126,7 +138,7 @@ print(audit.missingness_report(raw).to_string(index=False))
 # %%
 from src.model import model_ladder
 print("Every rung imputes inside the fold:")
-print(" ", model_ladder()[4][1].named_steps)
+print(" ", model_ladder()[2][1].named_steps)
 
 # %% [markdown]
 # ### NaN does not mean zero
@@ -182,23 +194,27 @@ assert passed, "leakage audit failed"
 # %% [markdown]
 # ## Where this leaves the result
 #
-# After censoring, the honest numbers are:
+# The suite passes, which is a statement about *validity*, not about quality. It
+# says the number in notebook 04 is not inflated by anything this project knows
+# how to detect — nothing more.
 #
-# | | |
-# |---|---|
-# | CV ROC-AUC (L1 logistic) | **0.618** [0.50, 0.74] |
-# | Permutation test | p = **0.013** |
-# | Out-of-fold recall @ t=0.40 | 0.943 |
-# | Out-of-fold precision | 0.494 |
-# | Features retained by L1 | 5 |
+# The headline figures live in `outputs/models/config.json` so they cannot drift
+# out of step with the run that produced them:
+
+# %%
+import json
+config = json.load(open("../outputs/models/config.json"))
+for key in ["model", "cohort_n", "positives", "cv_auc", "nested_cv_auc",
+            "permutation_p", "oof_recall", "oof_precision"]:
+    print(f"  {key:16s} {config[key]}")
+
+# %% [markdown]
+# **What I would actually recommend**: not to deploy this. The audit clearing is
+# necessary but nowhere near sufficient — the ladder maximum does not separate
+# from chance at the lower bound of its interval, and the nested estimate that
+# accounts for having chosen it sits at chance.
 #
-# This is a genuinely marginal model: it beats chance, but the lower end of the
-# interval sits right on 0.50. Censoring the leak cost real signal at the time it
-# was applied; the figure recovered later for an unrelated reason (in-fold
-# encoding), not because the leak came back.
-#
-# **What I would actually recommend**: this is a triage ranker for CSM outreach,
-# not an automated action trigger. At 94% recall and 49% precision it is useful
-# for ordering a call list where the cost of a wasted call is low. It is not
-# usable for anything with a real cost attached to a false positive, and I would
-# say so before anyone asked.
+# The audit's real value here is different and worth stating plainly: it is what
+# lets me say the near-chance result is a fact about the data rather than a bug
+# in the pipeline. A negative result you cannot trust is worthless; this one is
+# gated.

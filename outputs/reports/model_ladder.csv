@@ -4,8 +4,8 @@ model,roc_auc_mean,sd,ci_lo,ci_hi
 "2. Logistic (L2, C=1)",0.5829,0.0975,0.3651,0.7507
 "3. Logistic (L2, C=0.05)",0.5646,0.0936,0.3953,0.765
 "4. Logistic (L1, C=0.1)",0.536,0.0925,0.3915,0.6911
-5. Random forest (depth 4),0.551,0.0888,0.4145,0.7365
+5. Random forest (depth 4),0.5501,0.0986,0.4077,0.742
 6. LightGBM (pipelined),0.5432,0.0858,0.4,0.7259
 7. LightGBM (native NaN + categoricals),0.5439,0.0921,0.3769,0.7655
-8. XGBoost (native NaN + categoricals),0.5679,0.0849,0.4364,0.7219
+8. XGBoost (native NaN + categoricals),0.5691,0.0885,0.4335,0.7382
 9. HistGradientBoosting (native NaN),0.552,0.0978,0.3309,0.7318
