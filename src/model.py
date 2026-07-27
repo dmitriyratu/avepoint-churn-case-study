@@ -13,6 +13,7 @@ from pathlib import Path
 
 import joblib
 import lightgbm as lgb
+import xgboost as xgb
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.dummy import DummyClassifier
@@ -36,6 +37,10 @@ MODELS_DIR.mkdir(parents=True, exist_ok=True)
 CV = RepeatedStratifiedKFold(n_splits=5, n_repeats=10, random_state=42)
 INNER_CV = StratifiedKFold(5, shuffle=True, random_state=42)
 SEED = 42
+
+# XGBoost has no class_weight; scale_pos_weight is the equivalent lever. Set from
+# the cohort's own ratio rather than hardcoded.
+SCALE_POS_WEIGHT = 2.28
 
 LGBM_PARAMS = dict(n_estimators=250, learning_rate=0.03, num_leaves=7, max_depth=3,
                    min_child_samples=15, subsample=0.8, subsample_freq=1,
@@ -157,7 +162,13 @@ def model_ladder():
          _pipe(lgb.LGBMClassifier(**LGBM_PARAMS), scale=False)),
         ("7. LightGBM (native NaN + categoricals)",
          _native_pipe(lgb.LGBMClassifier(**LGBM_PARAMS))),
-        ("8. HistGradientBoosting (native NaN)",
+        ("8. XGBoost (native NaN + categoricals)",
+         _native_pipe(xgb.XGBClassifier(
+             n_estimators=250, learning_rate=0.03, max_depth=3, min_child_weight=5,
+             subsample=0.8, colsample_bytree=0.7, reg_lambda=5.0,
+             scale_pos_weight=SCALE_POS_WEIGHT, enable_categorical=True,
+             tree_method="hist", random_state=SEED, verbosity=0))),
+        ("9. HistGradientBoosting (native NaN)",
          _pipe(HistGradientBoostingClassifier(
              max_depth=3, max_leaf_nodes=7, learning_rate=0.03, max_iter=250,
              min_samples_leaf=15, l2_regularization=5.0,

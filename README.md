@@ -36,7 +36,8 @@ AvePoint/
 │   ├── 05_results_validation.py  # recommendations, deployment, monitoring, mentoring
 │   ├── 06_leakage_quantification.py   # what each form of leakage is worth
 │   ├── 07_leakage_audit.py   # automated leakage + cleaning gates
-│   └── 08_diagnostics.py     # error analysis, learning curves, why 0.58
+│   ├── 08_diagnostics.py     # error analysis, learning curves, why 0.58
+│   └── 09_classifier_sweep.py # 15-model sweep + selection-bias null
 ├── src/
 │   ├── config.py             # cutoff/buffer/horizon, leakage exclusion lists
 │   ├── load_data.py          # load the 5 raw tables
@@ -148,13 +149,14 @@ Model ladder, repeated stratified CV (5 folds × 10 repeats, identical folds):
 |------|-------|-----------|--------|
 | 0 | Prior (no features) | 0.500 | — |
 | 1 | Decision stump | 0.516 | [0.37, 0.64] |
-| **2** | **Logistic (L2, C=1)** | **0.581** | **[0.37, 0.75]** |
-| 3 | Logistic (L2, C=0.05) | 0.564 | [0.40, 0.77] |
-| 4 | Logistic (L1, C=0.1) | 0.537 | [0.39, 0.69] |
-| 5 | Random forest (depth 4) | 0.554 | [0.40, 0.75] |
-| 6 | LightGBM (pipelined) | 0.536 | [0.39, 0.74] |
-| 7 | LightGBM (native NaN + categoricals) | 0.536 | [0.40, 0.74] |
-| 8 | HistGradientBoosting (native NaN) | 0.552 | [0.33, 0.73] |
+| **2** | **Logistic (L2, C=1)** | **0.583** | **[0.37, 0.75]** |
+| 3 | Logistic (L2, C=0.05) | 0.565 | [0.40, 0.77] |
+| 4 | Logistic (L1, C=0.1) | 0.536 | [0.39, 0.69] |
+| 5 | Random forest (depth 4) | 0.551 | [0.41, 0.74] |
+| 6 | LightGBM (pipelined) | 0.543 | [0.40, 0.73] |
+| 7 | LightGBM (native NaN + categoricals) | 0.544 | [0.38, 0.77] |
+| 8 | XGBoost (native NaN + categoricals) | 0.568 | [0.44, 0.72] |
+| 9 | HistGradientBoosting (native NaN) | 0.552 | [0.33, 0.73] |
 
 **Giving the boosters a fair shot.** Routing LightGBM through the same
 `SimpleImputer` + `OneHotEncoder` as the linear models handicaps it: gradient
@@ -181,13 +183,18 @@ missed churner costs more than a wasted outreach call:
 
 | | |
 |---|---|
-| Recall | **0.704** |
-| Precision | 0.373 |
-| F1 | 0.487 |
+| Recall | **0.741** |
+| Precision | 0.374 |
+| F1 | 0.494 |
 | Base rate | 0.305 |
 
-**Permutation test** (300 label shuffles): **p = 0.103**. Not significant.
-Reported as-is rather than rounded in either direction.
+**Permutation test** (300 label shuffles, model held fixed): **p = 0.076**.
+
+**But that understates it.** The model was chosen as the top of a ten-rung
+ladder, and selecting a maximum is itself a fitting procedure. Simulating the
+selection (`notebooks/09_classifier_sweep.py`) puts the **selection-corrected
+p in the 0.2–0.3 range**. Quoting 0.076 without that caveat would be
+misleading — see below.
 
 ## Robustness — where this breaks
 
@@ -240,6 +247,35 @@ on a churn problem is a bug report, not a result.**
 
 At this sample size extra columns cost more in variance than they return. The
 binding constraint is **data, not features**.
+
+### The selection trap — why "run every classifier" misleads here
+
+The `caret` / **PyCaret** / **LazyPredict** approach — fit ~30 classifiers, report
+the winner — is a fast screen, but at 177 rows it manufactures results.
+`notebooks/09_classifier_sweep.py` measures how much.
+
+Fifteen classifiers under identical repeated CV, then the whole sweep repeated 20
+times **on shuffled labels**:
+
+| | CV ROC-AUC |
+|---|---:|
+| Individual model, shuffled labels | 0.498 |
+| **Best-of-15, shuffled labels** | **0.567** (max reached **0.624**) |
+| Observed best (AdaBoost) | 0.594 |
+| **Selection-corrected p** | **0.300** |
+
+The winner of the sweep is beaten by **30% of pure-noise runs**. LazyPredict's
+single-split best of **0.637** is the same trap one level worse — 53 test
+accounts, 16 positives, thirty tries.
+
+**This applies to our own headline too.** L2 logistic's p = 0.076 holds the model
+fixed, but it was picked as the argmax of a ten-rung ladder. The honest reading is
+0.2–0.3. The proper fix is nested CV with selection inside the outer loop, and
+that is the main methodological gap left in this project.
+
+The substantive conclusion survives, better supported: the spread across fifteen
+model families (0.520–0.594) is **smaller than the fold-to-fold noise within any
+one of them** (sd ≈ 0.090).
 
 ### Why 0.58 and not higher — diagnosed, not guessed
 

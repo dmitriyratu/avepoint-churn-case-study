@@ -7,4 +7,5 @@ model,roc_auc_mean,sd,ci_lo,ci_hi
 5. Random forest (depth 4),0.551,0.0888,0.4145,0.7365
 6. LightGBM (pipelined),0.5432,0.0858,0.4,0.7259
 7. LightGBM (native NaN + categoricals),0.5439,0.0921,0.3769,0.7655
-8. HistGradientBoosting (native NaN),0.552,0.0978,0.3309,0.7318
+8. XGBoost (native NaN + categoricals),0.5679,0.0849,0.4364,0.7219
+9. HistGradientBoosting (native NaN),0.552,0.0978,0.3309,0.7318
