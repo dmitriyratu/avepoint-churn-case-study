@@ -1,23 +1,18 @@
 """Temporal cohort construction.
 
-The original framing — aggregate every row a customer ever produced, then predict
-a static `churn_flag` — has no observation window. Activity generated *after* the
-customer left ends up in the feature vector (18.3% of usage rows in this dataset
-are dated after the account's last churn event), and the model is asked to
-"predict" something that already happened.
+    |<---- observation ---->|<- buffer ->|<---- prediction ---->|
+    ...                  cutoff    prediction_start        + horizon
+          features built here                    label defined here
 
-This module replaces that with the standard formulation:
-
-    features  <- data strictly before CUTOFF
-    label     <- first churn occurring in (CUTOFF, CUTOFF + HORIZON]
-    eligible  <- signed up before CUTOFF and not already churned at CUTOFF
-
-Nothing observable after CUTOFF can reach the feature matrix.
+Features come only from rows dated before the cutoff. The buffer is the lead
+time a retention team needs between a score landing and the customer leaving;
+without it a model keys on the collapse in activity that immediately precedes
+churn, which scores well and arrives too late to act on.
 """
-import pandas as pd
 import numpy as np
+import pandas as pd
 
-from .config import CUTOFF_DATE, HORIZON_DAYS, BUFFER_DAYS, PREDICTION_START
+from .config import BUFFER_DAYS, CUTOFF_DATE, HORIZON_DAYS, PREDICTION_START, TARGET
 
 
 def first_churn_date(churn_events):
@@ -25,90 +20,67 @@ def first_churn_date(churn_events):
 
 
 def build_cohort(tables, cutoff=CUTOFF_DATE, horizon_days=HORIZON_DAYS,
-                 prediction_start=None):
-    """Return the eligible accounts and their forward-looking label.
+                 prediction_start=PREDICTION_START):
+    """Accounts at risk at `prediction_start`, with their forward-looking label.
 
-    `prediction_start` defaults to cutoff + BUFFER_DAYS. Churn occurring inside
-    the buffer is neither a positive nor usable signal — those accounts are
-    dropped, because at scoring time we would have flagged them with no time
-    left to act.
+    Accounts that churned before the prediction window opens — including during
+    the buffer — are dropped: at scoring time we could not have acted on them.
     """
-    prediction_start = prediction_start or PREDICTION_START
-    acc = tables["accounts"]
-    fc = first_churn_date(tables["churn_events"])
     horizon_end = prediction_start + pd.Timedelta(days=horizon_days)
+    churned_on = tables["accounts"]["account_id"].map(first_churn_date(tables["churn_events"]))
 
-    cohort = acc[acc["signup_date"] < cutoff].copy()
-    cohort["first_churn_date"] = cohort["account_id"].map(fc)
+    cohort = tables["accounts"].assign(churned_on=churned_on)
+    cohort = cohort[(cohort["signup_date"] < cutoff)
+                    & ~(cohort["churned_on"] < prediction_start)]
 
-    # Not at risk during the prediction window: already gone before it opens.
-    # This also removes anyone who churned during the buffer.
-    cohort = cohort[~(cohort["first_churn_date"] < prediction_start)].copy()
-
-    cohort["churned_next_180d"] = (
-        cohort["first_churn_date"].between(prediction_start, horizon_end, inclusive="right")
-    ).astype(int)
-
-    return cohort.drop(columns=["first_churn_date"])
+    label = cohort["churned_on"].between(prediction_start, horizon_end, inclusive="right")
+    return cohort.assign(**{TARGET: label.astype(int)}).drop(columns="churned_on")
 
 
 def truncate_tables(tables, cutoff=CUTOFF_DATE):
-    """Clip every event table to the observation window (strictly before cutoff).
+    """Clip every table to the observation window.
 
-    Filtering a table on its *start* timestamp is not sufficient. A row that
-    began before the cutoff can still carry outcome fields resolved after it —
-    a support ticket opened in June and closed in July has a resolution time and
-    a satisfaction score that nobody could know at the end of June. Those fields
-    are censored here so the feature layer cannot see them.
+    Filtering on a row's start timestamp is not enough: a ticket opened in June
+    and closed in July still carries a resolution time and satisfaction score
+    that were unknowable at the end of June. Those fields are censored so the
+    feature layer cannot reach them.
     """
     subs = tables["subscriptions"]
-    subs_t = subs[subs["start_date"] < cutoff].copy()
-    # An end_date at or after the cutoff has not happened yet.
-    subs_t.loc[subs_t["end_date"] >= cutoff, "end_date"] = pd.NaT
+    subs = subs[subs["start_date"] < cutoff].copy()
+    subs.loc[subs["end_date"] >= cutoff, "end_date"] = pd.NaT
 
-    usage_t = tables["feature_usage"][tables["feature_usage"]["usage_date"] < cutoff].copy()
-    usage_t = usage_t[usage_t["subscription_id"].isin(subs_t["subscription_id"])]
+    usage = tables["feature_usage"]
+    usage = usage[(usage["usage_date"] < cutoff)
+                  & usage["subscription_id"].isin(subs["subscription_id"])]
 
-    tix_t = tables["support_tickets"][tables["support_tickets"]["submitted_at"] < cutoff].copy()
+    tix = tables["support_tickets"]
+    tix = tix[tix["submitted_at"] < cutoff].copy()
 
-    # Still open at the cutoff -> every resolution-time outcome is unknown.
-    still_open = tix_t["closed_at"].isna() | (tix_t["closed_at"] >= cutoff)
-    tix_t["ticket_open_at_cutoff"] = still_open.astype(int)
-    tix_t.loc[still_open, "closed_at"] = pd.NaT
-    tix_t.loc[still_open, ["resolution_time_hours", "satisfaction_score"]] = np.nan
+    still_open = tix["closed_at"].isna() | (tix["closed_at"] >= cutoff)
+    tix["ticket_open_at_cutoff"] = still_open.astype(int)
+    tix.loc[still_open, "closed_at"] = pd.NaT
+    tix.loc[still_open, ["resolution_time_hours", "satisfaction_score"]] = np.nan
 
-    # First response is a timestamp we only have as an offset; if it lands after
-    # the cutoff it is equally unknowable.
-    fr_at = tix_t["submitted_at"] + pd.to_timedelta(
-        tix_t["first_response_time_minutes"], unit="m"
-    )
-    tix_t.loc[fr_at >= cutoff, "first_response_time_minutes"] = np.nan
-
-    ce_t = tables["churn_events"][tables["churn_events"]["churn_date"] < cutoff].copy()
-
-    # The cohort already excludes later signups, but the invariant "nothing this
-    # function returns is dated at or after the cutoff" should hold on its own so
-    # the audit can assert it without exceptions.
-    acc_t = tables["accounts"][tables["accounts"]["signup_date"] < cutoff].copy()
+    responded_at = tix["submitted_at"] + pd.to_timedelta(tix["first_response_time_minutes"], "m")
+    tix.loc[responded_at >= cutoff, "first_response_time_minutes"] = np.nan
 
     return {
-        "accounts": acc_t,
-        "subscriptions": subs_t,
-        "feature_usage": usage_t,
-        "support_tickets": tix_t,
-        "churn_events": ce_t,
+        "accounts": tables["accounts"][tables["accounts"]["signup_date"] < cutoff],
+        "subscriptions": subs,
+        "feature_usage": usage,
+        "support_tickets": tix,
+        "churn_events": tables["churn_events"][tables["churn_events"]["churn_date"] < cutoff],
     }
 
 
 def cohort_summary(cohort, cutoff=CUTOFF_DATE, horizon_days=HORIZON_DAYS):
-    n = len(cohort)
-    pos = int(cohort["churned_next_180d"].sum())
+    positives = int(cohort[TARGET].sum())
     return pd.Series({
         "feature_cutoff": str(cutoff.date()),
         "buffer_days": BUFFER_DAYS,
         "prediction_start": str(PREDICTION_START.date()),
         "horizon_days": horizon_days,
-        "eligible_accounts": n,
-        "positives": pos,
-        "positive_rate": round(pos / n, 4) if n else np.nan,
+        "eligible_accounts": len(cohort),
+        "positives": positives,
+        "positive_rate": round(positives / len(cohort), 4) if len(cohort) else np.nan,
     })

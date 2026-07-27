@@ -1,161 +1,125 @@
-"""Automated leakage and data-quality gates.
+"""Leakage and data-quality gates.
 
-Reasoning about leakage catches the obvious cases; these tests catch the rest.
-The ticket-censoring leak in this project was found by `temporal_provenance`,
-not by reading the code.
-
-Every check returns a frame with a `pass` column so the suite can be asserted in
-CI rather than eyeballed.
+Each check returns a frame with a `pass` column so the suite can be asserted
+rather than eyeballed. `run_all` is called before any score is reported.
 """
 import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 
-# A single column that separates the classes this well is almost always leakage,
-# not a discovery.
 SINGLE_FEATURE_AUC_WARN = 0.70
 SINGLE_FEATURE_AUC_FAIL = 0.80
 COLLINEARITY_THRESHOLD = 0.95
+IDENTIFIER_AUC_MAX = 0.60
 
 
-def temporal_provenance(truncated_tables, cutoff):
-    """No row feeding a feature may carry a timestamp at or after the cutoff.
+def _auc(y, values):
+    """Direction-agnostic AUC — a perfectly inverted feature leaks just as much."""
+    score = roc_auc_score(y, values)
+    return round(max(score, 1 - score), 4)
+
+
+def encode_for_audit(X):
+    """Flat numeric view for the checks below. Never feeds a model."""
+    categorical = [c for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
+    return pd.get_dummies(X, columns=categorical, drop_first=True, dtype=int) if categorical else X
+
+
+def temporal_provenance(tables, cutoff):
+    """No datetime anywhere in the truncated tables may reach the cutoff.
 
     Checks every datetime column, not just the one used for filtering — a table
     filtered on `submitted_at` can still carry a `closed_at` in the future.
     """
-    rows = []
-    for tname, t in truncated_tables.items():
-        for c in t.columns:
-            if not pd.api.types.is_datetime64_any_dtype(t[c]):
-                continue
-            v = int((t[c] >= cutoff).sum())
-            rows.append({
-                "table": tname, "column": c,
-                "max_value": str(t[c].max())[:10],
-                "violations": v, "pass": v == 0,
-            })
-    return pd.DataFrame(rows)
-
-
-def encode_for_audit(X):
-    """One-hot encode for *diagnostic* purposes only.
-
-    The model pipeline encodes inside each fold; this is a flat view so the
-    numeric checks below can inspect every column. It never feeds a model.
-    """
-    cat = [c for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
-    if not cat:
-        return X
-    return pd.get_dummies(X, columns=cat, drop_first=True, dtype=int)
+    rows = [{"table": name, "column": col, "max_value": str(df[col].max())[:10],
+             "violations": int((df[col] >= cutoff).sum())}
+            for name, df in tables.items()
+            for col in df.columns if pd.api.types.is_datetime64_any_dtype(df[col])]
+    return pd.DataFrame(rows).assign(**{"pass": lambda d: d["violations"] == 0})
 
 
 def single_feature_auc(X, y):
-    """Rank columns by standalone discriminative power."""
+    """Standalone discriminative power. A lone strong column is usually the label."""
     X = encode_for_audit(X)
-    rows = []
-    for c in X.columns:
-        v = pd.to_numeric(X[c], errors="coerce").astype(float)
-        if v.notna().sum() == 0 or np.nanstd(v) == 0:
-            continue
-        v = v.fillna(v.median())
-        a = roc_auc_score(y, v)
-        rows.append({"feature": c, "auc": round(max(a, 1 - a), 4)})
+    usable = {c: pd.to_numeric(X[c], errors="coerce").astype(float) for c in X.columns}
+    rows = [{"feature": c, "auc": _auc(y, v.fillna(v.median()))}
+            for c, v in usable.items() if v.notna().any() and v.std() > 0]
+
     out = pd.DataFrame(rows).sort_values("auc", ascending=False).reset_index(drop=True)
-    out["verdict"] = np.where(out["auc"] >= SINGLE_FEATURE_AUC_FAIL, "FAIL — near-certain leak",
-                       np.where(out["auc"] >= SINGLE_FEATURE_AUC_WARN, "WARN — inspect", "ok"))
+    out["verdict"] = pd.cut(out["auc"], [0, SINGLE_FEATURE_AUC_WARN, SINGLE_FEATURE_AUC_FAIL, 1],
+                            labels=["ok", "WARN — inspect", "FAIL — near-certain leak"])
     return out
 
 
 def perfect_separation(X, y, max_levels=10):
-    """Low-cardinality columns where every level maps to exactly one class."""
-    rows = []
-    for c in X.columns:
-        u = X[c].nunique()
-        if 1 < u <= max_levels:
-            ct = pd.crosstab(X[c], y)
-            pure = ((ct > 0).sum(axis=1) == 1).all()
-            if pure:
-                rows.append({"feature": c, "levels": int(u), "pass": False})
-    return pd.DataFrame(rows) if rows else pd.DataFrame(columns=["feature", "levels", "pass"])
+    """Low-cardinality columns where every level maps to a single class."""
+    rows = [{"feature": c, "levels": int(X[c].nunique()), "pass": False}
+            for c in X.columns
+            if 1 < X[c].nunique() <= max_levels
+            and ((pd.crosstab(X[c], y) > 0).sum(axis=1) == 1).all()]
+    return pd.DataFrame(rows, columns=["feature", "levels", "pass"])
 
 
 def identifier_leakage(df, y, id_col="account_id"):
-    """Ids and row order must not predict the target."""
-    rows = []
+    """Ids and row order must carry no signal."""
+    rows = [{"probe": "row order", "auc": _auc(y, np.arange(len(y)))}]
     if id_col in df.columns:
-        num = df[id_col].astype(str).str.extract(r"([0-9a-fA-F]+)")[0]
-        num = num.apply(lambda s: int(s, 16) if isinstance(s, str) else np.nan)
-        if num.notna().any():
-            a = roc_auc_score(y, num.fillna(num.median()))
-            rows.append({"probe": f"{id_col} as integer", "auc": round(max(a, 1 - a), 4)})
-    a = roc_auc_score(y, np.arange(len(y)))
-    rows.append({"probe": "row order", "auc": round(max(a, 1 - a), 4)})
-    out = pd.DataFrame(rows)
-    out["pass"] = out["auc"] < 0.60
-    return out
+        as_int = (df[id_col].astype(str).str.extract(r"([0-9a-fA-F]+)")[0]
+                  .map(lambda s: int(s, 16) if isinstance(s, str) else np.nan))
+        if as_int.notna().any():
+            rows.insert(0, {"probe": f"{id_col} as integer",
+                            "auc": _auc(y, as_int.fillna(as_int.median()))})
+    return pd.DataFrame(rows).assign(**{"pass": lambda d: d["auc"] < IDENTIFIER_AUC_MAX})
 
 
 def duplicate_rows(X, df=None, id_col="account_id"):
     rows = [{"check": "identical feature vectors", "n": int(X.duplicated().sum())}]
     if df is not None and id_col in df.columns:
         rows.append({"check": f"duplicate {id_col}", "n": int(df[id_col].duplicated().sum())})
-    out = pd.DataFrame(rows)
-    out["pass"] = out["n"] == 0
-    return out
+    return pd.DataFrame(rows).assign(**{"pass": lambda d: d["n"] == 0})
 
 
 def collinear_pairs(X, threshold=COLLINEARITY_THRESHOLD):
-    num = encode_for_audit(X).select_dtypes(include=[np.number])
-    cm = num.corr().abs()
-    cols = list(cm.columns)
-    rows = []
-    for i, a in enumerate(cols):
-        for b in cols[i + 1:]:
-            v = cm.loc[a, b]
-            if pd.notna(v) and v > threshold:
-                rows.append({"feature_a": a, "feature_b": b, "abs_r": round(float(v), 4)})
-    return pd.DataFrame(rows).sort_values("abs_r", ascending=False) if rows else \
-        pd.DataFrame(columns=["feature_a", "feature_b", "abs_r"])
+    corr = encode_for_audit(X).select_dtypes(include=[np.number]).corr().abs()
+    pairs = (corr.where(np.triu(np.ones(corr.shape), k=1).astype(bool))
+             .stack().rename("abs_r").reset_index())
+    pairs.columns = ["feature_a", "feature_b", "abs_r"]
+    return (pairs[pairs["abs_r"] > threshold]
+            .sort_values("abs_r", ascending=False).round(4).reset_index(drop=True))
 
 
 def constant_columns(X):
     rows = [{"feature": c, "n_unique": int(X[c].nunique())}
             for c in X.columns if X[c].nunique() <= 1]
-    return pd.DataFrame(rows) if rows else pd.DataFrame(columns=["feature", "n_unique"])
+    return pd.DataFrame(rows, columns=["feature", "n_unique"])
 
 
 def missingness_report(tables, structural=None):
-    """Per-column missingness with an explicit disposition.
+    """Per-column missingness with a disposition keyed on cause, not percentage.
 
-    `structural` names columns where NaN encodes a real state rather than an
-    absent measurement — `subscriptions.end_date` is 90% null because those
-    subscriptions are still open, which is information, not a gap.
+    `structural` names columns where NaN encodes a real state: a null
+    `end_date` means the subscription is still open, which is information.
     """
     structural = structural or {"subscriptions": ["end_date"]}
-    rows = []
-    for tname, t in tables.items():
-        for c in t.columns:
-            pct = float(t[c].isna().mean() * 100)
-            if pct == 0:
-                continue
-            if c in structural.get(tname, []):
-                disp = "structural — NaN is a state, encode as a flag"
-            elif pct > 60:
-                disp = "drop — too sparse to impute honestly"
-            elif pct > 20:
-                disp = "impute in-fold + missing indicator"
-            else:
-                disp = "impute in-fold"
-            rows.append({"table": tname, "column": c,
-                         "missing_pct": round(pct, 1), "disposition": disp})
+
+    def disposition(table, column, pct):
+        if column in structural.get(table, []):
+            return "structural — NaN is a state, encode as a flag"
+        if pct > 60:
+            return "drop — too sparse to impute honestly"
+        return "impute in-fold" + (" + missing indicator" if pct > 20 else "")
+
+    rows = [{"table": name, "column": col, "missing_pct": round(pct, 1),
+             "disposition": disposition(name, col, pct)}
+            for name, df in tables.items()
+            for col, pct in (df.isna().mean() * 100).items() if pct > 0]
     return pd.DataFrame(rows).sort_values("missing_pct", ascending=False)
 
 
-def run_all(X, y, df, truncated_tables, cutoff, raw_tables=None):
-    """Full suite. Returns (results dict, all_passed)."""
-    res = {
-        "temporal_provenance": temporal_provenance(truncated_tables, cutoff),
+def run_all(X, y, df, tables, cutoff, raw_tables=None):
+    """Full suite. Returns (results, passed)."""
+    results = {
+        "temporal_provenance": temporal_provenance(tables, cutoff),
         "single_feature_auc": single_feature_auc(X, y),
         "perfect_separation": perfect_separation(X, y),
         "identifier_leakage": identifier_leakage(df, y),
@@ -164,14 +128,11 @@ def run_all(X, y, df, truncated_tables, cutoff, raw_tables=None):
         "constant_columns": constant_columns(X),
     }
     if raw_tables is not None:
-        res["missingness"] = missingness_report(raw_tables)
+        results["missingness"] = missingness_report(raw_tables)
 
-    passed = (
-        bool(res["temporal_provenance"]["pass"].all())
-        and (res["single_feature_auc"]["auc"] < SINGLE_FEATURE_AUC_FAIL).all()
-        and len(res["perfect_separation"]) == 0
-        and bool(res["identifier_leakage"]["pass"].all())
-        and bool(res["duplicate_rows"]["pass"].all())
-        and len(res["constant_columns"]) == 0
-    )
-    return res, passed
+    gated = ["temporal_provenance", "identifier_leakage", "duplicate_rows"]
+    passed = (all(results[k]["pass"].all() for k in gated)
+              and (results["single_feature_auc"]["auc"] < SINGLE_FEATURE_AUC_FAIL).all()
+              and results["perfect_separation"].empty
+              and results["constant_columns"].empty)
+    return results, passed

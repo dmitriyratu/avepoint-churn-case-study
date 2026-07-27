@@ -34,7 +34,7 @@ AvePoint/
 │   ├── 03_feature_engineering.py  # feature families + buffer sensitivity
 │   ├── 04_modeling.py        # model ladder, permutation test, operating point
 │   ├── 05_results_validation.py  # recommendations, deployment, monitoring, mentoring
-│   ├── 06_audit_and_temporal_redesign.py   # why the first framing was wrong
+│   ├── 06_leakage_quantification.py   # what each form of leakage is worth
 │   └── 07_leakage_audit.py   # automated leakage + cleaning gates
 ├── src/
 │   ├── audit.py              # automated leakage + quality gates
@@ -232,5 +232,5 @@ at prediction time. See `docs/DATA_DICTIONARY.md`.
 - Synthetic data caps feature-target association at |r| = 0.28. Real telemetry typically
   reaches 0.3–0.6, where AUC 0.75+ is achievable with this feature set.
 
-See `notebooks/06_audit_and_temporal_redesign.py` and `docs/ASSUMPTIONS.md` for the
+See `notebooks/06_leakage_quantification.py` and `docs/ASSUMPTIONS.md` for the
 full audit, including the bugs found in the first pass and how they were corrected.

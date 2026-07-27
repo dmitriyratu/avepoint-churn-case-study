@@ -1,318 +1,241 @@
-"""Account-level feature engineering, evaluated as of a cutoff date.
+"""Account-level features, evaluated as of a cutoff date.
 
-Every aggregation below is computed on tables already truncated to the
-observation window by `labeling.truncate_tables`, so `as_of` is only used for
-recency arithmetic — no filtering happens here.
+Input tables must already be truncated to the observation window by
+`labeling.truncate_tables`; `as_of` is used only for recency arithmetic.
 
-Deliberately excluded from the modeling matrix:
-  - anything derived from `churn_events` (describes an outcome, not a precursor)
-  - `subscriptions.churn_flag` (the label at a different grain)
-  - `arr_amount` (perfectly collinear with mrr * 12)
+Every block returns a frame indexed by `account_id` so they compose with
+`pd.concat` rather than a chain of merges.
+
+Excluded by design (see docs/DATA_DICTIONARY.md): anything derived from
+`churn_events`, `subscriptions.churn_flag`, and `arr_amount`.
 """
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from .config import CUTOFF_DATE
 
-# Window ladder for frequency/recency aggregates. Multiple windows plus the
-# ratios between them is the standard churn pattern: the level tells you how big
-# an account is, the differences tell you which way it is heading.
 WINDOWS = (30, 60, 90, 180)
 TREND_WINDOW_DAYS = 180
+COLLINEARITY_THRESHOLD = 0.98
+
+# Missing means something different per feature family:
+#   counts   no activity is genuinely zero
+#   recency  never happened is maximally stale, not "today"
+#   rates    unknown — left NaN and imputed inside the CV fold
+RECENCY_COLS = ("days_since_last_usage", "days_since_last_ticket",
+                "usage_span_days", "days_since_last_sub_start")
+COUNT_PREFIXES = ("n_", "total_", "usage_last_", "usage_prior_",
+                  "tickets_last_", "active_days_")
 
 
 def _safe_div(a, b):
     return a / b.replace(0, np.nan)
 
 
+def _trailing(events, windows, prefix, column=None):
+    """Trailing-window counts per account, one column per window.
+
+    Counts rows, or distinct values of `column` when given.
+    """
+    def count(w):
+        g = events[events["days_ago"] <= w].groupby("account_id")
+        return g[column].nunique() if column else g.size()
+
+    return pd.concat({f"{prefix}_{w}d": count(w) for w in windows}, axis=1)
+
+
+def _group_slope(frame, by, x, y):
+    """Least-squares slope of y on x within each group, vectorised."""
+    g = frame.groupby(by)
+    dx = frame[x] - g[x].transform("mean")
+    dy = frame[y] - g[y].transform("mean")
+    num = (dx * dy).groupby(frame[by]).sum()
+    den = (dx ** 2).groupby(frame[by]).sum()
+    return _safe_div(num, den)
+
+
 def subscription_features(subs, as_of=CUTOFF_DATE):
-    grp = subs.groupby("account_id")
+    g = subs.groupby("account_id")
 
-    # tenure = signup-to-now, measured to the cutoff. Using .max() of end_date
-    # here would silently stop the clock at whichever subscription happened to
-    # end first, which is wrong for any account holding a mix of open and
-    # closed subscriptions (62% of accounts in this dataset).
+    # Tenure runs signup-to-cutoff. Measuring to max(end_date) would stop the
+    # clock at whichever subscription closed first, which is wrong for any
+    # account holding both open and closed subscriptions.
     feats = pd.DataFrame({
-        "n_subscriptions": grp.size(),
-        "n_upgrades": grp["upgrade_flag"].sum(),
-        "n_downgrades": grp["downgrade_flag"].sum(),
-        "n_trial_subs": grp["is_trial"].sum(),
-        "total_mrr": grp["mrr_amount"].sum(),
-        "max_mrr": grp["mrr_amount"].max(),
-        "avg_mrr": grp["mrr_amount"].mean().round(1),
-        "auto_renew_pct": grp["auto_renew_flag"].mean().round(3),
-        "tenure_days": (as_of - grp["start_date"].min()).dt.days,
-        "n_ended_subs": grp["end_date"].count(),
-        "n_open_subs": grp["end_date"].apply(lambda s: s.isna().sum()),
-    }).reset_index()
+        "n_subscriptions": g.size(),
+        "n_upgrades": g["upgrade_flag"].sum(),
+        "n_downgrades": g["downgrade_flag"].sum(),
+        "n_trial_subs": g["is_trial"].sum(),
+        "total_mrr": g["mrr_amount"].sum(),
+        "max_mrr": g["mrr_amount"].max(),
+        "avg_mrr": g["mrr_amount"].mean(),
+        "mrr_std": g["mrr_amount"].std(),
+        "auto_renew_pct": g["auto_renew_flag"].mean(),
+        "tenure_days": (as_of - g["start_date"].min()).dt.days,
+        "n_ended_subs": g["end_date"].count(),
+        "n_open_subs": g["end_date"].apply(lambda s: s.isna().sum()),
+        "days_since_last_sub_start": (as_of - g["start_date"].max()).dt.days,
+    })
 
-    ordered = subs.sort_values("start_date")
-    latest = (ordered.groupby("account_id")
-              .last()[["plan_tier", "billing_frequency", "seats", "mrr_amount"]]
-              .reset_index()
-              .rename(columns={"plan_tier": "latest_plan_tier",
-                               "billing_frequency": "billing_freq",
-                               "seats": "latest_seats",
-                               "mrr_amount": "latest_mrr"}))
-    first = (ordered.groupby("account_id")
-             .first()[["seats", "mrr_amount"]]
-             .reset_index()
-             .rename(columns={"seats": "first_seats", "mrr_amount": "first_mrr"}))
+    ordered = subs.sort_values("start_date").groupby("account_id")
+    latest = ordered.last()[["plan_tier", "billing_frequency", "seats", "mrr_amount"]]
+    latest.columns = ["latest_plan_tier", "billing_freq", "latest_seats", "latest_mrr"]
+    first = ordered.first()[["seats", "mrr_amount"]]
+    first.columns = ["first_seats", "first_mrr"]
 
-    feats = feats.merge(latest, on="account_id", how="left").merge(first, on="account_id", how="left")
+    feats = pd.concat([feats, latest, first], axis=1)
 
-    # Expansion / contraction: the direction of the account, not just its size.
+    # Direction of travel, not just size.
     feats["seat_growth"] = feats["latest_seats"] - feats["first_seats"]
     feats["mrr_growth"] = feats["latest_mrr"] - feats["first_mrr"]
-    feats["mrr_growth_pct"] = _safe_div(feats["mrr_growth"], feats["first_mrr"]).round(3)
+    feats["mrr_growth_pct"] = _safe_div(feats["mrr_growth"], feats["first_mrr"])
     feats["upgrade_net"] = feats["n_upgrades"] - feats["n_downgrades"]
-
-    # Revenue volatility: an account whose spend swings is a different risk from
-    # one paying the same amount every month.
-    mrr_std = subs.groupby("account_id")["mrr_amount"].std().reset_index(name="mrr_std")
-    feats = feats.merge(mrr_std, on="account_id", how="left")
-    feats["mrr_cv"] = _safe_div(feats["mrr_std"], feats["avg_mrr"]).round(3)
-    feats["pct_subs_ended"] = (feats["n_ended_subs"] / feats["n_subscriptions"]).round(3)
-
-    # Days since the most recent subscription started — a stalled account stops
-    # opening new subscriptions.
-    last_start = grp["start_date"].max().reset_index(name="last_start")
-    feats = feats.merge(last_start, on="account_id", how="left")
-    feats["days_since_last_sub_start"] = (as_of - feats["last_start"]).dt.days
-    feats = feats.drop(columns=["last_start"])
+    feats["mrr_cv"] = _safe_div(feats["mrr_std"], feats["avg_mrr"])
+    feats["pct_subs_ended"] = feats["n_ended_subs"] / feats["n_subscriptions"]
 
     return feats
 
 
-def feature_usage_features(usage, subs, as_of=CUTOFF_DATE):
+def usage_features(usage, subs, as_of=CUTOFF_DATE):
     bridge = subs[["subscription_id", "account_id"]].drop_duplicates()
     u = usage.merge(bridge, on="subscription_id", how="inner")
     if u.empty:
-        return pd.DataFrame(columns=["account_id"])
+        return pd.DataFrame()
 
-    total_features = usage["feature_name"].nunique()
     u["days_ago"] = (as_of - u["usage_date"]).dt.days
+    g = u.groupby("account_id")
 
-    grp = u.groupby("account_id")
     feats = pd.DataFrame({
-        "total_usage_events": grp.size(),
-        "unique_features_used": grp["feature_name"].nunique(),
-        "total_usage_duration_mins": (grp["usage_duration_secs"].sum() / 60).round(1),
-        "total_errors": grp["error_count"].sum(),
-        "beta_feature_pct": grp["is_beta_feature"].mean().round(3),
-        "avg_usage_count": grp["usage_count"].mean().round(2),
-        "days_since_last_usage": grp["days_ago"].min(),
-        "usage_span_days": (grp["days_ago"].max() - grp["days_ago"].min()),
-    }).reset_index()
+        "total_usage_events": g.size(),
+        "unique_features_used": g["feature_name"].nunique(),
+        "total_usage_duration_mins": g["usage_duration_secs"].sum() / 60,
+        "total_errors": g["error_count"].sum(),
+        "beta_feature_pct": g["is_beta_feature"].mean(),
+        "avg_usage_count": g["usage_count"].mean(),
+        "days_since_last_usage": g["days_ago"].min(),
+        "usage_span_days": g["days_ago"].max() - g["days_ago"].min(),
+    })
+    feats["error_rate"] = _safe_div(feats["total_errors"], feats["total_usage_events"])
+    feats["feature_breadth"] = feats["unique_features_used"] / usage["feature_name"].nunique()
 
-    feats["error_rate"] = _safe_div(feats["total_errors"], feats["total_usage_events"]).round(4)
-    feats["feature_breadth"] = (feats["unique_features_used"] / total_features).round(3)
+    feats = pd.concat([
+        feats,
+        _trailing(u, WINDOWS, "usage_last"),
+        _trailing(u, WINDOWS, "active_days_last", column="usage_date"),
+    ], axis=1)
 
-    # --- Frequency across a window ladder -------------------------------------
-    # Standard churn practice is to compute the same metric over several windows
-    # and let the *differences between them* carry the trend, rather than relying
-    # on one lifetime total that hides recent collapse.
-    for w in WINDOWS:
-        win = (u[u["days_ago"] <= w].groupby("account_id").size()
-               .reset_index(name=f"usage_last_{w}d"))
-        feats = feats.merge(win, on="account_id", how="left")
-        feats[f"usage_last_{w}d"] = feats[f"usage_last_{w}d"].fillna(0).astype(int)
-
-        act = (u[u["days_ago"] <= w].groupby("account_id")["usage_date"].nunique()
-               .reset_index(name=f"active_days_last_{w}d"))
-        feats = feats.merge(act, on="account_id", how="left")
-        feats[f"active_days_last_{w}d"] = feats[f"active_days_last_{w}d"].fillna(0).astype(int)
-
-    # --- Acceleration: short window vs long window ----------------------------
-    # A rate above 1 means the account is more active lately than its own
-    # baseline; below 1 means it is winding down. Normalising by window length
-    # keeps the comparison fair.
+    # Acceleration: recent rate against the account's own longer-run baseline.
+    # Length-normalised so windows of different sizes compare fairly.
     for short, long in [(30, 90), (30, 180), (90, 180)]:
-        s_rate = feats[f"usage_last_{short}d"] / short
-        l_rate = feats[f"usage_last_{long}d"] / long
-        feats[f"accel_{short}d_vs_{long}d"] = _safe_div(s_rate, l_rate).round(3)
+        feats[f"accel_{short}d_vs_{long}d"] = _safe_div(
+            feats[f"usage_last_{short}d"] / short, feats[f"usage_last_{long}d"] / long)
 
-    # Consecutive non-overlapping periods — did last quarter beat the one before?
-    prior = (u[(u["days_ago"] > 90) & (u["days_ago"] <= 180)].groupby("account_id").size()
-             .reset_index(name="usage_prior_90d"))
-    feats = feats.merge(prior, on="account_id", how="left")
-    feats["usage_prior_90d"] = feats["usage_prior_90d"].fillna(0).astype(int)
-    feats["usage_momentum"] = _safe_div(feats["usage_last_90d"],
-                                        feats["usage_prior_90d"].replace(0, np.nan)).round(3)
+    prior = u[u["days_ago"].between(91, 180)].groupby("account_id").size()
+    feats["usage_prior_90d"] = prior
+    feats["usage_momentum"] = _safe_div(feats["usage_last_90d"], feats["usage_prior_90d"])
     feats["usage_delta_90d"] = feats["usage_last_90d"] - feats["usage_prior_90d"]
-    feats["recency_ratio_90d"] = _safe_div(feats["usage_last_90d"],
-                                           feats["total_usage_events"]).round(3)
+    feats["recency_ratio_90d"] = _safe_div(feats["usage_last_90d"], feats["total_usage_events"])
 
-    # --- Trend slope ----------------------------------------------------------
-    # Ratios are coarse; a fitted slope over weekly counts captures a steady
-    # decline that a 90-vs-90 comparison can miss.
+    # A fitted slope catches a steady decline that window ratios miss.
     recent = u[u["days_ago"] <= TREND_WINDOW_DAYS].copy()
-    if not recent.empty:
-        recent["week"] = (TREND_WINDOW_DAYS - recent["days_ago"]) // 7
-        weekly = recent.groupby(["account_id", "week"]).size().reset_index(name="n")
-        slopes = (weekly.groupby("account_id")
-                  .apply(lambda g: np.polyfit(g["week"], g["n"], 1)[0]
-                         if len(g) >= 3 else np.nan)
-                  .reset_index(name="usage_trend_slope"))
-        feats = feats.merge(slopes, on="account_id", how="left")
-        feats["usage_trend_slope"] = feats["usage_trend_slope"].round(4)
+    recent["week"] = (TREND_WINDOW_DAYS - recent["days_ago"]) // 7
+    weekly = recent.groupby(["account_id", "week"]).size().rename("n").reset_index()
+    feats["usage_trend_slope"] = _group_slope(weekly, "account_id", "week", "n")
 
-    # --- Engagement regularity ------------------------------------------------
-    # Lumpy usage is a different risk profile from steady usage at the same
-    # volume. Mean and max gap between active days capture that.
-    gaps = (u.sort_values("days_ago", ascending=False)
-            .groupby("account_id")["days_ago"]
-            .apply(lambda s: pd.Series(np.diff(np.sort(s.unique()))
-                                       if s.nunique() > 1 else [np.nan]))
-            .reset_index())
-    if not gaps.empty and "days_ago" in gaps.columns:
-        g = gaps.groupby("account_id")["days_ago"].agg(["mean", "max"]).reset_index()
-        g.columns = ["account_id", "mean_gap_days", "max_gap_days"]
-        feats = feats.merge(g, on="account_id", how="left")
-        feats[["mean_gap_days", "max_gap_days"]] = feats[["mean_gap_days", "max_gap_days"]].round(1)
+    # Rhythm: two accounts with equal volume but different spacing are different
+    # risks.
+    days = (u[["account_id", "days_ago"]].drop_duplicates()
+            .sort_values(["account_id", "days_ago"]))
+    gaps = days.groupby("account_id")["days_ago"].diff()
+    feats[["mean_gap_days", "max_gap_days"]] = gaps.groupby(days["account_id"]).agg(["mean", "max"])
 
     return feats
 
 
 def support_features(tickets, as_of=CUTOFF_DATE):
     if tickets.empty:
-        return pd.DataFrame(columns=["account_id"])
+        return pd.DataFrame()
 
-    grp = tickets.groupby("account_id")
+    t = tickets.assign(days_ago=(as_of - tickets["submitted_at"]).dt.days)
+    g = t.groupby("account_id")
+
     feats = pd.DataFrame({
-        "n_tickets": grp.size(),
-        "avg_resolution_hours": grp["resolution_time_hours"].mean().round(1),
-        "max_resolution_hours": grp["resolution_time_hours"].max().round(1),
-        "avg_first_response_mins": grp["first_response_time_minutes"].mean().round(1),
-        "avg_satisfaction": grp["satisfaction_score"].mean().round(2),
-        "min_satisfaction": grp["satisfaction_score"].min(),
-        "sat_missing_rate": grp["satisfaction_missing"].mean().round(3),
-        "n_escalations": grp["escalation_flag"].sum(),
-        "days_since_last_ticket": (as_of - grp["submitted_at"].max()).dt.days,
-    }).reset_index()
+        "n_tickets": g.size(),
+        "avg_resolution_hours": g["resolution_time_hours"].mean(),
+        "max_resolution_hours": g["resolution_time_hours"].max(),
+        "avg_first_response_mins": g["first_response_time_minutes"].mean(),
+        "avg_satisfaction": g["satisfaction_score"].mean(),
+        "min_satisfaction": g["satisfaction_score"].min(),
+        "sat_missing_rate": g["satisfaction_missing"].mean(),
+        "n_escalations": g["escalation_flag"].sum(),
+        "days_since_last_ticket": (as_of - g["submitted_at"].max()).dt.days,
+        "n_urgent_high": g["priority"].apply(lambda s: s.isin(["urgent", "high"]).sum()),
+    })
+    if "ticket_open_at_cutoff" in t.columns:
+        feats["n_open_tickets"] = g["ticket_open_at_cutoff"].sum()
 
-    if "ticket_open_at_cutoff" in tickets.columns:
-        opn = grp["ticket_open_at_cutoff"].agg(["sum", "mean"]).reset_index()
-        opn.columns = ["account_id", "n_open_tickets", "open_ticket_rate"]
-        feats = feats.merge(opn, on="account_id", how="left")
+    feats["urgent_pct"] = feats["n_urgent_high"] / feats["n_tickets"]
+    feats["escalation_rate"] = feats["n_escalations"] / feats["n_tickets"]
 
-    urgent = (tickets[tickets["priority"].isin(["urgent", "high"])]
-              .groupby("account_id").size().reset_index(name="n_urgent_high"))
-    feats = feats.merge(urgent, on="account_id", how="left")
-    feats["n_urgent_high"] = feats["n_urgent_high"].fillna(0)
+    feats = pd.concat([feats, _trailing(t, (30, 90, 180), "tickets_last")], axis=1)
 
-    feats["urgent_pct"] = (feats["n_urgent_high"] / feats["n_tickets"]).round(3)
-    feats["escalation_rate"] = (feats["n_escalations"] / feats["n_tickets"]).round(3)
-
-    t = tickets.copy()
-    t["days_ago"] = (as_of - t["submitted_at"]).dt.days
-    for w in (30, 90, 180):
-        win = (t[t["days_ago"] <= w].groupby("account_id").size()
-               .reset_index(name=f"tickets_last_{w}d"))
-        feats = feats.merge(win, on="account_id", how="left")
-        feats[f"tickets_last_{w}d"] = feats[f"tickets_last_{w}d"].fillna(0).astype(int)
-
-    # Rising support load is a classic churn precursor — the ratio matters more
-    # than the count, since heavy users open more tickets in absolute terms.
+    # Rising support load is a churn precursor; the ratio matters more than the
+    # count, since heavy users open more tickets in absolute terms.
     feats["ticket_accel_30d_vs_90d"] = _safe_div(
-        feats["tickets_last_30d"] / 30, feats["tickets_last_90d"] / 90).round(3)
+        feats["tickets_last_30d"] / 30, feats["tickets_last_90d"] / 90)
 
     return feats
 
 
-# Missing values do not all mean the same thing, so they are not filled the
-# same way.
-#
-#   counts   an account with no tickets genuinely had zero tickets -> 0
-#   recency  "never used the product" is not "used it today" -> observation-
-#            window length, so the model sees it as maximally stale
-#   rates    an average satisfaction score with no responses is unknown, not 0.
-#            Left as NaN and imputed inside the CV fold by model._pipe, so the
-#            statistic is fit on training rows only.
-_RECENCY_COLS = ["days_since_last_usage", "days_since_last_ticket",
-                 "usage_span_days", "days_since_last_sub_start"]
+def drop_collinear(df, threshold=COLLINEARITY_THRESHOLD, protect=()):
+    """Drop the later column of each near-duplicate pair.
 
-_COUNT_PREFIXES = ("n_", "total_", "usage_last_", "usage_prior_", "tickets_last_")
-
-
-def _is_count_col(c):
-    return c.startswith(_COUNT_PREFIXES)
-
-
-def drop_collinear(df, threshold=0.98, protect=()):
-    """Drop one of each near-duplicate pair, keeping the earlier column.
-
-    feature_breadth is unique_features_used / 40, so the two are correlated at
-    exactly 1.0 — keeping both just splits the same coefficient in a linear model.
+    Keeping both halves of a pair like `feature_breadth` and
+    `unique_features_used` just splits one effect across two coefficients.
     """
-    num = df.select_dtypes(include=[np.number])
-    cm = num.corr().abs()
-    cols, dropped = list(cm.columns), []
-    for i, a in enumerate(cols):
-        if a in dropped or a in protect:
+    corr = df.select_dtypes(include=[np.number]).corr().abs()
+    candidates = [c for c in corr.columns if c not in protect]
+    dropped = []
+    for i, a in enumerate(candidates):
+        if a in dropped:
             continue
-        for b in cols[i + 1:]:
-            if b in dropped or b in protect:
-                continue
-            v = cm.loc[a, b]
-            if pd.notna(v) and v > threshold:
-                dropped.append(b)
+        pair = corr.loc[a, candidates[i + 1:]]
+        dropped += [b for b in pair[pair > threshold].index if b not in dropped]
     return df.drop(columns=dropped), dropped
 
 
-def build_model_dataset(tables, cohort, as_of=CUTOFF_DATE, prune_collinear=True):
-    """Join every feature block onto the cohort. Returns (X_frame, feature_names)."""
-    base = cohort.copy()
-    base["days_since_signup"] = (as_of - base["signup_date"]).dt.days
-
+def build_model_dataset(tables, cohort, as_of=CUTOFF_DATE, prune=True):
+    """Cohort joined to every feature block, ready for `model.prep_xy`."""
     blocks = [
         subscription_features(tables["subscriptions"], as_of),
-        feature_usage_features(tables["feature_usage"], tables["subscriptions"], as_of),
+        usage_features(tables["feature_usage"], tables["subscriptions"], as_of),
         support_features(tables["support_tickets"], as_of),
     ]
-    df = base
-    for b in blocks:
-        if not b.empty:
-            df = df.merge(b, on="account_id", how="left")
+    features = pd.concat([b for b in blocks if not b.empty], axis=1)
+
+    df = cohort.set_index("account_id").join(features)
+    df["days_since_signup"] = (as_of - df["signup_date"]).dt.days
 
     seats = df["seats"].replace(0, np.nan)
-    df["usage_per_seat"] = _safe_div(df.get("total_usage_events", pd.Series(0, index=df.index)), seats).round(2)
-    df["tickets_per_seat"] = _safe_div(df.get("n_tickets", pd.Series(0, index=df.index)), seats).round(3)
-    df["mrr_per_seat"] = _safe_div(df.get("total_mrr", pd.Series(0, index=df.index)), seats).round(1)
+    df["usage_per_seat"] = _safe_div(df["total_usage_events"], seats)
+    df["tickets_per_seat"] = _safe_div(df["n_tickets"], seats)
+    df["mrr_per_seat"] = _safe_div(df["total_mrr"], seats)
 
-    window_len = (int((as_of - tables["feature_usage"]["usage_date"].min()).days)
-                  if len(tables["feature_usage"]) else 999)
-    for c in _RECENCY_COLS:
-        if c in df.columns:
-            df[c] = df[c].fillna(window_len)
+    window_len = (as_of - tables["feature_usage"]["usage_date"].min()).days
+    df[list(RECENCY_COLS)] = df[list(RECENCY_COLS)].fillna(window_len)
 
-    # Counts fill to zero; rates and means stay NaN for the in-fold imputer.
-    for c in df.select_dtypes(include=[np.number]).columns:
-        if _is_count_col(c):
-            df[c] = df[c].fillna(0)
+    counts = [c for c in df.columns if c.startswith(COUNT_PREFIXES)]
+    df[counts] = df[counts].fillna(0)
 
-    # Categoricals are deliberately left as raw strings. Encoding them here with
-    # pd.get_dummies would learn the category levels from every row — including
-    # the validation fold — and would silently produce a different column set if
-    # an unseen category appeared at serving time. One-hot encoding happens
-    # inside the model pipeline instead (model._pipe -> OneHotEncoder with
-    # handle_unknown="ignore"), so it is fit per fold and safe in production.
+    df = df.round(4).reset_index()
 
+    # Categoricals stay as strings; the pipeline encodes them per fold.
     protect = tuple(cohort.columns)
+    constant = [c for c in df.columns if c not in protect and df[c].nunique() <= 1]
+    df = df.drop(columns=constant)
 
-    # Zero-variance columns carry no information and their presence depends on
-    # the cutoff — at an earlier cutoff no support ticket is still open, so
-    # n_open_tickets collapses to a constant. Drop them rather than let the
-    # audit fail on a benign artefact.
-    # nunique() ignores NaN, matching audit.constant_columns — a column holding
-    # one value plus nulls is still constant as far as a model is concerned.
-    const = [c for c in df.columns if c not in protect and df[c].nunique() <= 1]
-    df = df.drop(columns=const)
-    df.attrs["dropped_constant"] = const
+    collinear = []
+    if prune:
+        df, collinear = drop_collinear(df, protect=protect)
 
-    if prune_collinear:
-        df, dropped = drop_collinear(df, threshold=0.98, protect=protect)
-        df.attrs["dropped_collinear"] = dropped
-        df.attrs["dropped_constant"] = const
-
+    df.attrs.update(dropped_constant=constant, dropped_collinear=collinear)
     return df

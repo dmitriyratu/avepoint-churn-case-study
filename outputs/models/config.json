@@ -1,15 +1,15 @@
 {
   "model": "4. Logistic (L1, C=0.1)",
-  "cv_auc": 0.5476,
+  "cv_auc": 0.5445,
   "cv_auc_ci": [
     0.3751,
     0.7024
   ],
   "oof_threshold": 0.44,
-  "oof_f1": 0.6186,
-  "oof_recall": 0.9864864864864865,
-  "oof_precision": 0.4506172839506173,
-  "permutation_p": 0.2392,
+  "oof_f1": 0.6154,
+  "oof_recall": 0.972972972972973,
+  "oof_precision": 0.45,
+  "permutation_p": 0.2525,
   "n_features_selected": 3,
   "cohort_n": 168,
   "positives": 74

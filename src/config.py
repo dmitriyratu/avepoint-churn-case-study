@@ -1,40 +1,22 @@
-"""Central configuration derived from the data rather than hardcoded."""
+"""Shared configuration for the churn pipeline."""
 import pandas as pd
 from pathlib import Path
 
-RAW_DIR = Path(__file__).parents[1] / "data" / "raw"
-PROCESSED_DIR = Path(__file__).parents[1] / "data" / "processed"
-OUTPUTS_DIR = Path(__file__).parents[1] / "outputs"
+ROOT = Path(__file__).parents[1]
+RAW_DIR = ROOT / "data" / "raw"
+PROCESSED_DIR = ROOT / "data" / "processed"
+OUTPUTS_DIR = ROOT / "outputs"
 
-# Temporal design.
-#
-#   |<---- observation ---->|<- buffer ->|<---- prediction ---->|
-#   ...                CUTOFF_DATE   PREDICTION_START      + HORIZON_DAYS
-#         features built here                    label defined here
-#
-# The buffer (latency window) is the gap between the last observable day and the
-# first day a churn can count against us. Without it a model can key on the
-# collapse in activity that happens days before someone leaves: the score looks
-# good and arrives too late to act on. The buffer is also the operational reality
-# — a CSM needs lead time between the score landing and the customer going.
+# Temporal design — see labeling.py for the window diagram.
 CUTOFF_DATE = pd.Timestamp("2024-05-31")
 BUFFER_DAYS = 30
 PREDICTION_START = CUTOFF_DATE + pd.Timedelta(days=BUFFER_DAYS)
 HORIZON_DAYS = 180
 
-# Columns never fed to a model.
-ID_COLS = ["account_id", "account_name", "signup_date"]
 TARGET = "churned_next_180d"
+ID_COLS = ["account_id", "account_name", "signup_date"]
 
-# Features derived from the churn_events table describe an outcome that has
-# already happened. They are excluded from the modeling matrix and kept only
-# for post-hoc analysis. See docs/ASSUMPTIONS.md.
-POST_OUTCOME_COLS = [
-    "n_churn_events", "total_refund_usd", "had_reactivation",
-    "had_preceding_downgrade", "had_preceding_upgrade",
-]
-
-
-def observation_end(df_dates):
-    """Latest timestamp present across the raw tables."""
-    return max(pd.to_datetime(s).max() for s in df_dates)
+# Derived from churn_events, so they describe the outcome rather than its
+# precursors. Dropped by model.prep_xy; including them takes CV AUC to 0.997.
+POST_OUTCOME_COLS = ["n_churn_events", "total_refund_usd", "had_reactivation",
+                     "had_preceding_downgrade", "had_preceding_upgrade"]

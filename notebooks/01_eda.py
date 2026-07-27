@@ -338,5 +338,5 @@ print("Excluded via config.POST_OUTCOME_COLS; enforced by src/audit.py.")
 #    confirms.
 # 5. **MRR is heavy-tailed but the tail is real** — enterprise contracts, kept.
 #
-# Next: `02_cleaning.py`, then `06_audit_and_temporal_redesign.py` for the
+# Next: `02_cleaning.py`, then `06_leakage_quantification.py` for the
 # corrected modelling path.

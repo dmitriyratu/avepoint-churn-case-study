@@ -46,7 +46,7 @@ from src.load_data import load_all
 from src.clean import clean_all
 from src.labeling import build_cohort, truncate_tables, cohort_summary
 from src.features import (build_model_dataset, subscription_features,
-                          feature_usage_features, support_features)
+                          usage_features, support_features)
 from src.model import prep_xy
 from src.config import CUTOFF_DATE
 
@@ -95,7 +95,7 @@ sub_feats.describe().T.round(2)
 # volume alone.
 
 # %%
-usage_feats = feature_usage_features(obs["feature_usage"], obs["subscriptions"], CUTOFF_DATE)
+usage_feats = usage_features(obs["feature_usage"], obs["subscriptions"], CUTOFF_DATE)
 print(usage_feats.shape)
 usage_feats[["total_usage_events", "unique_features_used", "days_since_last_usage",
              "usage_last_30d", "usage_last_90d", "usage_momentum", "error_rate"]].describe().T.round(2)
