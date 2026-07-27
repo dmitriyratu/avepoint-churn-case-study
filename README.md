@@ -37,7 +37,8 @@ AvePoint/
 │   ├── 06_leakage_quantification.py   # what each form of leakage is worth
 │   ├── 07_leakage_audit.py   # automated leakage + cleaning gates
 │   ├── 08_diagnostics.py     # error analysis, learning curves, why 0.58
-│   └── 09_classifier_sweep.py # 15-model sweep + selection-bias null
+│   ├── 09_classifier_sweep.py # 15-model sweep + selection-bias null
+│   └── 10_sanity_checks.py   # positive controls, cohort variants, label coherence
 ├── src/
 │   ├── config.py             # cutoff/buffer/horizon, leakage exclusion lists
 │   ├── load_data.py          # load the 5 raw tables
@@ -325,6 +326,58 @@ that is the main methodological gap left in this project.
 The substantive conclusion survives, better supported: the spread across fifteen
 model families (0.520–0.594) is **smaller than the fold-to-fold noise within any
 one of them** (sd ≈ 0.090).
+
+### Is the result real, or a mistake? — `notebooks/10_sanity_checks.py`
+
+An AUC near chance should not be accepted on trust. Three checks.
+
+**The pipeline is not broken.** Planting targets of known strength and re-running
+everything:
+
+| Planted target | CV ROC-AUC |
+|---|---:|
+| Strong (label = MRR > median) | 0.965 |
+| Strong, 25% of labels flipped | 0.669 |
+| **Weak but genuinely real** (2 features + noise) | **0.584** |
+| Null (shuffled labels) | 0.494 |
+| **Actual churn label** | **0.583** |
+
+Read row 3 against row 5. **Our result is what a real-but-weak relationship looks
+like at 177 rows** — not what "no signal" looks like. That is an important
+correction to how this should be described.
+
+**The cohort definition is not the problem.** Reactivations are common, so
+excluding prior churners could plausibly be discarding the churn-prone accounts:
+
+| Definition | n | Positives | CV AUC |
+|---|---:|---:|---:|
+| **A. current** (live sub, exclude prior churners) | 177 | 54 | **0.583** |
+| B. reactivations allowed back in | 335 | 83 | 0.545 |
+| C. no live-subscription requirement | 347 | 88 | 0.556 |
+| D. event = subscription ends | 335 | 57 | 0.462 |
+
+Nearly doubling the cohort makes it *worse*. No alternative rescues the result.
+
+**The label is not coherent — this is the ceiling.** The dataset offers three
+independent ways to say an account churned:
+
+| | Agreement |
+|---|---:|
+| `churn_flag` vs `churn_events` | 37.6% |
+| `churn_flag` vs ended subscription | 44.4% |
+| `churn_events` vs ended subscription | 58.0% |
+| **All three agree** | **20.0%** |
+
+And churn dates do not coincide with subscriptions ending: **1.6% land on the
+day**, 12% within a week, **median gap 62 days**.
+
+You cannot predict an event whose own definition is 20% self-consistent. The
+label noise alone caps achievable AUC far below anything useful, independent of
+features or algorithm.
+
+**So the accurate statement is not "there is no signal."** It is: *a weak
+relationship is present, and this dataset cannot resolve it* — 54 positives, a
+label that contradicts itself, and timestamps that do not order events correctly.
 
 ### Why 0.58 and not higher — diagnosed, not guessed
 
