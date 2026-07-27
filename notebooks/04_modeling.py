@@ -33,7 +33,7 @@ from sklearn.metrics import (roc_auc_score, average_precision_score, f1_score,
 from sklearn.calibration import calibration_curve
 
 from src import pipeline
-from src.model import (model_ladder, evaluate_ladder, tune_lightgbm,
+from src.model import (model_ladder, evaluate_ladder, nested_ladder_cv, tune_lightgbm,
                        permutation_significance, oof_threshold, save_model, CV)
 
 sns.set_theme(style="whitegrid", palette="muted")
@@ -110,6 +110,43 @@ print(f"{best_name} CV AUC   : {ladder.loc[best_idx, 'roc_auc_mean']:.4f}")
 print("\nA 54-point grid search still does not close the gap.")
 
 # %% [markdown]
+# ## The honest score for a chosen-from-many model
+#
+# Every rung above is reported honestly, but **quoting the winner is not**.
+# Picking the maximum of ten candidates is itself a fitting step, and nothing
+# cross-validates it.
+#
+# Nested CV moves the selection inside each outer fold, so the reported score
+# includes the cost of choosing.
+
+# %%
+per_fold, nested = nested_ladder_cv(X, y)
+print(per_fold.to_string(index=False))
+print()
+print(nested.to_string())
+per_fold.to_csv("../outputs/reports/nested_cv_folds.csv", index=False)
+
+# %% [markdown]
+# Two things to read here.
+#
+# **The optimism is large.** The inner loop's chosen model averages ~0.59; the
+# same procedure scored on data it never saw averages ~0.52. The difference is
+# what selection was worth, and it is roughly the entire apparent signal.
+#
+# **The winner is unstable.** Three different rungs win across five folds. If a
+# model were genuinely better here, it would win consistently. Different winners
+# per fold is what selecting on noise looks like.
+#
+# So the number to quote for "the model we would ship" is the **nested** one, not
+# the ladder maximum.
+
+# %%
+best_row = ladder.loc[best_idx]
+print(f"  ladder maximum (optimistic) : {best_row['roc_auc_mean']:.4f}   <- do not quote alone")
+print(f"  nested CV (honest)          : {nested['nested_auc']:.4f}")
+print(f"  chance                      : 0.5000")
+
+# %% [markdown]
 # ## Is any of this better than chance?
 #
 # With intervals this wide, the ranking above is not enough. A permutation test
@@ -124,7 +161,9 @@ for k, v in perm.items():
 # %%
 print(f"\np = {perm['p_value']}", "-> beats chance" if perm["p_value"] < 0.05
       else "-> cannot reject chance")
-print("Marginal. Real, but the model is weak and should be described that way.")
+print("\nNote this test holds the model FIXED. It does not account for that model")
+print("having been chosen as the ladder maximum — the nested result above is the")
+print("estimate that does.")
 
 # %% [markdown]
 # ## Operating point
@@ -251,6 +290,9 @@ config = {
     "oof_recall": float(recall_score(y, pred)),
     "oof_precision": float(precision_score(y, pred, zero_division=0)),
     "permutation_p": perm["p_value"],
+    "nested_cv_auc": float(nested["nested_auc"]),
+    "selection_optimism": float(nested["optimism"]),
+    "distinct_nested_winners": int(nested["n_distinct_winners"]),
     "n_features_selected": int(len(nz)),
     "cohort_n": int(len(y)),
     "positives": int(y.sum()),

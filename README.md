@@ -52,6 +52,8 @@ AvePoint/
 │   ├── model.py              # model ladder, permutation test, oof threshold
 │   ├── audit.py              # leakage + quality gates
 │   └── pipeline.py           # build() — one call for the whole chain
+├── tests/
+│   └── test_pipeline.py      # 19 invariants: leakage, labels, point-in-time
 ├── outputs/
 │   ├── figures/              # saved plots
 │   ├── models/               # saved model artifacts (.joblib)
@@ -130,6 +132,20 @@ save_model(model_ladder()[4][1].fit(data.X, data.y), 'churn_l1_logistic')
 and returns the intermediates alongside `X`/`y`. `build_at_buffer(days)` varies
 the lead time, which is how the sensitivity sweep is generated.
 
+### Tests
+
+```bash
+pytest tests/ -q          # 19 tests, ~5s
+```
+
+Most of the bugs in this project's history were leaks and point-in-time errors
+that passed review and produced plausible numbers. The suite asserts the
+properties that would have caught them: no observation row reaching the cutoff
+(at several cutoffs, not just the configured one), ticket outcomes censored when
+unresolved, positives falling strictly inside the prediction window, every cohort
+account actually at risk, forbidden columns absent — plus a negative control that
+injects a leak and requires the gate to fire.
+
 ## Problem framing
 
 `accounts.churn_flag` is a static flag with no date attached — it cannot be
@@ -207,13 +223,27 @@ missed churner costs more than a wasted outreach call:
 | F1 | 0.494 |
 | Base rate | 0.305 |
 
-**Permutation test** (300 label shuffles, model held fixed): **p = 0.076**.
+### The number to actually quote: nested CV
 
-**But that understates it.** The model was chosen as the top of a ten-rung
-ladder, and selecting a maximum is itself a fitting procedure. Simulating the
-selection (`notebooks/09_classifier_sweep.py`) puts the **selection-corrected
-p in the 0.2–0.3 range**. Quoting 0.076 without that caveat would be
-misleading — see below.
+The ladder reports each rung honestly, but **quoting the winner does not**.
+Choosing the maximum of ten candidates is itself a fitting step, and nothing
+cross-validates it. Nested CV moves selection inside each outer fold:
+
+| | ROC-AUC |
+|---|---:|
+| Ladder maximum (optimistic) | 0.583 |
+| **Nested CV (honest)** | **0.515** |
+| Chance | 0.500 |
+| Selection optimism | **0.074** |
+
+**Selection was worth 0.074 AUC — roughly the entire apparent signal.** And
+across five outer folds, **three different models won**. A genuinely better model
+wins consistently; different winners per fold is what selecting on noise looks
+like.
+
+The permutation test on the fixed model gives p = 0.076, but that holds the model
+constant and so does not account for having chosen it. The nested figure is the
+one that does.
 
 ## Robustness — where this breaks
 

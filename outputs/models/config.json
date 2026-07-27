@@ -12,6 +12,9 @@
   "oof_recall": 0.7407407407407407,
   "oof_precision": 0.37383177570093457,
   "permutation_p": 0.0764,
+  "nested_cv_auc": 0.5152,
+  "selection_optimism": 0.0742,
+  "distinct_nested_winners": 3,
   "n_features_selected": 86,
   "cohort_n": 177,
   "positives": 54

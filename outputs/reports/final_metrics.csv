@@ -1,2 +1,2 @@
-model,persisted_model,any_rung_beats_chance,cv_auc,cv_auc_ci,oof_threshold,oof_f1,oof_recall,oof_precision,permutation_p,n_features_selected,cohort_n,positives
-"2. Logistic (L2, C=1)","2. Logistic (L2, C=1)",False,0.5829,"[0.3651, 0.7507]",0.23,0.4969,0.7407407407407407,0.37383177570093457,0.0764,86,177,54
+model,persisted_model,any_rung_beats_chance,cv_auc,cv_auc_ci,oof_threshold,oof_f1,oof_recall,oof_precision,permutation_p,nested_cv_auc,selection_optimism,distinct_nested_winners,n_features_selected,cohort_n,positives
+"2. Logistic (L2, C=1)","2. Logistic (L2, C=1)",False,0.5829,"[0.3651, 0.7507]",0.23,0.4969,0.7407407407407407,0.37383177570093457,0.0764,0.5152,0.0742,3,86,177,54

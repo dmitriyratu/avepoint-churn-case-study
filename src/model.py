@@ -22,7 +22,7 @@ from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, roc_auc_score
 from sklearn.model_selection import (GridSearchCV, RepeatedStratifiedKFold,
                                      StratifiedKFold, cross_val_predict,
                                      cross_val_score, permutation_test_score)
@@ -48,9 +48,11 @@ SEED = 42
 # halves the full notebook run.
 N_JOBS_OUTER = int(os.environ.get("CHURN_N_JOBS", "1"))
 
-# XGBoost has no class_weight; scale_pos_weight is the equivalent lever. Set from
-# the cohort's own ratio rather than hardcoded.
-SCALE_POS_WEIGHT = 2.28
+# XGBoost takes no class_weight; scale_pos_weight is the equivalent lever.
+def scale_pos_weight(y):
+    """Negative-to-positive ratio, XGBoost's analogue of class_weight='balanced'."""
+    positives = int(y.sum())
+    return (len(y) - positives) / positives if positives else 1.0
 
 LGBM_PARAMS = dict(n_estimators=250, learning_rate=0.03, num_leaves=7, max_depth=3,
                    min_child_samples=15, subsample=0.8, subsample_freq=1,
@@ -147,8 +149,12 @@ def _native_pipe(clf):
     return Pipeline([("cat", AsCategory()), ("clf", clf)])
 
 
-def model_ladder():
-    """Rungs in increasing flexibility. Rung 0 uses no features at all."""
+def model_ladder(pos_weight=2.28):
+    """Rungs in increasing flexibility. Rung 0 uses no features at all.
+
+    `pos_weight` is XGBoost's imbalance lever; pass `scale_pos_weight(y)` to
+    derive it from the cohort rather than relying on the default.
+    """
     return [
         ("0. Prior (no features)",
          _pipe(DummyClassifier(strategy="prior"), scale=False)),
@@ -176,7 +182,7 @@ def model_ladder():
          _native_pipe(xgb.XGBClassifier(
              n_estimators=250, learning_rate=0.03, max_depth=3, min_child_weight=5,
              subsample=0.8, colsample_bytree=0.7, reg_lambda=5.0,
-             scale_pos_weight=SCALE_POS_WEIGHT, enable_categorical=True,
+             scale_pos_weight=pos_weight, enable_categorical=True,
              tree_method="hist", random_state=SEED, verbosity=0))),
         ("9. HistGradientBoosting (native NaN)",
          _pipe(HistGradientBoostingClassifier(
@@ -194,6 +200,50 @@ def evaluate_ladder(X, y, cv=CV, scoring="roc_auc"):
         rows.append({"model": name, f"{scoring}_mean": s.mean(), "sd": s.std(),
                      "ci_lo": np.percentile(s, 2.5), "ci_hi": np.percentile(s, 97.5)})
     return pd.DataFrame(rows).round(4)
+
+
+def nested_ladder_cv(X, y, outer_cv=None, inner_cv=None, scoring="roc_auc"):
+    """Score the *procedure* "pick the best ladder rung by CV", not a fixed model.
+
+    `evaluate_ladder` reports each rung honestly, but quoting the winner's score
+    is optimistic: choosing a maximum over ten candidates is itself a fitting
+    step, and nothing cross-validates it. Here selection happens inside each
+    outer fold, on data the outer fold never sees, so the returned scores include
+    the cost of selection.
+
+    Returns (per-fold frame, summary). The summary's `nested_auc` is the number
+    that should be quoted for a chosen-from-many model.
+    """
+    outer_cv = outer_cv or StratifiedKFold(5, shuffle=True, random_state=SEED)
+    inner_cv = inner_cv or StratifiedKFold(4, shuffle=True, random_state=SEED)
+
+    rows = []
+    for fold, (train, test) in enumerate(outer_cv.split(X, y), 1):
+        X_tr, X_te = X.iloc[train], X.iloc[test]
+        y_tr, y_te = y.iloc[train], y.iloc[test]
+
+        inner = [(name, cross_val_score(est, X_tr, y_tr, cv=inner_cv,
+                                        scoring=scoring, n_jobs=N_JOBS_OUTER).mean())
+                 for name, est in model_ladder()]
+        chosen, inner_score = max(inner, key=lambda pair: pair[1])
+
+        est = dict(model_ladder())[chosen]
+        est.fit(X_tr, y_tr)
+        outer_score = roc_auc_score(y_te, est.predict_proba(X_te)[:, 1])
+
+        rows.append({"fold": fold, "selected": chosen,
+                     "inner_auc": round(inner_score, 4),
+                     "outer_auc": round(outer_score, 4)})
+
+    per_fold = pd.DataFrame(rows)
+    summary = pd.Series({
+        "nested_auc": round(per_fold["outer_auc"].mean(), 4),
+        "nested_sd": round(per_fold["outer_auc"].std(), 4),
+        "mean_inner_auc": round(per_fold["inner_auc"].mean(), 4),
+        "optimism": round(per_fold["inner_auc"].mean() - per_fold["outer_auc"].mean(), 4),
+        "n_distinct_winners": per_fold["selected"].nunique(),
+    })
+    return per_fold, summary
 
 
 def tune_lightgbm(X, y, cv=INNER_CV):

@@ -1,0 +1,6 @@
+fold,selected,inner_auc,outer_auc
+1,8. XGBoost (native NaN + categoricals),0.5853,0.5055
+2,"4. Logistic (L1, C=0.1)",0.5983,0.5309
+3,5. Random forest (depth 4),0.6184,0.536
+4,8. XGBoost (native NaN + categoricals),0.5928,0.5341
+5,5. Random forest (depth 4),0.5522,0.4697

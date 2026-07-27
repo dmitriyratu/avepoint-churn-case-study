@@ -52,7 +52,9 @@ def build_model_dataset(tables, cohort, as_of=CUTOFF_DATE, prune=True):
     counts = [c for c in df.columns if c.startswith(COUNT_PREFIXES)]
     df[counts] = df[counts].fillna(0)
 
-    df = df.round(4).reset_index()
+    numeric = df.select_dtypes(include=[np.number]).columns
+    df[numeric] = df[numeric].round(4)
+    df = df.reset_index()
 
     # Categoricals stay as strings; the pipeline encodes them per fold.
     protect = tuple(cohort.columns)
