@@ -9,11 +9,14 @@ OUTPUTS_DIR = ROOT / "outputs"
 
 # Temporal design — see labeling.py for the window diagram.
 #
-# 90 days is the usual operational horizon for SaaS churn; 30 days of lead time
-# is the minimum useful to a retention team. Both dials are swept in
-# docs/FEATURE_ENGINEERING.md — no configuration in that sweep beats chance.
-CUTOFF_DATE = pd.Timestamp("2024-05-31")
-BUFFER_DAYS = 30
+# Primary framing: "will this account churn in the next 90 days, given what we
+# know on 2024-06-30". 90 days is the usual operational horizon for SaaS churn.
+#
+# BUFFER_DAYS is the lead time the model must give. Zero is the standard default
+# — you score today and act today. Non-zero variants are evaluated as a
+# robustness check in docs/FEATURE_ENGINEERING.md.
+CUTOFF_DATE = pd.Timestamp("2024-06-30")
+BUFFER_DAYS = 0
 PREDICTION_START = CUTOFF_DATE + pd.Timedelta(days=BUFFER_DAYS)
 HORIZON_DAYS = 90
 

@@ -57,8 +57,10 @@ there are only 25 positives, so a modest real effect could not be detected. The
 fair reading is "no signal at 90 days, where 59 positives give reasonable power"
 rather than a confident negative at 30.
 
-The project defaults to a 90-day horizon with a 30-day buffer as the
-operationally honest configuration, and reports that it does not work.
+The project's primary framing is a **90-day horizon with no buffer** — the
+standard formulation, and the configuration with the most positives at an
+operationally normal horizon. The buffer variants are reported as a robustness
+check rather than the headline, because zero buffer is the usual default.
 
 ## Feature taxonomy applied
 

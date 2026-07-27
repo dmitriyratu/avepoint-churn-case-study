@@ -1,18 +1,18 @@
 {
-  "model": "1. Single decision stump",
-  "persisted_model": "4. Logistic (L1, C=0.1)",
+  "model": "2. Logistic (L2, C=1)",
+  "persisted_model": "2. Logistic (L2, C=1)",
   "any_rung_beats_chance": false,
-  "cv_auc": 0.5109,
+  "cv_auc": 0.5954,
   "cv_auc_ci": [
-    0.3508,
-    0.6323
+    0.4455,
+    0.727
   ],
-  "oof_threshold": 0.25,
-  "oof_f1": 0.4712,
-  "oof_recall": 0.9,
-  "oof_precision": 0.3191489361702128,
-  "permutation_p": 0.3056,
-  "n_features_selected": 6,
-  "cohort_n": 168,
-  "positives": 50
+  "oof_threshold": 0.07,
+  "oof_f1": 0.5075,
+  "oof_recall": 0.864406779661017,
+  "oof_precision": 0.3591549295774648,
+  "permutation_p": 0.0864,
+  "n_features_selected": 88,
+  "cohort_n": 187,
+  "positives": 59
 }

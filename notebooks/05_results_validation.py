@@ -34,13 +34,14 @@ sns.set_theme(style="whitegrid", palette="muted")
 
 data = pipeline.build()
 df, X, y = data.frame, data.X, data.y
-model = load_model("churn_l1_logistic")
+model = load_model("churn_model")
 config = json.load(open("../outputs/models/config.json"))
 
 # Scores below describe the L1 rung, which is the persisted model.
 
-_, l1_est = model_ladder()[4]
-threshold, _, oof = oof_threshold(l1_est, X, y)
+best_idx = int(pd.read_csv("../outputs/reports/model_ladder.csv")["roc_auc_mean"].idxmax())
+_, best_est = model_ladder()[best_idx]
+threshold, _, oof = oof_threshold(best_est, X, y)
 pred = (oof >= threshold).astype(int)
 
 print(f"CV AUC {config['cv_auc']:.3f}  CI {config['cv_auc_ci']}  p={config['permutation_p']}")
@@ -206,7 +207,7 @@ print(f"engagement features retained: {len(kept)}  {kept}")
 #                              │
 #  ┌───────────────────────────▼──────────────────────────────────┐
 #  │ Scoring  (batch; daily is ample for a 180-day horizon)       │
-#  │  - churn_l1_logistic.joblib                                   │
+#  │  - churn_model.joblib                                   │
 #  │  - writes account_id, score, decile, top contributing terms   │
 #  └───────────────────────────┬──────────────────────────────────┘
 #                              │

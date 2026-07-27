@@ -32,15 +32,18 @@ from sklearn.metrics import (roc_auc_score, average_precision_score, f1_score,
                              classification_report, roc_curve, precision_recall_curve)
 from sklearn.calibration import calibration_curve
 
-from src.model import (prep_xy, model_ladder, evaluate_ladder, tune_lightgbm,
+from src import pipeline
+from src.model import (model_ladder, evaluate_ladder, tune_lightgbm,
                        permutation_significance, oof_threshold, save_model, CV)
-from src.config import TARGET
 
 sns.set_theme(style="whitegrid", palette="muted")
 
-df = pd.read_csv("../data/processed/features_temporal.csv")
-X, y = prep_xy(df)
-print(f"{X.shape}   positives {int(y.sum())} ({y.mean():.1%})")
+# Built from source rather than a cached CSV, so the notebook can never score a
+# frame produced under a different cutoff or horizon.
+data = pipeline.build(verify=True)
+df, X, y = data.frame, data.X, data.y
+print(data.summary.to_string())
+print(f"\n{X.shape}   positives {int(y.sum())} ({y.mean():.1%})")
 
 # %% [markdown]
 # ## The ladder
@@ -195,47 +198,51 @@ tn, fp, fn, tp = cm.ravel()
 print(f"caught {tp} of {tp+fn} churners; missed {fn}; {fp} false alarms")
 
 # %% [markdown]
-# ## Which features the L1 model keeps
+# ## What the model keys on
 #
-# Read from the L1 rung specifically, not from `best_est`. When no rung clears
-# chance, whichever one tops the table is decided by noise — at this horizon that
-# happens to be the stump, which has no coefficients to inspect. The L1 model is
-# the one worth reading because it is the only rung that names its features.
+# The selected rung is linear, so coefficients on standardised inputs are
+# directly readable — no SHAP needed for a handful of terms, and a simpler
+# explanation is a better one when it is available.
 
 # %%
 from src.model import feature_names
 
-_, l1_est = model_ladder()[4]
-l1_est.fit(X, y)
-coef = pd.Series(l1_est.named_steps["clf"].coef_[0], index=feature_names(l1_est, X))
-nz = coef[coef != 0].sort_values(key=abs, ascending=False)
+best_est.fit(X, y)
+clf = best_est.named_steps["clf"]
+has_coefs = hasattr(clf, "coef_")
 
-print(f"L1 keeps {len(nz)} of {len(coef)} encoded features:\n")
-print(nz.round(4).to_string() if len(nz) else "  (none — the penalty zeroed every coefficient)")
-nz.to_csv("../outputs/reports/l1_selected_coefficients.csv", header=["coefficient"])
+if has_coefs:
+    coef = pd.Series(clf.coef_[0], index=feature_names(best_est, X))
+    nz = coef[coef != 0].sort_values(key=abs, ascending=False)
+    print(f"{len(nz)} non-zero of {len(coef)} encoded features:\n")
+    print(nz.head(15).round(4).to_string())
+    nz.to_csv("../outputs/reports/model_coefficients.csv", header=["coefficient"])
+else:
+    nz = pd.Series(dtype=float)
+    print(f"{best_name} is not linear — see permutation importance instead.")
 
 # %%
-fig, ax = plt.subplots(figsize=(8, 4))
-(nz.sort_values() if len(nz) else pd.Series({"(no features retained)": 0})).plot(kind="barh", ax=ax,
-                      color=["salmon" if v > 0 else "steelblue" for v in nz.sort_values()])
-ax.axvline(0, color="black", lw=.8)
-ax.set_title("L1 logistic — non-zero standardised coefficients")
-ax.set_xlabel("coefficient (positive = higher churn risk)")
-plt.tight_layout()
-plt.savefig("../outputs/figures/04_coefficients.png", bbox_inches="tight")
-plt.show()
+if len(nz):
+    top = nz.reindex(nz.abs().sort_values(ascending=False).index).head(12).sort_values()
+    fig, ax = plt.subplots(figsize=(8, 4))
+    top.plot(kind="barh", ax=ax, color=["salmon" if v > 0 else "steelblue" for v in top])
+    ax.axvline(0, color="black", lw=.8)
+    ax.set_title(f"{best_name} — standardised coefficients")
+    ax.set_xlabel("coefficient (positive = higher churn risk)")
+    plt.tight_layout()
+    plt.savefig("../outputs/figures/04_coefficients.png", bbox_inches="tight")
+    plt.show()
+else:
+    print("No coefficients to plot for", best_name)
 
 # %% [markdown]
 # ## Persist
 
 # %%
-# The L1 model is the one worth persisting: it is the interpretable rung and the
-# only one whose feature selection is readable. `best_est` is whatever topped a
-# table where nothing clears chance, so it is not a meaningful artefact.
-save_model(l1_est, "churn_l1_logistic")
+save_model(best_est, "churn_model")
 config = {
     "model": best_name,
-    "persisted_model": "4. Logistic (L1, C=0.1)",
+    "persisted_model": best_name,
     "any_rung_beats_chance": bool(beats_chance),
     "cv_auc": float(ladder.loc[best_idx, "roc_auc_mean"]),
     "cv_auc_ci": [float(ladder.loc[best_idx, "ci_lo"]), float(ladder.loc[best_idx, "ci_hi"])],
