@@ -1,3 +1,0 @@
-probe,auc,pass
-account_id as integer,0.5,True
-row order,0.5351,True
