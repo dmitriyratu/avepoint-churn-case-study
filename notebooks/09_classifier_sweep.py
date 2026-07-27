@@ -25,6 +25,7 @@ sys.path.append("..")
 
 import numpy as np
 import pandas as pd
+from pathlib import Path
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
@@ -95,17 +96,17 @@ CANDIDATES = {
     "kNN (k=15)": KNeighborsClassifier(n_neighbors=15),
     "Decision tree (d3)": DecisionTreeClassifier(max_depth=3, class_weight="balanced", random_state=42),
     "Extra tree": ExtraTreeClassifier(max_depth=3, class_weight="balanced", random_state=42),
-    "Random forest": RandomForestClassifier(n_estimators=200, max_depth=4, min_samples_leaf=8,
+    "Random forest": RandomForestClassifier(n_estimators=100, max_depth=4, min_samples_leaf=8,
                                             class_weight="balanced", random_state=42),
-    "Extra trees": ExtraTreesClassifier(n_estimators=200, max_depth=4, min_samples_leaf=8,
+    "Extra trees": ExtraTreesClassifier(n_estimators=100, max_depth=4, min_samples_leaf=8,
                                         class_weight="balanced", random_state=42),
     "AdaBoost": AdaBoostClassifier(n_estimators=100, learning_rate=0.1, random_state=42),
-    "Gradient boosting": GradientBoostingClassifier(n_estimators=150, max_depth=3,
+    "Gradient boosting": GradientBoostingClassifier(n_estimators=100, max_depth=3,
                                                     learning_rate=0.03, random_state=42),
-    "LightGBM": lgb.LGBMClassifier(n_estimators=250, learning_rate=0.03, num_leaves=7,
+    "LightGBM": lgb.LGBMClassifier(n_estimators=150, learning_rate=0.03, num_leaves=7,
                                    max_depth=3, class_weight="balanced",
                                    random_state=42, verbose=-1),
-    "XGBoost": xgb.XGBClassifier(n_estimators=250, learning_rate=0.03, max_depth=3,
+    "XGBoost": xgb.XGBClassifier(n_estimators=150, learning_rate=0.03, max_depth=3,
                                  scale_pos_weight=2.28, tree_method="hist",
                                  random_state=42, verbosity=0),
 }
@@ -139,17 +140,29 @@ print("\nThe spread across models is smaller than the noise within any one of th
 # "the best model scored X" is worth when X was chosen by maximisation.
 
 # %%
-rng = np.random.default_rng(42)
-null_best, null_all = [], []
-for trial in range(20):
-    y_shuffled = pd.Series(rng.permutation(y.values), index=y.index)
-    res = sweep(y_shuffled, cv=NULL_CV)
-    null_best.append(res["cv_auc"].max())
-    null_all.extend(res["cv_auc"].tolist())
-    print(f"  shuffle {trial + 1:>2}: best of {len(res)} = {res['cv_auc'].max():.4f}")
+# The null is 20 sweeps and is by far the most expensive cell here, so its result
+# is cached. Set REGENERATE = True to recompute from scratch (a few minutes).
+REGENERATE = False
+NULL_PATH = Path("../outputs/reports/selection_null.csv")
 
-null_best = np.array(null_best)
-null_all = np.array(null_all)
+if REGENERATE or not NULL_PATH.exists():
+    rng = np.random.default_rng(42)
+    records = []
+    for trial in range(20):
+        y_shuffled = pd.Series(rng.permutation(y.values), index=y.index)
+        res = sweep(y_shuffled, cv=NULL_CV)
+        records += [{"trial": trial, "model": r.model, "cv_auc": r.cv_auc}
+                    for r in res.itertuples()]
+        print(f"  shuffle {trial + 1:>2}: best of {len(res)} = {res['cv_auc'].max():.4f}")
+    null_df = pd.DataFrame(records)
+    null_df.to_csv(NULL_PATH, index=False)
+else:
+    null_df = pd.read_csv(NULL_PATH)
+    print(f"loaded cached null: {null_df['trial'].nunique()} shuffles x "
+          f"{null_df['model'].nunique()} models  (set REGENERATE=True to recompute)")
+
+null_best = null_df.groupby("trial")["cv_auc"].max().to_numpy()
+null_all = null_df["cv_auc"].to_numpy()
 
 # %%
 observed_best = observed["cv_auc"].max()

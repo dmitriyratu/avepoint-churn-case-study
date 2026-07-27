@@ -7,9 +7,11 @@ a point estimate implies precision the data cannot support.
 All preprocessing that learns a parameter — imputation, scaling, encoding — sits
 inside the pipeline so it is refit per fold.
 """
+import os
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
 
 import joblib
 import lightgbm as lgb
@@ -37,6 +39,14 @@ MODELS_DIR.mkdir(parents=True, exist_ok=True)
 CV = RepeatedStratifiedKFold(n_splits=5, n_repeats=10, random_state=42)
 INNER_CV = StratifiedKFold(5, shuffle=True, random_state=42)
 SEED = 42
+
+# Parallelism lives at the outer CV loop only — the forests are pinned to
+# n_jobs=1 so the two levels cannot fork against each other.
+#
+# Defaults to serial because n_jobs=-1 deadlocks under some sandboxed and
+# container runtimes. Set CHURN_N_JOBS to a core count to opt in; 4 roughly
+# halves the full notebook run.
+N_JOBS_OUTER = int(os.environ.get("CHURN_N_JOBS", "1"))
 
 # XGBoost has no class_weight; scale_pos_weight is the equivalent lever. Set from
 # the cohort's own ratio rather than hardcoded.
@@ -180,7 +190,7 @@ def evaluate_ladder(X, y, cv=CV, scoring="roc_auc"):
     """Score every rung on identical folds, with a 95% interval."""
     rows = []
     for name, est in model_ladder():
-        s = cross_val_score(est, X, y, cv=cv, scoring=scoring)
+        s = cross_val_score(est, X, y, cv=cv, scoring=scoring, n_jobs=N_JOBS_OUTER)
         rows.append({"model": name, f"{scoring}_mean": s.mean(), "sd": s.std(),
                      "ci_lo": np.percentile(s, 2.5), "ci_hi": np.percentile(s, 97.5)})
     return pd.DataFrame(rows).round(4)
@@ -194,14 +204,14 @@ def tune_lightgbm(X, y, cv=INNER_CV):
     base = _native_pipe(lgb.LGBMClassifier(
         n_estimators=300, class_weight="balanced", subsample=0.8, subsample_freq=1,
         colsample_bytree=0.7, min_child_samples=15, random_state=SEED, verbose=-1))
-    return GridSearchCV(base, grid, scoring="roc_auc", cv=cv).fit(X, y)
+    return GridSearchCV(base, grid, scoring="roc_auc", cv=cv, n_jobs=N_JOBS_OUTER).fit(X, y)
 
 
 def permutation_significance(estimator, X, y, n_permutations=300, cv=INNER_CV):
     """Compare the observed score against a shuffled-label null."""
     score, null, p = permutation_test_score(
         estimator, X, y, cv=cv, scoring="roc_auc",
-        n_permutations=n_permutations, random_state=SEED)
+        n_permutations=n_permutations, random_state=SEED, n_jobs=N_JOBS_OUTER)
     return {"observed_auc": round(score, 4), "null_mean": round(null.mean(), 4),
             "null_sd": round(null.std(), 4), "null_p95": round(np.percentile(null, 95), 4),
             "p_value": round(p, 4)}
@@ -209,7 +219,8 @@ def permutation_significance(estimator, X, y, n_permutations=300, cv=INNER_CV):
 
 def oof_threshold(estimator, X, y, cv=INNER_CV):
     """Pick the decision threshold out-of-fold. Returns (threshold, f1, proba)."""
-    proba = cross_val_predict(estimator, X, y, cv=cv, method="predict_proba")[:, 1]
+    proba = cross_val_predict(estimator, X, y, cv=cv, method="predict_proba",
+                              n_jobs=N_JOBS_OUTER)[:, 1]
     grid = np.linspace(0.05, 0.95, 91)
     scores = [f1_score(y, proba >= t, zero_division=0) for t in grid]
     best = int(np.argmax(scores))

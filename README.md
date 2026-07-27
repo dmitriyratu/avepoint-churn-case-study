@@ -89,8 +89,27 @@ Run all notebooks in order (they also execute as plain scripts):
 cd notebooks && for nb in 0*.py; do python "$nb" || echo "FAILED: $nb"; done
 ```
 
-All seven run clean end-to-end. `03` and `04` assert the leakage suite passes and
-will stop the pipeline if it does not.
+All nine run clean end-to-end. `03` and `04` assert the leakage suite passes and
+stop the pipeline if it does not.
+
+| Notebook | Runtime |
+|---|---:|
+| 01 EDA, 02 cleaning, 03 features, 05 results, 07 audit | 3–5 s each |
+| 06 leakage quantification | ~11 s |
+| 09 classifier sweep | ~83 s |
+| 08 diagnostics | ~150 s |
+| 04 modelling | ~190 s |
+| **total** | **~7 min** |
+
+Everything runs serially by default, because `n_jobs=-1` deadlocks under some
+container runtimes. Set `CHURN_N_JOBS=4` to opt into outer-loop parallelism,
+which roughly halves the total.
+
+The two slow notebooks are slow for a reason worth keeping: `04` runs a 300-shuffle
+permutation test and a 54-point grid search, and `08` runs learning and validation
+curves over 50 folds each. `09`'s expensive part — 20 sweeps over shuffled labels —
+is cached to `outputs/reports/selection_null.csv`; set `REGENERATE = True` in the
+notebook to recompute it.
 
 Or run the src modules directly as a pipeline:
 
