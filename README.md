@@ -146,12 +146,30 @@ Model ladder, repeated stratified CV (5 folds × 10 repeats, identical folds):
 | 3 | Logistic (L2, C=0.05) | 0.579 | [0.42, 0.73] |
 | 4 | Logistic (L1, C=0.1) | 0.569 | [0.41, 0.70] |
 | 5 | Random forest (depth 4) | 0.539 | [0.42, 0.68] |
-| 6 | LightGBM (shallow) | 0.517 | [0.37, 0.63] |
+| 6 | LightGBM (pipelined) | 0.517 | [0.37, 0.63] |
+| 7 | LightGBM (native NaN + categoricals) | 0.531 | [0.36, 0.66] |
+| 8 | HistGradientBoosting (native NaN) | 0.515 | [0.37, 0.68] |
+| 9 | LightGBM (native, tuned) | 0.541 | [0.37, 0.70] |
 
-**Selected: L2 logistic regression.** Both tree ensembles score below it — at
-~0.8 events per variable the ensembles have far more capacity than 59 positives
-can support, and regularisation is worth more than boosting. A 54-point LightGBM
-grid search does not close the gap.
+**Giving the boosters a fair shot.** Routing LightGBM through the same
+`SimpleImputer` + `OneHotEncoder` as the linear models handicaps it: gradient
+boosters learn a split direction for missingness rather than needing it filled,
+and take native categorical splits rather than a one-hot expansion that fragments
+the feature. Rung 7 passes raw `NaN` and pandas `category` dtype straight through.
+
+It helps — 0.517 → 0.531 — and a 54-point grid search adds a little more, to
+0.541. **It still does not beat a plain regularised linear model.**
+
+One methodological trap worth naming: `GridSearchCV.best_score_` for that tuned
+model reads **0.586**, which looks near-parity with logistic. That number is
+selection-inflated — it is the score on the very folds used to pick the
+hyperparameters. Re-scored on the ladder's independent folds it drops to 0.541.
+Comparing a tuned model's `best_score_` against another model's honest CV score
+is a common and invisible way to make the complex model look better than it is.
+
+**Selected: L2 logistic regression** — not because boosting was denied a fair
+attempt, but because it was given one and lost. At ~0.8 events per variable the
+ensembles have far more capacity than 59 positives can support.
 
 **Operating point** — threshold chosen out-of-fold, favouring recall because a
 missed churner costs more than a wasted outreach call:

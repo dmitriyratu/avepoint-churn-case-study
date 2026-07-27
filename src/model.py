@@ -13,9 +13,10 @@ from pathlib import Path
 
 import joblib
 import lightgbm as lgb
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.dummy import DummyClassifier
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score
@@ -34,6 +35,11 @@ MODELS_DIR.mkdir(parents=True, exist_ok=True)
 CV = RepeatedStratifiedKFold(n_splits=5, n_repeats=10, random_state=42)
 INNER_CV = StratifiedKFold(5, shuffle=True, random_state=42)
 SEED = 42
+
+LGBM_PARAMS = dict(n_estimators=250, learning_rate=0.03, num_leaves=7, max_depth=3,
+                   min_child_samples=15, subsample=0.8, subsample_freq=1,
+                   colsample_bytree=0.7, reg_lambda=5.0, class_weight="balanced",
+                   random_state=SEED, verbose=-1)
 
 _BOOLISH = {"True", "False", "0", "1", "0.0", "1.0"}
 
@@ -92,6 +98,36 @@ def feature_names(fitted_pipe, X):
     return list(fitted_pipe.named_steps["pre"].get_feature_names_out(X.columns))
 
 
+class AsCategory(BaseEstimator, TransformerMixin):
+    """Cast object columns to pandas `category`, leaving NaN intact.
+
+    Gradient boosters handle both natively and generally better than the
+    preprocessing in `_pipe`: missingness gets its own learned split direction
+    instead of being replaced by a median, and categoricals get native splits
+    instead of a one-hot expansion that fragments the feature.
+
+    Categories are learned on the training fold only. A level unseen in training
+    becomes NaN at transform time, which the booster routes like any other
+    missing value — the same guarantee `handle_unknown="ignore"` gives.
+    """
+
+    def fit(self, X, y=None):
+        self.columns_ = [c for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
+        self.categories_ = {c: pd.Index(X[c].dropna().unique()) for c in self.columns_}
+        return self
+
+    def transform(self, X):
+        X = X.copy()
+        for c in self.columns_:
+            X[c] = pd.Categorical(X[c], categories=self.categories_[c])
+        return X
+
+
+def _native_pipe(clf):
+    """Booster with raw NaN and native categoricals — no imputation, no one-hot."""
+    return Pipeline([("cat", AsCategory()), ("clf", clf)])
+
+
 def model_ladder():
     """Rungs in increasing flexibility. Rung 0 uses no features at all."""
     return [
@@ -113,12 +149,15 @@ def model_ladder():
          _pipe(RandomForestClassifier(n_estimators=400, max_depth=4, min_samples_leaf=8,
                                       class_weight="balanced", random_state=SEED),
                scale=False)),
-        ("6. LightGBM (shallow)",
-         _pipe(lgb.LGBMClassifier(n_estimators=250, learning_rate=0.03, num_leaves=7,
-                                  max_depth=3, min_child_samples=15, subsample=0.8,
-                                  subsample_freq=1, colsample_bytree=0.7, reg_lambda=5.0,
-                                  class_weight="balanced", random_state=SEED, verbose=-1),
-               scale=False)),
+        ("6. LightGBM (pipelined)",
+         _pipe(lgb.LGBMClassifier(**LGBM_PARAMS), scale=False)),
+        ("7. LightGBM (native NaN + categoricals)",
+         _native_pipe(lgb.LGBMClassifier(**LGBM_PARAMS))),
+        ("8. HistGradientBoosting (native NaN)",
+         _pipe(HistGradientBoostingClassifier(
+             max_depth=3, max_leaf_nodes=7, learning_rate=0.03, max_iter=250,
+             min_samples_leaf=15, l2_regularization=5.0,
+             class_weight="balanced", random_state=SEED), scale=False)),
     ]
 
 
@@ -137,10 +176,9 @@ def tune_lightgbm(X, y, cv=INNER_CV):
             "clf__max_depth": [2, 3, 4],
             "clf__learning_rate": [0.02, 0.05],
             "clf__reg_lambda": [1.0, 5.0, 20.0]}
-    base = _pipe(lgb.LGBMClassifier(n_estimators=300, class_weight="balanced",
-                                    subsample=0.8, subsample_freq=1, colsample_bytree=0.7,
-                                    min_child_samples=15, random_state=SEED, verbose=-1),
-                 scale=False)
+    base = _native_pipe(lgb.LGBMClassifier(
+        n_estimators=300, class_weight="balanced", subsample=0.8, subsample_freq=1,
+        colsample_bytree=0.7, min_child_samples=15, random_state=SEED, verbose=-1))
     return GridSearchCV(base, grid, scoring="roc_auc", cv=cv).fit(X, y)
 
 

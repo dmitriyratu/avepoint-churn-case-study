@@ -104,8 +104,22 @@ Each decision below is backed by a check in the notebooks or a gate in
   feature types.
 
 - **Model selection is a ladder**: prior → stump → logistic (L2, two strengths) →
-  logistic (L1) → random forest → LightGBM, on identical folds. L1 logistic leads
-  at 0.545, and no rung is distinguishable from chance.
+  logistic (L1) → random forest → LightGBM → LightGBM with native NaN and
+  categorical handling → HistGradientBoosting → tuned LightGBM, all on identical
+  folds. L2 logistic leads at 0.595.
+
+- **The boosters are not handicapped.** Routing LightGBM through the linear
+  models' `SimpleImputer` + `OneHotEncoder` would deny it two things it does well:
+  learning a split direction for missingness, and native categorical splits.
+  Rung 7 passes raw `NaN` and pandas `category` dtype through instead
+  (`model.AsCategory`, with categories learned per fold). That is worth +0.014,
+  and tuning a further +0.010 — still short of the linear model.
+
+- **Tuned scores are re-scored on the ladder's folds.** `GridSearchCV.best_score_`
+  for the tuned booster reads 0.586, but that is the score on the folds used to
+  select the hyperparameters. On independent folds it is 0.541. Quoting the
+  former against another model's honest CV score is a common way to make the
+  complex model look better than it is.
 
 - **Significance is tested, not assumed.** A 300-shuffle permutation test gives
   p = 0.25 at the 30-day buffer — the model does not beat chance.
