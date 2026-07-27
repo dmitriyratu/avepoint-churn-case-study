@@ -12,8 +12,9 @@ from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.impute import SimpleImputer
 from sklearn.model_selection import (
     RepeatedStratifiedKFold, StratifiedKFold, cross_val_score,
@@ -51,23 +52,63 @@ def prep_xy(df, target=TARGET):
         if pd.api.types.is_bool_dtype(X[c]):
             X[c] = X[c].astype(int)
         elif not pd.api.types.is_numeric_dtype(X[c]):
-            X[c] = (X[c].astype(str)
-                    .str.strip()
-                    .replace({"True": "1", "False": "0", "nan": "0", "": "0"}))
-            X[c] = pd.to_numeric(X[c], errors="coerce").fillna(0)
+            # A CSV round-trip turns booleans into "True"/"False"; a fillna(0) on
+            # a boolean column leaves a three-valued {True, False, 0} mix. Coerce
+            # those back to numeric, but leave genuine categoricals as strings for
+            # the pipeline's encoder.
+            vals = set(X[c].dropna().astype(str).str.strip().unique())
+            if vals <= {"True", "False", "0", "1", "0.0", "1.0"}:
+                X[c] = pd.to_numeric(
+                    X[c].astype(str).str.strip().replace({"True": "1", "False": "0"}),
+                    errors="coerce",
+                ).fillna(0)
+            else:
+                X[c] = X[c].astype(str)
 
-    # NaN is preserved deliberately — every pipeline in the ladder imputes inside
-    # the fold (see _pipe), so the fill statistic never sees validation rows.
-    X = X.replace([np.inf, -np.inf], np.nan)
+    num = X.select_dtypes(include=[np.number]).columns
+    # NaN is preserved deliberately — every pipeline imputes inside the fold, so
+    # the fill statistic never sees validation rows.
+    X[num] = X[num].replace([np.inf, -np.inf], np.nan)
     return X, y
 
 
+def categorical_columns(X):
+    return [c for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
+
+
 def _pipe(clf, scale=True):
-    steps = [("impute", SimpleImputer(strategy="median"))]
+    """Every transform that learns from data lives inside the pipeline.
+
+    scikit-learn's own guidance: transformations must be applied to train and
+    test alike, but *learnt from the training data only*. Putting the imputer,
+    scaler and encoder here means cross_val_score refits all three per fold.
+
+    OneHotEncoder(handle_unknown="ignore") also fixes a production problem that
+    pd.get_dummies cannot: an industry or country never seen in training encodes
+    to all-zeros instead of changing the column set.
+    """
+    num_steps = [("impute", SimpleImputer(strategy="median"))]
     if scale:
-        steps.append(("scale", StandardScaler()))
-    steps.append(("clf", clf))
-    return Pipeline(steps)
+        num_steps.append(("scale", StandardScaler()))
+    num_pipe = Pipeline(num_steps)
+
+    cat_pipe = Pipeline([
+        ("impute", SimpleImputer(strategy="most_frequent")),
+        ("onehot", OneHotEncoder(handle_unknown="ignore", drop="first",
+                                 sparse_output=False)),
+    ])
+
+    pre = ColumnTransformer(
+        [("num", num_pipe, make_column_selector(dtype_include=np.number)),
+         ("cat", cat_pipe, make_column_selector(dtype_exclude=np.number))],
+        remainder="drop",
+    )
+    return Pipeline([("pre", pre), ("clf", clf)])
+
+
+def feature_names(fitted_pipe, X):
+    """Post-encoding column names, for reading coefficients off a fitted model."""
+    return list(fitted_pipe.named_steps["pre"].get_feature_names_out(X.columns))
 
 
 def model_ladder(random_state=42):

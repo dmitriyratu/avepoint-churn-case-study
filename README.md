@@ -51,6 +51,7 @@ AvePoint/
 │   └── reports/              # CSV metrics
 └── docs/
     ├── ASSUMPTIONS.md        # key decisions and their rationale
+    ├── CLEANING_CHECKLIST.md # cleaning/preprocessing practices, with findings
     ├── DATA_DICTIONARY.md    # field-by-field availability-at-prediction-time audit
     └── EDA_CHECKLIST.md      # EDA practices followed, with what each one found
 ```
@@ -133,22 +134,25 @@ Model ladder, repeated stratified CV (5 folds × 10 repeats, identical folds thr
 | Rung | Model | CV ROC-AUC | 95% CI |
 |------|-------|-----------|--------|
 | 0 | Prior (no features) | 0.500 | — |
-| 1 | Decision stump | 0.531 | [0.43, 0.60] |
-| 2 | Logistic (L2, C=1) | 0.574 | [0.40, 0.71] |
-| 3 | Logistic (L2, C=0.05) | 0.583 | [0.37, 0.71] |
-| **4** | **Logistic (L1, C=0.1)** | **0.611** | **[0.44, 0.74]** |
-| 5 | Random forest (depth 4) | 0.573 | [0.41, 0.68] |
-| 6 | LightGBM (shallow) | 0.556 | [0.36, 0.66] |
+| 1 | Decision stump | 0.541 | [0.45, 0.63] |
+| 2 | Logistic (L2, C=1) | 0.562 | [0.42, 0.69] |
+| 3 | Logistic (L2, C=0.05) | 0.553 | [0.38, 0.69] |
+| **4** | **Logistic (L1, C=0.1)** | **0.618** | **[0.50, 0.74]** |
+| 5 | Random forest (depth 4) | 0.571 | [0.41, 0.68] |
+| 6 | LightGBM (shallow) | 0.553 | [0.37, 0.67] |
 
-Tuned LightGBM over a 54-point grid reaches 0.609 — still below the linear model.
-
-**Permutation test** (300 label shuffles): observed 0.612 vs null mean 0.495
-→ **p = 0.040**. Beats chance, but only just.
+**Permutation test** (300 label shuffles) → **p = 0.013**. Distinguishable from
+chance, though the model is weak.
 
 **Operating point** (threshold selected out-of-fold, never on the evaluation set):
-threshold 0.42 → recall 0.932, precision 0.513, F1 0.661.
+threshold 0.40 → recall 0.943, precision 0.494, F1 0.648.
 
-L1 keeps **7 of 75** features.
+L1 keeps **5** features out of 62 (75 after in-fold encoding).
+
+All preprocessing that learns from data — imputation, scaling, one-hot encoding —
+runs inside the CV pipeline, so it is refit per fold. Moving the encoder in-fold
+(from `pd.get_dummies` on the full frame) is what lifted the lower CI bound above
+0.50. See `docs/CLEANING_CHECKLIST.md`.
 
 ### Leakage controls
 
@@ -173,8 +177,7 @@ See `docs/DATA_DICTIONARY.md` for the field-by-field verdicts.
 ## Key Findings
 
 1. **Tenure and plan dominate.** `days_since_signup` is the strongest single
-   predictor (negative — longer-tenured accounts survive), followed by being on the
-   Pro tier. Trial-heavy accounts churn more.
+   predictor (negative — longer-tenured accounts survive), followed by plan tier.
 
 2. **Complexity does not pay here.** Both tree ensembles score below L1 logistic, and
    grid search doesn't close the gap. At 1.16 events per variable, hard feature
@@ -192,9 +195,9 @@ See `docs/DATA_DICTIONARY.md` for the field-by-field verdicts.
 
 ## Honest limitations
 
-- 187 accounts / 88 positives. The AUC interval [0.44, 0.74] crosses 0.50 at the low end;
-  the point estimate should never be quoted alone.
-- **This is a triage ranker, not an action trigger.** At 93% recall / 51% precision it is
+- 187 accounts / 88 positives. The AUC interval [0.50, 0.74] only just clears chance at the
+  low end; the point estimate should never be quoted alone.
+- **This is a triage ranker, not an action trigger.** At 94% recall / 49% precision it is
   useful for ordering a CSM call list where a wasted call is cheap. It is not usable where
   a false positive carries real cost (discounts, account escalation).
 - A single cutoff date. Production evaluation needs rolling-origin backtesting.

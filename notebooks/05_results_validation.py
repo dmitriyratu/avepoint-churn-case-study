@@ -51,7 +51,8 @@ print(f"out-of-fold @ t={threshold}: recall {recall_score(y,pred):.3f}, "
 # a better one when it is available.
 
 # %%
-coef = pd.Series(model.named_steps["clf"].coef_[0], index=X.columns)
+from src.model import feature_names
+coef = pd.Series(model.named_steps["clf"].coef_[0], index=feature_names(model, X))
 nz = coef[coef != 0].sort_values(key=abs, ascending=False)
 print(nz.round(4).to_string())
 

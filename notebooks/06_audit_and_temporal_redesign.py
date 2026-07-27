@@ -138,7 +138,8 @@ print(f"events per variable: {y.sum()/X.shape[1]:.2f}  (want >= 10 — we are we
 print(f"constant columns: {[c for c in X.columns if X[c].nunique() <= 1]}")
 
 # %%
-corr = X.corrwith(y.astype(float)).sort_values(key=abs, ascending=False)
+from src.audit import encode_for_audit
+corr = encode_for_audit(X).corrwith(y.astype(float)).sort_values(key=abs, ascending=False)
 print("Top 12 associations with the forward-looking label:")
 print(corr.head(12).round(4).to_string())
 print(f"\nmax |r| = {corr.abs().max():.4f}   (was 0.1196 against the static flag)")
@@ -246,9 +247,10 @@ print(f"  precision {precision_score(y, pred, zero_division=0):.4f}")
 # %%
 # What the L1 penalty actually kept
 best_est.fit(X, y)
-coef = pd.Series(best_est.named_steps["clf"].coef_[0], index=X.columns)
+from src.model import feature_names
+coef = pd.Series(best_est.named_steps["clf"].coef_[0], index=feature_names(best_est, X))
 nz = coef[coef != 0].sort_values(key=abs, ascending=False)
-print(f"L1 retained {len(nz)} of {X.shape[1]} features:\n")
+print(f"L1 retained {len(nz)} of {len(coef)} encoded features:\n")
 print(nz.round(4).to_string())
 
 # %% [markdown]

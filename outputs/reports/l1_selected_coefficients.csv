@@ -1,8 +1,6 @@
 ,coefficient
-days_since_signup,-0.2760472737367796
-latest_plan_tier_Pro,-0.17348109705433906
-avg_usage_count,0.09751336982204006
-industry_DevTools,0.074687603694108
-n_trial_subs,-0.07107159028638259
-country_CA,-0.05452463231688963
-avg_first_response_mins,0.034447105144806894
+num__days_since_signup,-0.2840860925074107
+num__avg_usage_count,0.11560330149467703
+num__n_trial_subs,-0.07868944664370547
+num__avg_first_response_mins,0.019208327498339783
+num__error_rate,-0.006789428866367963

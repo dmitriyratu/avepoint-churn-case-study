@@ -193,7 +193,8 @@ print(f"caught {tp} of {tp+fn} churners; missed {fn}; {fp} false alarms")
 
 # %%
 best_est.fit(X, y)
-coef = pd.Series(best_est.named_steps["clf"].coef_[0], index=X.columns)
+from src.model import feature_names
+coef = pd.Series(best_est.named_steps["clf"].coef_[0], index=feature_names(best_est, X))
 nz = coef[coef != 0].sort_values(key=abs, ascending=False)
 print(f"L1 retained {len(nz)} of {X.shape[1]} features:\n")
 print(nz.round(4).to_string())

@@ -116,7 +116,9 @@ support_feats.describe().T.round(2)
 # %%
 df = build_model_dataset(obs, cohort, CUTOFF_DATE)
 X, y = prep_xy(df)
-print(f"feature matrix : {X.shape}")
+print(f"feature matrix : {X.shape}  (categoricals still raw; encoded in-fold)")
+from src.model import categorical_columns
+print(f"categorical cols: {categorical_columns(X)}")
 print(f"positives      : {int(y.sum())} ({y.mean():.1%})")
 print(f"pruned as collinear: {df.attrs.get('dropped_collinear')}")
 print(f"events per variable: {y.sum()/X.shape[1]:.2f}   (want >= 10)")
@@ -148,7 +150,9 @@ print("rates   -> NaN, imputed inside the CV fold by model._pipe")
 # penalty inside cross-validation, not by picking winners off this list.
 
 # %%
-corr = X.corrwith(y.astype(float)).sort_values(key=abs, ascending=False)
+from src.audit import encode_for_audit
+Xe = encode_for_audit(X)   # diagnostic view only; the model encodes in-fold
+corr = Xe.corrwith(y.astype(float)).sort_values(key=abs, ascending=False)
 print(corr.head(15).round(4).to_string())
 print(f"\nmax |r| = {corr.abs().max():.4f}")
 

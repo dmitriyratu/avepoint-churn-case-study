@@ -66,6 +66,13 @@ project stated a rationale the data does not support, that is recorded too.
   and is among the most informative fields in the table. Encoded as
   `n_open_subs` / `pct_subs_ended` rather than dropped.
 
+- **Categoricals are encoded inside the CV pipeline**, not with `pd.get_dummies`
+  on the full frame. Encoding up front learns category levels from validation
+  rows, and offers no `handle_unknown` path, so an unseen `industry` value would
+  change the column set at serving time. `OneHotEncoder(handle_unknown="ignore")`
+  in a `ColumnTransformer` fixes both; it also lifted the lower CI bound from
+  0.44 to 0.50. See `docs/CLEANING_CHECKLIST.md`.
+
 - **Near-duplicate features pruned at |r| > 0.98.** `feature_breadth` was
   `unique_features_used / 40`, correlated at exactly 1.000; keeping both splits
   one effect across two coefficients. Dropped: `n_open_subs`, `feature_breadth`,
@@ -82,7 +89,7 @@ project stated a rationale the data does not support, that is recorded too.
 - **All `churn_events`-derived features are excluded from the model**
   (`config.POST_OUTCOME_COLS`). Refund amount, churn reason, and reactivation
   flags describe the outcome — a refund is issued *because* the customer left.
-  Including them takes CV AUC from 0.611 to **0.997**, which is the signature of
+  Including them takes CV AUC from 0.618 to **0.997**, which is the signature of
   label leakage rather than a good model. They are retained in the frame for
   post-hoc analysis only.
 
@@ -102,8 +109,11 @@ project stated a rationale the data does not support, that is recorded too.
   tickets is this account still waiting on" *is* knowable.
 
   This leak was found by `audit.temporal_provenance`, not by reading the code.
-  Fixing it cost 0.024 AUC (0.635 -> 0.611) and weakened the permutation test
-  from p = 0.013 to p = 0.040. Part of the earlier result was the leak.
+  Measured at the time it was fixed, censoring cost 0.024 AUC (0.635 -> 0.611)
+  and weakened the permutation test from p = 0.013 to p = 0.040 — part of the
+  earlier result was the leak. (Current headline figures are higher again, 0.618
+  at p = 0.013, because a later change moved one-hot encoding inside the CV fold.
+  The two changes are independent; the leak fix on its own was a real cost.)
 
 - **Leakage checks are automated, not manual** (`src/audit.py`). The suite gates
   temporal provenance across *every* datetime column, single-feature AUC
@@ -128,28 +138,28 @@ project stated a rationale the data does not support, that is recorded too.
 
 - **Model selection is a ladder, not a single choice.** Prior -> stump ->
   logistic (L2, two strengths) -> logistic (L1) -> random forest -> LightGBM,
-  all on identical folds. L1 logistic wins at 0.611; neither ensemble beats it,
-  and a 54-point LightGBM grid search reaches only 0.609. With 1.16 events
+  all on identical folds. L1 logistic wins at 0.618; neither ensemble beats it,
+  and a 54-point LightGBM grid search does not close the gap. With 1.16 events
   per variable this is the expected outcome, and it is the reason the extra
   capacity is not shipped.
 
 - **Significance is tested, not assumed.** A 300-shuffle permutation test gives
-  p = 0.040 against a null mean of 0.495. That is marginal, and stated as such.
+  p = 0.013 against a null mean near 0.50. Real, though the model remains weak.
 
 ## Known limitations
 
 1. **Cohort size.** 187 accounts / 88 positives. The AUC confidence interval is
-   roughly [0.44, 0.74] — it crosses 0.50 at the low end, so the point estimate
-   should never be quoted alone.
-2. **Deployment posture.** At 93% recall / 51% precision this is a triage ranker
+   roughly [0.50, 0.74] — it only just clears chance at the low end, so the point
+   estimate should never be quoted alone.
+2. **Deployment posture.** At 94% recall / 49% precision this is a triage ranker
    for CSM outreach, not an automated action trigger. It should not drive
    anything with a real cost attached to a false positive.
 3. **A single cutoff date.** Production evaluation needs rolling-origin
    backtesting across several cutoffs.
 4. **No nested CV**, so the reported score does not include
    hyperparameter-selection variance.
-5. **75 candidate features on 88 positives** is over-parameterised before a model
-   is even fit. L1 reduces this to 7 in practice.
+5. **75 encoded features on 88 positives** is over-parameterised before a model
+   is even fit. L1 reduces this to 5 in practice.
 6. **Synthetic data.** Feature-target associations top out at |r| = 0.28. On real
    product telemetry, 0.3–0.6 is typical and AUC of 0.75+ is a reasonable target
    with this feature set.

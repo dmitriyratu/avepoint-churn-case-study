@@ -1,4 +1,4 @@
 design,description,auc,sd
-A_correct,observation window only,0.6106,0.0738
-B_future_leak,features see post-cutoff rows,0.6147,0.069
+A_correct,observation window only,0.6175,0.0624
+B_future_leak,features see post-cutoff rows,0.634,0.0711
 C_post_outcome_leak,plus churn_events-derived features,0.9967,0.0068

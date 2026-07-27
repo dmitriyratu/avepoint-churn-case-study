@@ -1,16 +1,16 @@
 {
   "model": "4. Logistic (L1, C=0.1)",
-  "cv_auc": 0.6106,
+  "cv_auc": 0.6175,
   "cv_auc_ci": [
-    0.4385,
-    0.7351
+    0.5011,
+    0.74
   ],
-  "oof_threshold": 0.42,
-  "oof_f1": 0.6613,
-  "oof_recall": 0.9318181818181818,
-  "oof_precision": 0.5125,
-  "permutation_p": 0.0399,
-  "n_features_selected": 7,
+  "oof_threshold": 0.4,
+  "oof_f1": 0.6484,
+  "oof_recall": 0.9431818181818182,
+  "oof_precision": 0.49404761904761907,
+  "permutation_p": 0.0133,
+  "n_features_selected": 5,
   "cohort_n": 187,
   "positives": 88
 }

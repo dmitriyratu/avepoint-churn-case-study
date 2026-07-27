@@ -1,2 +1,2 @@
 model,cv_auc,cv_auc_ci,oof_threshold,oof_f1,oof_recall,oof_precision,permutation_p,n_features_selected,cohort_n,positives
-"4. Logistic (L1, C=0.1)",0.6106,"[0.4385, 0.7351]",0.42,0.6613,0.9318181818181818,0.5125,0.0399,7,187,88
+"4. Logistic (L1, C=0.1)",0.6175,"[0.5011, 0.74]",0.4,0.6484,0.9431818181818182,0.49404761904761907,0.0133,5,187,88

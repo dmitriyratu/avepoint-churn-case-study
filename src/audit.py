@@ -38,8 +38,21 @@ def temporal_provenance(truncated_tables, cutoff):
     return pd.DataFrame(rows)
 
 
+def encode_for_audit(X):
+    """One-hot encode for *diagnostic* purposes only.
+
+    The model pipeline encodes inside each fold; this is a flat view so the
+    numeric checks below can inspect every column. It never feeds a model.
+    """
+    cat = [c for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
+    if not cat:
+        return X
+    return pd.get_dummies(X, columns=cat, drop_first=True, dtype=int)
+
+
 def single_feature_auc(X, y):
     """Rank columns by standalone discriminative power."""
+    X = encode_for_audit(X)
     rows = []
     for c in X.columns:
         v = pd.to_numeric(X[c], errors="coerce").astype(float)
@@ -93,7 +106,7 @@ def duplicate_rows(X, df=None, id_col="account_id"):
 
 
 def collinear_pairs(X, threshold=COLLINEARITY_THRESHOLD):
-    num = X.select_dtypes(include=[np.number])
+    num = encode_for_audit(X).select_dtypes(include=[np.number])
     cm = num.corr().abs()
     cols = list(cm.columns)
     rows = []

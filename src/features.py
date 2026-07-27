@@ -226,11 +226,12 @@ def build_model_dataset(tables, cohort, as_of=CUTOFF_DATE, prune_collinear=True)
         if _is_count_col(c):
             df[c] = df[c].fillna(0)
 
-    # drop_first avoids the dummy trap, which matters for the linear models in
-    # the comparison ladder.
-    cat_cols = [c for c in ["industry", "country", "referral_source", "plan_tier",
-                            "latest_plan_tier", "billing_freq"] if c in df.columns]
-    df = pd.get_dummies(df, columns=cat_cols, drop_first=True, dtype=int)
+    # Categoricals are deliberately left as raw strings. Encoding them here with
+    # pd.get_dummies would learn the category levels from every row — including
+    # the validation fold — and would silently produce a different column set if
+    # an unseen category appeared at serving time. One-hot encoding happens
+    # inside the model pipeline instead (model._pipe -> OneHotEncoder with
+    # handle_unknown="ignore"), so it is fit per fold and safe in production.
 
     if prune_collinear:
         protect = tuple(cohort.columns)
