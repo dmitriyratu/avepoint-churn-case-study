@@ -88,6 +88,22 @@ def collinear_pairs(X, threshold=COLLINEARITY_THRESHOLD):
             .sort_values("abs_r", ascending=False).round(4).reset_index(drop=True))
 
 
+def forbidden_columns(X):
+    """Outcome and point-in-time-unsafe columns must never reach the model.
+
+    The single-feature AUC gate only catches a leak that is *strongly*
+    predictive. `churn_flag` scored 0.51 here — categorically the outcome
+    variable, statistically invisible — so it needs a check by name.
+    """
+    from .config import POINT_IN_TIME_UNSAFE_COLS, POST_OUTCOME_COLS
+
+    forbidden = {c: "outcome variable" for c in POST_OUTCOME_COLS}
+    forbidden |= {c: "not knowable as of the cutoff" for c in POINT_IN_TIME_UNSAFE_COLS}
+    rows = [{"column": c, "reason": why, "pass": False}
+            for c, why in forbidden.items() if c in X.columns]
+    return pd.DataFrame(rows, columns=["column", "reason", "pass"])
+
+
 def constant_columns(X):
     rows = [{"feature": c, "n_unique": int(X[c].nunique())}
             for c in X.columns if X[c].nunique() <= 1]
@@ -120,6 +136,7 @@ def run_all(X, y, df, tables, cutoff, raw_tables=None):
     """Full suite. Returns (results, passed)."""
     results = {
         "temporal_provenance": temporal_provenance(tables, cutoff),
+        "forbidden_columns": forbidden_columns(X),
         "single_feature_auc": single_feature_auc(X, y),
         "perfect_separation": perfect_separation(X, y),
         "identifier_leakage": identifier_leakage(df, y),
@@ -134,5 +151,6 @@ def run_all(X, y, df, tables, cutoff, raw_tables=None):
     passed = (all(results[k]["pass"].all() for k in gated)
               and (results["single_feature_auc"]["auc"] < SINGLE_FEATURE_AUC_FAIL).all()
               and results["perfect_separation"].empty
+              and results["forbidden_columns"].empty
               and results["constant_columns"].empty)
     return results, passed

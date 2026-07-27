@@ -27,13 +27,27 @@ def build_cohort(tables, cutoff=CUTOFF_DATE, horizon_days=HORIZON_DAYS,
     the buffer — are dropped: at scoring time we could not have acted on them.
     """
     horizon_end = prediction_start + pd.Timedelta(days=horizon_days)
-    churned_on = tables["accounts"]["account_id"].map(first_churn_date(tables["churn_events"]))
+    accounts = tables["accounts"]
+    churned_on = accounts["account_id"].map(first_churn_date(tables["churn_events"]))
 
-    cohort = tables["accounts"].assign(churned_on=churned_on)
+    # At risk means holding a subscription that is open at the cutoff. An account
+    # whose subscriptions had all ended cannot churn in the ordinary sense, and
+    # including it as a negative would inflate the denominator with customers the
+    # business has already lost.
+    subs = tables["subscriptions"]
+    at_risk = subs.loc[(subs["start_date"] < cutoff)
+                       & (subs["end_date"].isna() | (subs["end_date"] >= cutoff)),
+                       "account_id"].unique()
+
+    cohort = accounts.assign(churned_on=churned_on)
     cohort = cohort[(cohort["signup_date"] < cutoff)
+                    & cohort["account_id"].isin(at_risk)
                     & ~(cohort["churned_on"] < prediction_start)]
 
-    label = cohort["churned_on"].between(prediction_start, horizon_end, inclusive="right")
+    # inclusive="both" so the window matches the eligibility rule exactly:
+    # eligibility keeps churn_date >= prediction_start, so a churn landing on the
+    # opening day must count as a positive rather than falling through as a zero.
+    label = cohort["churned_on"].between(prediction_start, horizon_end, inclusive="both")
     return cohort.assign(**{TARGET: label.astype(int)}).drop(columns="churned_on")
 
 

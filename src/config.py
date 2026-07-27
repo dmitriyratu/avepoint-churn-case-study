@@ -23,7 +23,18 @@ HORIZON_DAYS = 90
 TARGET = "churned_next_90d"
 ID_COLS = ["account_id", "account_name", "signup_date"]
 
-# Derived from churn_events, so they describe the outcome rather than its
-# precursors. Dropped by model.prep_xy; including them takes CV AUC to 0.997.
-POST_OUTCOME_COLS = ["n_churn_events", "total_refund_usd", "had_reactivation",
-                     "had_preceding_downgrade", "had_preceding_upgrade"]
+# Outcome variables, dropped by model.prep_xy. The churn_events-derived columns
+# describe what happened at churn (a refund is issued *because* the customer
+# left); restoring them takes CV AUC to 0.996. `churn_flag` is the account-level
+# outcome itself.
+POST_OUTCOME_COLS = ["churn_flag", "n_churn_events", "total_refund_usd",
+                     "had_reactivation", "had_preceding_downgrade",
+                     "had_preceding_upgrade"]
+
+# The accounts table carries no as-of date, and the dataset README describes
+# these two as current state — meaning as of extraction (2024-12-31), which is
+# after any cutoff we model. `accounts.seats` matches the seat count on the
+# account's latest pre-cutoff subscription only 51.6% of the time, confirming it
+# reflects a later value. Point-in-time equivalents built from the truncated
+# subscription history are used instead: `latest_seats` and `n_trial_subs`.
+POINT_IN_TIME_UNSAFE_COLS = ["seats", "is_trial"]

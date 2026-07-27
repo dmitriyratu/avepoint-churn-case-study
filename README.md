@@ -126,8 +126,13 @@ The modelled target is the standard churn formulation instead:
        features built here             label defined here
 ```
 
-- **Eligible**: signed up before the cutoff, not already churned → 187 accounts
-- **Label**: first churn event within 90 days → 59 positives (31.5%)
+- **Eligible**: signed up before the cutoff, **holding a subscription still open
+  at the cutoff**, and not already churned → 177 accounts. An account whose
+  subscriptions had all ended cannot churn in the ordinary sense; counting it as
+  a negative would pad the denominator with customers already lost.
+- **Label**: first churn event within 90 days → 54 positives (30.5%). The window
+  is inclusive at both ends so it matches the eligibility rule exactly — a churn
+  landing on the opening day counts as a positive rather than falling through.
 - **Features**: only from rows dated before the cutoff, with fields that
   *resolve* after it censored
 
@@ -141,15 +146,14 @@ Model ladder, repeated stratified CV (5 folds × 10 repeats, identical folds):
 | Rung | Model | CV ROC-AUC | 95% CI |
 |------|-------|-----------|--------|
 | 0 | Prior (no features) | 0.500 | — |
-| 1 | Decision stump | 0.516 | [0.43, 0.60] |
-| **2** | **Logistic (L2, C=1)** | **0.595** | **[0.45, 0.73]** |
-| 3 | Logistic (L2, C=0.05) | 0.579 | [0.42, 0.73] |
-| 4 | Logistic (L1, C=0.1) | 0.569 | [0.41, 0.70] |
-| 5 | Random forest (depth 4) | 0.539 | [0.42, 0.68] |
-| 6 | LightGBM (pipelined) | 0.517 | [0.37, 0.63] |
-| 7 | LightGBM (native NaN + categoricals) | 0.531 | [0.36, 0.66] |
-| 8 | HistGradientBoosting (native NaN) | 0.515 | [0.37, 0.68] |
-| 9 | LightGBM (native, tuned) | 0.541 | [0.37, 0.70] |
+| 1 | Decision stump | 0.516 | [0.37, 0.64] |
+| **2** | **Logistic (L2, C=1)** | **0.581** | **[0.37, 0.75]** |
+| 3 | Logistic (L2, C=0.05) | 0.564 | [0.40, 0.77] |
+| 4 | Logistic (L1, C=0.1) | 0.537 | [0.39, 0.69] |
+| 5 | Random forest (depth 4) | 0.554 | [0.40, 0.75] |
+| 6 | LightGBM (pipelined) | 0.536 | [0.39, 0.74] |
+| 7 | LightGBM (native NaN + categoricals) | 0.536 | [0.40, 0.74] |
+| 8 | HistGradientBoosting (native NaN) | 0.552 | [0.33, 0.73] |
 
 **Giving the boosters a fair shot.** Routing LightGBM through the same
 `SimpleImputer` + `OneHotEncoder` as the linear models handicaps it: gradient
@@ -176,14 +180,13 @@ missed churner costs more than a wasted outreach call:
 
 | | |
 |---|---|
-| Recall | **0.864** |
-| Precision | 0.359 |
-| F1 | 0.508 |
-| Base rate | 0.315 |
+| Recall | **0.704** |
+| Precision | 0.373 |
+| F1 | 0.487 |
+| Base rate | 0.305 |
 
-**Permutation test** (300 label shuffles): **p = 0.086**. Weak evidence of
-signal — trending, but not significant at conventional thresholds. Reported as
-such rather than rounded in either direction.
+**Permutation test** (300 label shuffles): **p = 0.103**. Not significant.
+Reported as-is rather than rounded in either direction.
 
 ## Robustness — where this breaks
 
@@ -252,6 +255,7 @@ must pass before any result is reported:
 | Gate | Threshold | Result |
 |---|---|---|
 | Temporal provenance — no datetime >= cutoff, every column | 0 violations | PASS |
+| Forbidden columns — outcome + point-in-time-unsafe, by name | none present | PASS |
 | Single-feature AUC | fail >= 0.80 | PASS (max 0.620) |
 | Perfect separation | none | PASS |
 | Identifier / row-order leakage | AUC < 0.60 | PASS |

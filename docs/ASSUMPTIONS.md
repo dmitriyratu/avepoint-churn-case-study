@@ -21,9 +21,32 @@ Each decision below is backed by a check in the notebooks or a gate in
   37.6% of accounts. The event log wins because it carries dates. This should be
   confirmed with whoever owns the upstream pipeline.
 
-- **Eligible accounts** signed up before the cutoff and had not churned when the
-  prediction window opened, including during the buffer: 168 accounts, 74
-  positives (44%).
+- **Eligible accounts** signed up before the cutoff, held a subscription still
+  open at the cutoff, and had not already churned when the prediction window
+  opened: 177 accounts, 54 positives (30.5%). The open-subscription requirement
+  matters — 10 accounts had no live subscription and cannot churn in the ordinary
+  sense, so counting them as negatives would pad the denominator with customers
+  already lost.
+
+- **The label window is inclusive at both ends**, matching the eligibility rule.
+  Eligibility keeps churn dates on or after the window opens, so a churn landing
+  on the opening day must count as a positive rather than falling through as a
+  zero.
+
+- **`accounts.seats` and `accounts.is_trial` are excluded as features.** The
+  accounts table carries no as-of date and the dataset README describes both as
+  current state — meaning as of extraction, after any cutoff we model.
+  `accounts.seats` matches the seat count on the account's latest pre-cutoff
+  subscription only 51.6% of the time, confirming it reflects a later value.
+  Point-in-time equivalents built from the truncated subscription history are
+  used instead (`latest_seats`, `n_trial_subs`), including for the per-seat
+  normalisations.
+
+- **`accounts.churn_flag` is excluded as a feature.** It is the account-level
+  outcome. It reached the model in an earlier revision and scored a
+  single-feature AUC of 0.51, which is exactly why the statistical gates did not
+  catch it — categorically the outcome, statistically invisible.
+  `audit.forbidden_columns` now checks the exclusion lists by name.
 
 ## Data
 

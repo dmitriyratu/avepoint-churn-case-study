@@ -27,7 +27,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.tree import DecisionTreeClassifier
 
-from .config import ID_COLS, POST_OUTCOME_COLS, TARGET
+from .config import (ID_COLS, POINT_IN_TIME_UNSAFE_COLS, POST_OUTCOME_COLS,
+                     TARGET)
 
 MODELS_DIR = Path(__file__).parents[1] / "outputs" / "models"
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -47,13 +48,16 @@ _BOOLISH = {"True", "False", "0", "1", "0.0", "1.0"}
 def prep_xy(df, target=TARGET):
     """Split into (X, y), coercing dtypes but preserving NaN and categoricals.
 
+    Drops identifiers, outcome variables, and columns whose value is only known
+    as of data extraction rather than as of the cutoff (see config).
+
     A CSV round-trip turns booleans into "True"/"False" strings, and filling a
     boolean column with 0 leaves a three-valued mix; both are coerced back to
     numeric here. Genuine categoricals stay as strings for the pipeline encoder,
     and NaN is preserved for in-fold imputation.
     """
-    X = df.drop(columns=[c for c in ID_COLS + POST_OUTCOME_COLS + [target]
-                         if c in df.columns]).copy()
+    excluded = ID_COLS + POST_OUTCOME_COLS + POINT_IN_TIME_UNSAFE_COLS + [target]
+    X = df.drop(columns=[c for c in excluded if c in df.columns]).copy()
     y = df[target].astype(int)
 
     for c in X.columns:

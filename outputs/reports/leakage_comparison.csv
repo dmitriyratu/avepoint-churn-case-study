@@ -1,4 +1,4 @@
 design,auc,sd
-A. observation window only,0.5687,0.0782
-B. + post-cutoff rows,0.5546,0.0819
-C. + churn_events columns,0.9112,0.0389
+A. observation window only,0.5366,0.0921
+B. + post-cutoff rows,0.5022,0.0971
+C. + churn_events columns,0.9126,0.0411

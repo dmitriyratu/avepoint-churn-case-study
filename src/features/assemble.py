@@ -38,7 +38,10 @@ def build_model_dataset(tables, cohort, as_of=CUTOFF_DATE, prune=True):
     df = cohort.set_index("account_id").join(features)
     df["days_since_signup"] = (as_of - df["signup_date"]).dt.days
 
-    seats = df["seats"].replace(0, np.nan)
+    # Normalise per seat using the seat count on the latest *pre-cutoff*
+    # subscription. `accounts.seats` is current-as-of-extraction and matches the
+    # pre-cutoff value only about half the time, so it would leak a later state.
+    seats = df["latest_seats"].replace(0, np.nan)
     df["usage_per_seat"] = safe_div(df["total_usage_events"], seats)
     df["tickets_per_seat"] = safe_div(df["n_tickets"], seats)
     df["mrr_per_seat"] = safe_div(df["total_mrr"], seats)
