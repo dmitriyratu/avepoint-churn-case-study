@@ -4,9 +4,10 @@
 # Covers assignment Parts 4 and 5: strategic recommendations with a testing
 # approach, mentorship, deployment architecture, and monitoring.
 #
-# Everything here is read against a model with CV AUC 0.611 and a confidence
-# interval that touches 0.44. The recommendations are written to match that
-# strength — a weak ranker earns a call list, not an automated intervention.
+# Everything here is read against a model with CV AUC 0.618 and a confidence
+# interval of [0.50, 0.74] — the lower bound only just clears chance. The
+# recommendations are written to match that strength: a weak ranker earns a call
+# list, not an automated intervention.
 
 # %%
 import sys
@@ -47,7 +48,7 @@ print(f"out-of-fold @ t={threshold}: recall {recall_score(y,pred):.3f}, "
 # ## What the model actually keys on
 #
 # With a linear model on standardised inputs the coefficients are directly
-# readable — no SHAP needed to explain seven terms, and a simpler explanation is
+# readable — no SHAP needed to explain five terms, and a simpler explanation is
 # a better one when it is available.
 
 # %%
@@ -59,19 +60,24 @@ print(nz.round(4).to_string())
 # %% [markdown]
 # Reading the signs:
 #
-# - **`days_since_signup` (negative, strongest)** — longer-tenured accounts churn
-#   less. Standard survivorship: the risky period is early.
-# - **`latest_plan_tier_Pro` (negative)** — Pro accounts are stickier than the
-#   Basic baseline.
-# - **`n_trial_subs` (negative)** — more trial subscriptions in history
-#   associates with *lower* churn here, which is counter-intuitive and worth
-#   flagging rather than explaining away. Likely an artefact of the synthetic
-#   generator; on real data I would want this checked before acting on it.
-# - **`avg_usage_count` (positive)** — mildly counter-intuitive too.
+# - **`days_since_signup` (-0.284, dominant)** — longer-tenured accounts churn
+#   less. Standard survivorship: the risky period is early. This one term carries
+#   most of the model.
+# - **`avg_usage_count` (+0.116)** — heavier average usage associates with *more*
+#   churn, which is backwards.
+# - **`n_trial_subs` (-0.079)** — more trials in history associates with *less*
+#   churn, also backwards.
+# - **`avg_first_response_mins` (+0.019)**, **`error_rate` (-0.007)** — both near
+#   zero; slower support responses raising risk is plausible, a negative error
+#   rate is not.
 #
-# Two of seven coefficients point the wrong way relative to domain expectation.
-# On a model this weak that is what you would expect from noise, and it is a
-# reason to treat the ranking as triage rather than explanation.
+# **Three of five coefficients point against domain expectation**, and after the
+# first term the magnitudes are small. That is what noise looks like on a model
+# this weak. Note also that no plan-tier dummy survived once encoding moved
+# in-fold — the earlier "Pro is stickier" reading did not hold up.
+#
+# The honest summary: one real signal (tenure) plus four terms I would not defend
+# individually. Use the ranking, not the explanation.
 
 # %% [markdown]
 # ## Where the model is confident, and whether it is right there
@@ -134,9 +140,11 @@ print(band.to_string())
 # roughly 300+ accounts per arm for a 10pp difference at 80% power.
 
 # %% [markdown]
-# ### 2. Treat plan tier as a retention lever — *moderate evidence*
+# ### 2. Treat plan tier as a retention lever — *weak evidence, stated as such*
 #
-# Pro carries a negative coefficient relative to Basic.
+# No plan-tier dummy survived the L1 penalty once encoding moved in-fold. The raw
+# segment rates below still differ, so this is worth a look — but the model does
+# not support it, and I would present it as a hypothesis rather than a finding.
 
 # %%
 print(cohort.groupby("plan_tier")[TARGET].agg(["size", "sum", "mean"]).round(3).to_string())
@@ -175,7 +183,7 @@ print(f"engagement features retained: {len(kept)}  {kept}")
 # usage rows predating their subscription) would have to be resolved first.
 #
 # **Test.** Not an A/B test — a data-quality milestone. Re-run this pipeline once
-# telemetry is trustworthy and compare CV AUC against the 0.611 baseline recorded
+# telemetry is trustworthy and compare CV AUC against the 0.618 baseline recorded
 # here.
 
 # %% [markdown]
@@ -252,7 +260,7 @@ print(f"engagement features retained: {len(kept)}  {kept}")
 #    should prompt a leakage hunt, not a commit.
 # 4. **Establish the floor before celebrating.** `DummyClassifier` first, always.
 # 5. **Report the interval, not the point.** [0.44, 0.74] communicates something
-#    "0.611" does not.
+#    "0.618" does not.
 #
 # I would have them re-run the pipeline with `POST_OUTCOME_COLS` emptied and watch
 # AUC hit 0.997 — that lesson lands far better as an experiment than a lecture.

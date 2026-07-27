@@ -16,6 +16,7 @@
 #
 # Fixing the framing moved max feature-target correlation from 0.12 to 0.28 and
 # produced a model that is statistically distinguishable from chance (p = 0.013).
+# (Figures here reflect the final pipeline, which also encodes categoricals in-fold.)
 
 # %%
 import sys
@@ -157,8 +158,8 @@ print(leak.to_string(index=False))
 # %% [markdown]
 # | Design | CV AUC | |
 # |---|---|---|
-# | A. Observation window only | **0.635** | correct |
-# | B. Features may see post-cutoff rows | 0.616 | leaks, and doesn't even help |
+# | A. Observation window only | **0.618** | correct |
+# | B. Features may see post-cutoff rows | 0.634 | leaks |
 # | C. Plus `churn_events`-derived features | **0.997** | pure label leakage |
 #
 # Design C is the one that matters. `n_churn_events`, `total_refund_usd` and
@@ -197,7 +198,7 @@ plt.savefig("../outputs/figures/06_model_ladder.png", bbox_inches="tight")
 plt.show()
 
 # %% [markdown]
-# **L1 logistic regression wins at 0.635.** Both tree ensembles score below it.
+# **L1 logistic regression wins at 0.618.** Both tree ensembles score below it.
 # With 88 positives and 76 candidate features (1.16 events per variable), the
 # ensembles have far more capacity than the data can support, and the L1 penalty
 # doing hard feature selection is worth more than any amount of boosting.
@@ -261,7 +262,7 @@ print(nz.round(4).to_string())
 # - **Longer-tenured accounts churn less** in this window (`days_since_signup`,
 #   `tenure_days` both negative), the usual survivorship pattern.
 # - **Trial-heavy accounts churn more.**
-# - AUC 0.635 is a weak-but-real model. It is worth deploying only as a triage
+# - AUC 0.618 is a weak-but-real model. It is worth deploying only as a triage
 #   ranker for CSM outreach, not as an automated action trigger.
 #
 # **Caveats I would lead with, not bury:**

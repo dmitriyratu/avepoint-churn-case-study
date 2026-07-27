@@ -61,9 +61,11 @@ assert tp["pass"].all(), "temporal provenance violated"
 # rows — the ticket *existing* before the cutoff is legitimate information; only
 # its resolution is not.
 #
-# Fixing it moved CV AUC from 0.635 to 0.611. A leak that only costs 0.024 is
-# still a leak, and it is the kind that scales badly: on real data where support
-# outcomes are more predictive, the same bug would inflate the score much more.
+# Measured when it was fixed, censoring moved CV AUC from 0.635 to 0.611. A leak
+# that only costs 0.024 is still a leak, and it is the kind that scales badly: on
+# real data where support outcomes are more predictive, the same bug would inflate
+# the score much more. (The current headline figure is 0.618 — a later change moved
+# one-hot encoding in-fold, which is independent of this fix.)
 
 # %% [markdown]
 # ## Gate 2 — Single-feature AUC
@@ -190,19 +192,19 @@ assert passed, "leakage audit failed"
 #
 # | | |
 # |---|---|
-# | CV ROC-AUC (L1 logistic) | **0.611** [0.44, 0.74] |
-# | Permutation test | p = **0.040** (null mean 0.495) |
-# | Out-of-fold recall @ t=0.42 | 0.932 |
-# | Out-of-fold precision | 0.513 |
-# | Features retained by L1 | 7 of 75 |
+# | CV ROC-AUC (L1 logistic) | **0.618** [0.50, 0.74] |
+# | Permutation test | p = **0.013** |
+# | Out-of-fold recall @ t=0.40 | 0.943 |
+# | Out-of-fold precision | 0.494 |
+# | Features retained by L1 | 5 |
 #
-# p = 0.040 is meaningfully weaker than the 0.013 reported before censoring —
-# some of that earlier "signal" was the leak. This is now a genuinely marginal
-# model: it beats chance, but only just, and the confidence interval still
-# crosses 0.50 at the low end.
+# This is a genuinely marginal model: it beats chance, but the lower end of the
+# interval sits right on 0.50. Censoring the leak cost real signal at the time it
+# was applied; the figure recovered later for an unrelated reason (in-fold
+# encoding), not because the leak came back.
 #
 # **What I would actually recommend**: this is a triage ranker for CSM outreach,
-# not an automated action trigger. At 93% recall and 51% precision it is useful
+# not an automated action trigger. At 94% recall and 49% precision it is useful
 # for ordering a call list where the cost of a wasted call is low. It is not
 # usable for anything with a real cost attached to a false positive, and I would
 # say so before anyone asked.

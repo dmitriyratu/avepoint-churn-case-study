@@ -125,8 +125,8 @@ print(f"events per variable: {y.sum()/X.shape[1]:.2f}   (want >= 10)")
 
 # %% [markdown]
 # 1.16 events per variable is severely under-powered. This is the number that
-# predicts the modelling result in notebook 04: with 75 candidate features and
-# 88 positives, regularisation matters more than model capacity.
+# predicts the modelling result in notebook 04: with 62 raw columns (75 after
+# in-fold encoding) and 88 positives, regularisation matters more than capacity.
 
 # %% [markdown]
 # ## Missing values: three meanings, three treatments

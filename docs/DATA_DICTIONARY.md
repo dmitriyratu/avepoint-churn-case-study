@@ -87,7 +87,7 @@ tickets is this account still waiting on" is knowable and plausibly predictive.
 | `is_reactivation` | **EXCLUDE** | Implies a prior churn. |
 | `feedback_text` | **EXCLUDE** | Written at cancellation. |
 
-**Measured impact**: restoring these features takes CV AUC from 0.611 to
+**Measured impact**: restoring these features takes CV AUC from 0.618 to
 **0.997**. That is the signature of label reconstruction, not model quality.
 Enforced by `config.POST_OUTCOME_COLS`, which `model.prep_xy` drops
 unconditionally.
