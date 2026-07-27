@@ -35,7 +35,8 @@ AvePoint/
 │   ├── 04_modeling.py        # model ladder, permutation test, operating point
 │   ├── 05_results_validation.py  # recommendations, deployment, monitoring, mentoring
 │   ├── 06_leakage_quantification.py   # what each form of leakage is worth
-│   └── 07_leakage_audit.py   # automated leakage + cleaning gates
+│   ├── 07_leakage_audit.py   # automated leakage + cleaning gates
+│   └── 08_diagnostics.py     # error analysis, learning curves, why 0.58
 ├── src/
 │   ├── config.py             # cutoff/buffer/horizon, leakage exclusion lists
 │   ├── load_data.py          # load the 5 raw tables
@@ -239,6 +240,42 @@ on a churn problem is a bug report, not a result.**
 
 At this sample size extra columns cost more in variance than they return. The
 binding constraint is **data, not features**.
+
+### Why 0.58 and not higher — diagnosed, not guessed
+
+`notebooks/08_diagnostics.py` separates the fixable causes from the rest.
+
+| Candidate cause | Evidence | Verdict |
+|---|---|---|
+| Data leakage | full audit suite passes, incl. a by-name forbidden-column gate | ruled out |
+| Feature engineering | ~20 added features moved AUC *down*; cutting to the top 3 costs 0.06 | not the constraint |
+| Overfitting | train 0.97–1.00 vs validation 0.54–0.58 | real, but a symptom |
+| **Sample size** | learning curve still rising: **+0.09 AUC per 100 rows** | **primary constraint** |
+| **Data quality** | label agrees with the event log 37.6% of the time | **major contributor** |
+| **Irreducible** | nearest neighbours disagree at 0.410 vs 0.424 for random pairs | **large floor** |
+
+Three results worth singling out:
+
+**Every model memorises.** The boosters reach train AUC **1.000** on 177 rows and
+validate at 0.54. Not a tuning problem — far more capacity than 54 positives can
+constrain.
+
+**Fewer features makes it worse**, monotonically (3 features → 0.525, all 73 →
+0.588). So the signal is not concentrated in a few predictors drowned out by
+noise; it is smeared thinly across many weak ones. That rules out the obvious
+remedy.
+
+**Neighbours are barely more alike than strangers.** Accounts adjacent in feature
+space disagree on outcome 41.0% of the time, against 42.4% for two customers
+picked at random. The features hardly locate a customer's risk at all — that is
+the Bayes floor, and it belongs to the data, not the model.
+
+**Error analysis**: of 14 false negatives, only 1 sits near the threshold. The
+rest are scored confidently safe, so no operating point recovers them. The
+churners we catch are *newer, higher-MRR, fewer-seat* accounts; the ones we miss
+are *older, larger-seat, lower-MRR* accounts contracting slowly — which follows
+directly from a model dominated by `days_since_signup`. That part is reducible,
+with telemetry that captures large-account contraction.
 
 ### What I would tell the business
 

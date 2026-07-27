@@ -1,10 +1,10 @@
 model,roc_auc_mean,sd,ci_lo,ci_hi
 0. Prior (no features),0.5,0.0,0.5,0.5
 1. Single decision stump,0.5156,0.0707,0.3691,0.6431
-"2. Logistic (L2, C=1)",0.5812,0.1,0.3729,0.7543
-"3. Logistic (L2, C=0.05)",0.5639,0.0949,0.3956,0.7729
-"4. Logistic (L1, C=0.1)",0.5366,0.0921,0.3915,0.6911
-5. Random forest (depth 4),0.5535,0.096,0.396,0.7484
-6. LightGBM (pipelined),0.5357,0.0906,0.393,0.7437
-7. LightGBM (native NaN + categoricals),0.536,0.0911,0.4036,0.7432
+"2. Logistic (L2, C=1)",0.5829,0.0975,0.3651,0.7507
+"3. Logistic (L2, C=0.05)",0.5646,0.0936,0.3953,0.765
+"4. Logistic (L1, C=0.1)",0.536,0.0925,0.3915,0.6911
+5. Random forest (depth 4),0.551,0.0888,0.4145,0.7365
+6. LightGBM (pipelined),0.5432,0.0858,0.4,0.7259
+7. LightGBM (native NaN + categoricals),0.5439,0.0921,0.3769,0.7655
 8. HistGradientBoosting (native NaN),0.552,0.0978,0.3309,0.7318

@@ -28,8 +28,10 @@ def subscription_features(subs, as_of=CUTOFF_DATE):
     })
 
     ordered = subs.sort_values("start_date").groupby("account_id")
-    latest = ordered.last()[["plan_tier", "billing_frequency", "seats", "mrr_amount"]]
-    latest.columns = ["latest_plan_tier", "billing_freq", "latest_seats", "latest_mrr"]
+    latest = ordered.last()[["plan_tier", "billing_frequency", "seats", "mrr_amount",
+                             "is_trial"]]
+    latest.columns = ["latest_plan_tier", "billing_freq", "latest_seats", "latest_mrr",
+                      "latest_is_trial"]
     first = ordered.first()[["seats", "mrr_amount"]]
     first.columns = ["first_seats", "first_mrr"]
 

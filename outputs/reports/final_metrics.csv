@@ -1,2 +1,2 @@
 model,persisted_model,any_rung_beats_chance,cv_auc,cv_auc_ci,oof_threshold,oof_f1,oof_recall,oof_precision,permutation_p,n_features_selected,cohort_n,positives
-"2. Logistic (L2, C=1)","2. Logistic (L2, C=1)",False,0.5812,"[0.3729, 0.7543]",0.26,0.4872,0.7037037037037037,0.37254901960784315,0.103,85,177,54
+"2. Logistic (L2, C=1)","2. Logistic (L2, C=1)",False,0.5829,"[0.3651, 0.7507]",0.23,0.4969,0.7407407407407407,0.37383177570093457,0.0764,86,177,54
