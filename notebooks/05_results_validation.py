@@ -236,7 +236,7 @@ print(f"engagement features retained: {len(kept)}  {kept}")
 # | Outcome | AUC on matured cohorts | quarterly | drop > 0.05 → retrain |
 # | Outcome | Calibration on matured cohorts | quarterly | — |
 #
-# Labels take 180 days to mature, so performance monitoring is inherently
+# Labels take 90 days to mature, so performance monitoring is inherently
 # lagged. Input drift is the early warning; outcome metrics confirm it later.
 #
 # Running the leakage suite in production is the unusual entry and the one I would

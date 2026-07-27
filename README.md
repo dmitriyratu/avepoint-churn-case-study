@@ -133,50 +133,44 @@ landing and the customer leaving — and it turns out to decide the whole result
 
 ## Headline result
 
-**On this dataset there is no actionable churn signal at a realistic
-intervention horizon.**
+**No operationally sensible configuration beats chance on this dataset.**
 
-| Buffer | Eligible | Positives | CV ROC-AUC | 95% CI | Permutation p |
-|---:|---:|---:|---:|---|---:|
-| 0 days | 187 | 88 | 0.616 | [0.50, 0.74] | **0.025** |
-| 15 days | 176 | 80 | 0.574 | [0.40, 0.75] | 0.254 |
-| **30 days** | **168** | **74** | **0.548** | **[0.38, 0.70]** | **0.249** |
-| 60 days | 154 | 67 | 0.545 | [0.35, 0.71] | 0.209 |
-| 90 days | 139 | 57 | 0.467 | [0.27, 0.59] | 0.960 |
+Two dials, swept independently, prediction window opening 2024-06-30 throughout:
 
-With no buffer the model beats chance. Give it even two weeks of lead time and it
-does not, and it never recovers. The apparent signal is **reactive** — it detects
-customers who have effectively already left.
+| Horizon | Buffer | n | Positives | CV ROC-AUC | Permutation p |
+|---:|---:|---:|---:|---:|---:|
+| 30 d | 0 | 187 | 25 | 0.402 | 0.72 |
+| 30 d | 30 | 168 | 22 | 0.472 | 0.38 |
+| 60 d | 0 | 187 | 45 | 0.527 | 0.49 |
+| 60 d | 30 | 168 | 39 | 0.489 | 0.45 |
+| 90 d | 0 | 187 | 59 | 0.569 | 0.23 |
+| **90 d** | **30** | **168** | **50** | **0.469** | **0.78** |
+| 180 d | 0 | 187 | 88 | **0.615** | **0.020** |
+| 180 d | 30 | 168 | 74 | 0.545 | 0.25 |
 
-A model shipped without a buffer would have passed cross-validation and been
-useless in production. That is the finding, and it is worth more than the score.
+- **Horizon** — how far forward the label looks ("churn in the next N days").
+  30–90 days is the normal range for SaaS churn.
+- **Buffer** — lead time the model must give. No buffer is the usual default;
+  a buffer matters when you cannot act on a score the day it lands.
 
-## Model ladder (30-day buffer)
+Exactly one cell clears chance: a **180-day horizon with zero lead time**. And
+that cell is not really a churn model — at 180 days the positive rate is 47% and
+the dominant feature is `days_since_signup`, so it is predicting *"this newish
+account will probably be gone within six months"*. A survivorship base rate, not
+a behavioural early warning. Add 30 days of lead time and it goes (p = 0.25).
 
-Repeated stratified CV, 5 folds x 10 repeats, identical folds throughout:
+The project defaults to **90-day horizon, 30-day buffer** — the configuration a
+retention team would actually use — and reports that it does not work.
 
-| Rung | Model | CV ROC-AUC | 95% CI |
-|------|-------|-----------|--------|
-| 0 | Prior (no features) | 0.500 | — |
-| 1 | Decision stump | 0.523 | [0.38, 0.64] |
-| 2 | Logistic (L2, C=1) | 0.490 | [0.38, 0.64] |
-| 3 | Logistic (L2, C=0.05) | 0.492 | [0.34, 0.64] |
-| **4** | **Logistic (L1, C=0.1)** | **0.548** | **[0.38, 0.70]** |
-| 5 | Random forest (depth 4) | 0.453 | [0.32, 0.58] |
-| 6 | LightGBM (shallow) | 0.484 | [0.35, 0.67] |
+**Caveat, stated plainly:** the short-horizon rows are underpowered (25 positives
+at 30 days), so a modest real effect could not be detected there. The defensible
+reading is "no signal at 90 days, where 59 positives give reasonable power",
+not a confident negative at 30.
 
-Nothing here is distinguishable from chance. Reported as-is.
+## Model ladder (90-day horizon, 30-day buffer)
 
-### Did richer feature engineering help?
-
-| Configuration | CV ROC-AUC |
-|---|---:|
-| 30-day buffer, original features | 0.551 |
-| 30-day buffer, enriched features (window ladder, acceleration, trend slope, gaps, MRR volatility) | 0.548 |
-
-No. Roughly twenty added features moved the score slightly down — at 74
-positives, extra columns cost more in variance than they return. The binding
-constraint is **data, not feature engineering**. See `docs/FEATURE_ENGINEERING.md`.
+No rung separates from the prior-only floor, so the ordering below is the
+outcome of a coin-flipping contest and should not be read as a ranking.
 
 ### Leakage controls
 

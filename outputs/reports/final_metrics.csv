@@ -1,2 +1,2 @@
 model,cv_auc,cv_auc_ci,oof_threshold,oof_f1,oof_recall,oof_precision,permutation_p,n_features_selected,cohort_n,positives
-"4. Logistic (L1, C=0.1)",0.5445,"[0.3751, 0.7024]",0.44,0.6154,0.972972972972973,0.45,0.2525,3,168,74
+1. Single decision stump,0.5109,"[0.3508, 0.6323]",0.25,0.4712,0.9,0.3191489361702128,0.3056,6,168,50

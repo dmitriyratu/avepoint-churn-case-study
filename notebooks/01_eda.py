@@ -48,7 +48,7 @@ tables = clean_all(raw)
 # and no time reference. Sharpened to
 #
 # > Given what is known about an account on **2024-06-30**, will it churn within
-# > the next **180 days**?
+# > the next **90 days**?
 #
 # That immediately forces an observation window, a prediction window, and an
 # eligibility rule — the structure the first pass was missing.
@@ -253,19 +253,19 @@ print("arr_amount ~ mrr_amount at r = 1.00 — the redundancy is visible here to
 # %%
 cohort = build_cohort(tables)
 explore_idx, confirm_idx = train_test_split(
-    cohort.index, test_size=0.3, stratify=cohort["churned_next_180d"], random_state=42
+    cohort.index, test_size=0.3, stratify=cohort["churned_next_90d"], random_state=42
 )
 explore = cohort.loc[explore_idx]
 confirm = cohort.loc[confirm_idx]
 
-print(f"exploration split : {len(explore)} accounts, {int(explore['churned_next_180d'].sum())} positives")
+print(f"exploration split : {len(explore)} accounts, {int(explore['churned_next_90d'].sum())} positives")
 print(f"confirmation split: {len(confirm)} accounts  <- sealed, not inspected here")
 
 # %% [markdown]
 # ## §8 — Understand the target
 
 # %%
-y = explore["churned_next_180d"]
+y = explore["churned_next_90d"]
 print(y.value_counts().rename({0: "retained", 1: "churned"}).to_string())
 print(f"\npositive rate: {y.mean():.3f}")
 print(f"majority-class accuracy: {max(y.mean(), 1 - y.mean()):.3f}")
@@ -282,7 +282,7 @@ base = y.mean()
 
 fig, axes = plt.subplots(1, 3, figsize=(16, 4))
 for ax, col in zip(axes, ["plan_tier", "industry", "referral_source"]):
-    rates = explore_full.groupby(col)["churned_next_180d"].agg(["mean", "size"])
+    rates = explore_full.groupby(col)["churned_next_90d"].agg(["mean", "size"])
     rates = rates[rates["size"] >= 5].sort_values("mean")
     rates["mean"].plot(kind="barh", ax=ax, color="steelblue")
     ax.axvline(base, color="red", ls="--", alpha=.7, label=f"base {base:.2f}")
@@ -297,7 +297,7 @@ print("n >= 5 filter would be noise dressed as insight.")
 
 # %%
 # Segment sizes, so the bars above can be read honestly
-print(explore_full.groupby("plan_tier")["churned_next_180d"].agg(["size", "sum", "mean"]).round(3).to_string())
+print(explore_full.groupby("plan_tier")["churned_next_90d"].agg(["size", "sum", "mean"]).round(3).to_string())
 
 # %% [markdown]
 # ## §9 — Leakage screen, done here rather than after modelling
@@ -309,7 +309,7 @@ print(explore_full.groupby("plan_tier")["churned_next_180d"].agg(["size", "sum",
 # %%
 from sklearn.metrics import roc_auc_score
 
-probe = explore_full[["account_id", "churned_next_180d"]].merge(
+probe = explore_full[["account_id", "churned_next_90d"]].merge(
     ce.groupby("account_id").agg(
         n_churn_events=("churn_event_id", "count"),
         total_refund_usd=("refund_amount_usd", "sum"),
@@ -317,7 +317,7 @@ probe = explore_full[["account_id", "churned_next_180d"]].merge(
 
 print("Post-outcome columns, screened on the exploration split:")
 for c in ["n_churn_events", "total_refund_usd"]:
-    a = roc_auc_score(probe["churned_next_180d"], probe[c])
+    a = roc_auc_score(probe["churned_next_90d"], probe[c])
     print(f"  {c:20s} single-feature AUC = {max(a, 1 - a):.4f}")
 print("\nA single raw column at this level is the label wearing a different name.")
 print("Excluded via config.POST_OUTCOME_COLS; enforced by src/audit.py.")

@@ -81,10 +81,10 @@ print(f"\nmax {sf['auc'].max():.4f} | warn {(sf['verdict'].str.startswith('WARN'
 ce = tables["churn_events"].groupby("account_id").agg(
     n_churn_events=("churn_event_id", "count"),
     total_refund_usd=("refund_amount_usd", "sum")).reset_index()
-probe = cohort[["account_id", "churned_next_180d"]].merge(ce, on="account_id", how="left").fillna(0)
+probe = cohort[["account_id", "churned_next_90d"]].merge(ce, on="account_id", how="left").fillna(0)
 for c in ["n_churn_events", "total_refund_usd"]:
     from sklearn.metrics import roc_auc_score
-    a = roc_auc_score(probe["churned_next_180d"], probe[c])
+    a = roc_auc_score(probe["churned_next_90d"], probe[c])
     print(f"  {c:20s} single-feature AUC = {max(a, 1-a):.4f}   <- would trip the FAIL gate")
 print(f"\nExcluded via config.POST_OUTCOME_COLS = {POST_OUTCOME_COLS}")
 

@@ -85,7 +85,13 @@ plt.show()
 # %%
 best_idx = int(ladder["roc_auc_mean"].idxmax())
 best_name, best_est = model_ladder()[best_idx]
-print(f"selected: {best_name}")
+print(f"top of table: {best_name}")
+
+beats_chance = ladder.loc[best_idx, "ci_lo"] > 0.5
+print("clears chance at the CI lower bound:", beats_chance)
+if not beats_chance:
+    print("\n-> No rung separates from the floor. 'Best' here is the winner of a\n"
+          "   coin-flipping contest; the ranking should not be read as a result.")
 
 # %% [markdown]
 # ## Does tuning rescue the boosted model?
@@ -189,20 +195,28 @@ tn, fp, fn, tp = cm.ravel()
 print(f"caught {tp} of {tp+fn} churners; missed {fn}; {fp} false alarms")
 
 # %% [markdown]
-# ## Which features survive the L1 penalty
+# ## Which features the L1 model keeps
+#
+# Read from the L1 rung specifically, not from `best_est`. When no rung clears
+# chance, whichever one tops the table is decided by noise — at this horizon that
+# happens to be the stump, which has no coefficients to inspect. The L1 model is
+# the one worth reading because it is the only rung that names its features.
 
 # %%
-best_est.fit(X, y)
 from src.model import feature_names
-coef = pd.Series(best_est.named_steps["clf"].coef_[0], index=feature_names(best_est, X))
+
+_, l1_est = model_ladder()[4]
+l1_est.fit(X, y)
+coef = pd.Series(l1_est.named_steps["clf"].coef_[0], index=feature_names(l1_est, X))
 nz = coef[coef != 0].sort_values(key=abs, ascending=False)
-print(f"L1 retained {len(nz)} of {X.shape[1]} features:\n")
-print(nz.round(4).to_string())
+
+print(f"L1 keeps {len(nz)} of {len(coef)} encoded features:\n")
+print(nz.round(4).to_string() if len(nz) else "  (none — the penalty zeroed every coefficient)")
 nz.to_csv("../outputs/reports/l1_selected_coefficients.csv", header=["coefficient"])
 
 # %%
 fig, ax = plt.subplots(figsize=(8, 4))
-nz.sort_values().plot(kind="barh", ax=ax,
+(nz.sort_values() if len(nz) else pd.Series({"(no features retained)": 0})).plot(kind="barh", ax=ax,
                       color=["salmon" if v > 0 else "steelblue" for v in nz.sort_values()])
 ax.axvline(0, color="black", lw=.8)
 ax.set_title("L1 logistic — non-zero standardised coefficients")

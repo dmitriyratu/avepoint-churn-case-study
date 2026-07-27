@@ -14,41 +14,51 @@ Sources:
 
 ## The headline finding
 
-Standard practice inserts a **buffer** (also called a latency or implementation
-window) between the last observable day and the first day a churn can count
-against the model. The reason is blunt:
+Two design dials decide everything, and they have to be swept separately:
 
-> Using data from months 1–3 to predict churn in month 4 may look reasonable but
-> is often misleading. The model learns to detect signals that occur immediately
-> before a customer leaves — a sudden drop in usage or payment activity. This
-> produces high apparent accuracy but no business value: by the time the model
-> flags the customer, they are already gone.
+- **Horizon** — how far forward the label looks. "Churn in the next N days."
+- **Buffer** — how much lead time the model must give. Standard practice is no
+  buffer (score today, act today); a buffer is a refinement for when you cannot
+  act immediately, or want to stop the model learning end-of-life signals.
 
-This project had **no buffer**. Adding one and sweeping its length:
+Sweeping both, with the prediction window opening on 2024-06-30 throughout:
 
-| Buffer | Eligible | Positives | CV ROC-AUC | 95% CI | Permutation p |
-|---:|---:|---:|---:|---|---:|
-| 0 days | 187 | 88 | **0.616** | [0.50, 0.74] | **0.025** |
-| 15 days | 176 | 80 | 0.574 | [0.40, 0.75] | 0.254 |
-| 30 days | 168 | 74 | 0.548 | [0.38, 0.70] | 0.249 |
-| 60 days | 154 | 67 | 0.545 | [0.35, 0.71] | 0.209 |
-| 90 days | 139 | 57 | 0.467 | [0.27, 0.59] | 0.960 |
+| Horizon | Buffer | n | Positives | CV ROC-AUC | Permutation p |
+|---:|---:|---:|---:|---:|---:|
+| 30 d | 0 | 187 | 25 | 0.402 | 0.72 |
+| 30 d | 30 | 168 | 22 | 0.472 | 0.38 |
+| 60 d | 0 | 187 | 45 | 0.527 | 0.49 |
+| 60 d | 30 | 168 | 39 | 0.489 | 0.45 |
+| 90 d | 0 | 187 | 59 | 0.569 | 0.23 |
+| 90 d | 30 | 168 | 50 | 0.469 | 0.78 |
+| **180 d** | **0** | **187** | **88** | **0.615** | **0.020** |
+| 180 d | 30 | 168 | 74 | 0.545 | 0.25 |
 
-**The signal is almost entirely reactive.** It survives only when the model is
-allowed to see behaviour right up to the moment churn becomes possible. Give a
-CSM even two weeks of lead time and the model is no longer distinguishable from
-chance.
+**Exactly one cell beats chance**: a 180-day horizon with no lead time at all.
+Every operationally normal configuration — 30, 60 or 90 days, which is the usual
+range for SaaS churn — is indistinguishable from a coin flip.
 
-This is the single most important result in the project, and it inverts the
-earlier conclusion. The honest statement is not "we built a weak churn model."
-It is: **on this dataset there is no actionable churn signal at a realistic
-intervention horizon.** A model shipped without a buffer would have looked
-defensible in cross-validation and been useless in production.
+Two things follow.
 
-The project therefore defaults to `BUFFER_DAYS = 30` (`src/config.py`) — the
-configuration that answers the question the business actually has.
+1. **The horizon dial matters as much as the buffer.** An earlier version of
+   this analysis swept only the buffer and concluded the signal was purely
+   reactive. That was half the picture: nothing works below 180 days regardless
+   of lead time.
 
----
+2. **The one working cell is not a churn model in any useful sense.** At 180
+   days the positive rate is 47% and the dominant feature is
+   `days_since_signup`. It is predicting "this fairly new account will probably
+   be gone sometime in the next six months" — a survivorship base rate, not a
+   behavioural early warning. Add 30 days of lead time and even that goes
+   (p = 0.25).
+
+**Caveat, stated plainly**: the short-horizon rows are underpowered. At 30 days
+there are only 25 positives, so a modest real effect could not be detected. The
+fair reading is "no signal at 90 days, where 59 positives give reasonable power"
+rather than a confident negative at 30.
+
+The project defaults to a 90-day horizon with a 30-day buffer as the
+operationally honest configuration, and reports that it does not work.
 
 ## Feature taxonomy applied
 

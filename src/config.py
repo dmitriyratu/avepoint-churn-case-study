@@ -8,12 +8,16 @@ PROCESSED_DIR = ROOT / "data" / "processed"
 OUTPUTS_DIR = ROOT / "outputs"
 
 # Temporal design — see labeling.py for the window diagram.
+#
+# 90 days is the usual operational horizon for SaaS churn; 30 days of lead time
+# is the minimum useful to a retention team. Both dials are swept in
+# docs/FEATURE_ENGINEERING.md — no configuration in that sweep beats chance.
 CUTOFF_DATE = pd.Timestamp("2024-05-31")
 BUFFER_DAYS = 30
 PREDICTION_START = CUTOFF_DATE + pd.Timedelta(days=BUFFER_DAYS)
-HORIZON_DAYS = 180
+HORIZON_DAYS = 90
 
-TARGET = "churned_next_180d"
+TARGET = "churned_next_90d"
 ID_COLS = ["account_id", "account_name", "signup_date"]
 
 # Derived from churn_events, so they describe the outcome rather than its
