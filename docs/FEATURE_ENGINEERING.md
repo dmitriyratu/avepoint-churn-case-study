@@ -168,3 +168,61 @@ The engineering above is the right shape; it needs inputs that carry signal.
 | 10 | Every feature cutoff-parameterised, audit-gated | `build_model_dataset(as_of=...)` |
 | 11 | Zero-variance and collinear columns pruned | Automatic |
 | 12 | Feature value measured, not assumed | Measured — it was zero |
+
+---
+
+## Cross-check against published work on this dataset
+
+The one substantive public analysis of RavenStack is
+[saas-growth-retention-strategy](https://github.com/saishyam43-oss/saas-growth-retention-strategy),
+an executive analytics case study. Worth checking our findings against an
+independent pass over the same data.
+
+**The most informative thing about it: they did not build a predictive model.**
+They state explicitly that "retention analysis is based on observed churn events
+rather than predictive labels," and report no AUC or classifier metric. The only
+published work on this dataset chose diagnostics over prediction — which is the
+conclusion this project arrived at from the other direction.
+
+| Their claim | Our data | Verdict |
+|---|---|---|
+| ~66% of accounts eventually churn | 70.4% ever appear in `churn_events` | **confirmed** |
+| Churn is front-loaded | <3mo 44.7%, 3–6mo 27.6%, 6–12mo 35.7%, 12mo+ 16.7% | **confirmed** |
+| Broad exploration → higher attrition | corr(unique features used, churn) = **−0.13** | **contradicted** |
+| Average time-to-first-value ~76 days | our TTFV: mean **−238 days** | **not reproducible** |
+
+### The front-loaded finding corroborates ours independently
+
+Their diagnostic conclusion — churn concentrated early, driven by time-to-value
+rather than dissatisfaction — is the same pattern our model found from a
+different direction: `days_since_signup` dominates every model we fit, and the
+tenure bands above are monotone. Two methods, same answer.
+
+### Time-to-first-value: a candidate feature that does not survive inspection
+
+Their headline lever is time-to-value, which we had not built. It looked
+promising — single-feature AUC **0.610**, competitive with our best column.
+
+It does not survive checking:
+
+- **98% of accounts have a *negative* TTFV** — first usage precedes signup. That
+  is the generator artefact already logged in `integrity_report` (19,128 of
+  24,979 usage rows predate their own subscription's start), surfacing as a
+  feature. A negative time-to-first-value is not a business quantity.
+- **It correlates with `days_since_signup` at +0.90.** It is tenure wearing a
+  different name, not new information.
+
+Adding it would have raised the score without adding signal, on timestamps we
+already know are broken. **Not added** — recorded here so the decision is visible
+rather than silent.
+
+This is also why their ~76-day figure could not be reproduced: computing a
+time-to-value on these timestamps yields a nonsense quantity, whichever direction
+you take it.
+
+### What this changes
+
+Nothing in the modelling, which is itself the useful result: an independent
+analysis of the same data reached compatible conclusions without attempting
+prediction, and the one feature idea it offered turns out to be an artefact of a
+data-quality problem we had already documented.

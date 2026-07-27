@@ -362,6 +362,30 @@ are *older, larger-seat, lower-MRR* accounts contracting slowly — which follow
 directly from a model dominated by `days_since_signup`. That part is reducible,
 with telemetry that captures large-account contraction.
 
+### Cross-check against published work
+
+The one substantive public analysis of this dataset
+([saas-growth-retention-strategy](https://github.com/saishyam43-oss/saas-growth-retention-strategy))
+**did not build a predictive model** — "retention analysis is based on observed
+churn events rather than predictive labels," no AUC reported. The only published
+work on RavenStack chose diagnostics over prediction.
+
+| Their claim | Our data | |
+|---|---|---|
+| ~66% eventually churn | 70.4% | confirmed |
+| Churn is front-loaded | <3mo 44.7% → 12mo+ 16.7% | confirmed |
+| Broad exploration → more churn | corr = −0.13 | contradicted |
+| Time-to-first-value ~76 days | ours: **−238 days** | not reproducible |
+
+Their time-to-value lever was a feature we lacked, and it scored a promising
+single-feature AUC of 0.610 — but **98% of accounts have a negative TTFV** (first
+usage precedes signup), and it correlates with `days_since_signup` at **+0.90**.
+It is the documented timestamp corruption wearing a new name. Not added; the
+decision is recorded in `docs/FEATURE_ENGINEERING.md` rather than left silent.
+
+The front-loaded finding is genuine corroboration though — their diagnostic pass
+and our model independently land on early tenure as the dominant factor.
+
 ### What I would tell the business
 
 Deploy it as a **CSM triage list**, not an automated trigger — at 86% recall and
