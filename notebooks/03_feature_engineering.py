@@ -1,15 +1,21 @@
 # %% [markdown]
 # # 03 — Feature Engineering
 #
-# Build a single flat feature table at the account level for modeling.
-# All tables aggregate up to `account_id`.
+# Builds the account-level feature matrix as of the prediction cutoff.
 #
-# Feature groups:
-# - **Subscription signals**: MRR, tenure, upgrade/downgrade history
-# - **Engagement signals**: feature breadth, usage volume, error rate
-# - **Support signals**: ticket volume, satisfaction, escalations
-# - **Account metadata**: plan tier, industry, country, referral source
-# - **Derived cross-table signals**: usage per seat, MRR per seat
+# Two rules govern everything here:
+#
+# 1. **Nothing dated at or after the cutoff may reach a feature.** Tables are
+#    truncated first (`labeling.truncate_tables`), and fields that *resolve*
+#    after the cutoff are censored even when the row itself predates it.
+# 2. **Nothing derived from `churn_events` becomes a feature.** Those columns
+#    describe the outcome. See `docs/DATA_DICTIONARY.md`.
+#
+# Feature blocks:
+# - **Subscription** — MRR level and direction, tenure, plan movement
+# - **Engagement** — usage volume, breadth, recency, momentum, error rate
+# - **Support** — ticket load, responsiveness, escalation, open tickets
+# - **Account** — industry, country, referral, plan tier, seats
 
 # %%
 import sys
@@ -19,120 +25,156 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import warnings
+warnings.filterwarnings("ignore")
 
 from src.load_data import load_all
 from src.clean import clean_all
-from src.features import build_model_dataset, subscription_features, feature_usage_features, support_features
+from src.labeling import build_cohort, truncate_tables, cohort_summary
+from src.features import (build_model_dataset, subscription_features,
+                          feature_usage_features, support_features)
+from src.model import prep_xy
+from src.config import CUTOFF_DATE
+
+sns.set_theme(style="whitegrid", palette="muted")
 
 tables = clean_all(load_all())
+cohort = build_cohort(tables)
+obs = truncate_tables(tables, CUTOFF_DATE)
 
-# %%
-# build each feature group independently first so we can inspect them
-sub_feats = subscription_features(tables["subscriptions"])
-print("Subscription features:", sub_feats.shape)
-sub_feats.describe().T
-
-# %%
-usage_feats = feature_usage_features(tables["feature_usage"], tables["subscriptions"])
-print("Usage features:", usage_feats.shape)
-usage_feats.describe().T
-
-# %%
-support_feats = support_features(tables["support_tickets"])
-print("Support features:", support_feats.shape)
-support_feats.describe().T
+print(cohort_summary(cohort).to_string())
 
 # %% [markdown]
-# ### Coverage check — not every account has data in every table
+# ## How much data survives truncation
+#
+# Roughly two thirds of the event rows are dated after the cutoff and are
+# correctly unavailable. Seeing this number is a useful sanity check — if it were
+# near zero, the truncation would not be doing anything.
 
 # %%
-acc_ids = set(tables["accounts"]["account_id"])
-print("Accounts in subscriptions:", sub_feats["account_id"].isin(acc_ids).sum(), "/ 500")
-print("Accounts in usage:        ", usage_feats["account_id"].isin(acc_ids).sum(), "/ 500")
-print("Accounts in tickets:      ", support_feats["account_id"].isin(acc_ids).sum(), "/ 500")
-
-# Some accounts may have no ticket history — that's fine, they'll just get 0s after the merge.
-
-# %%
-# build the full dataset
-df = build_model_dataset(tables)
-print("Final dataset shape:", df.shape)
-df.head(3)
-
-# %%
-# how many columns in each group
-feature_groups = {
-    "account_meta": ["seats", "is_trial", "days_since_signup"],
-    "subscription": [c for c in df.columns if any(x in c for x in ["n_sub", "mrr", "upgrade", "downgrade", "auto_renew", "tenure", "sub_churn", "upgrade_net"])],
-    "usage": [c for c in df.columns if any(x in c for x in ["usage", "feature", "error", "beta", "breadth"])],
-    "support": [c for c in df.columns if any(x in c for x in ["ticket", "resolution", "response", "satisfaction", "escalat", "urgent"])],
-    "one_hot": [c for c in df.columns if any(c.startswith(p) for p in ["industry_", "country_", "referral_", "plan_tier_", "latest_plan_", "billing_"])],
-}
-for g, cols in feature_groups.items():
-    print(f"{g:15s}: {len(cols)} features")
+for k in ["subscriptions", "feature_usage", "support_tickets", "churn_events"]:
+    print(f"  {k:16s} {len(obs[k]):>6} / {len(tables[k]):>6}  "
+          f"({len(obs[k])/len(tables[k]):.0%} retained)")
 
 # %% [markdown]
-# ## Feature distributions and target correlations
+# ## Block 1 — Subscription features
+#
+# Level tells you how big an account is; **direction** tells you where it is
+# going. `seat_growth`, `mrr_growth_pct` and `upgrade_net` capture the second.
 
 # %%
-target = "churn_flag"
-y = df[target].astype(int)
+sub_feats = subscription_features(obs["subscriptions"], CUTOFF_DATE)
+print(sub_feats.shape)
+sub_feats.describe().T.round(2)
 
-# numeric features only for correlation
-num_cols = df.select_dtypes(include=[np.number]).columns.drop([target])
-corr = df[num_cols].corrwith(y.astype(float)).sort_values(key=abs, ascending=False)
+# %% [markdown]
+# `tenure_days` is measured signup-to-cutoff. An earlier version measured it to
+# `end_date.max()`, which silently stops the clock at whichever subscription
+# closed first — wrong for the 62% of accounts holding both open and closed
+# subscriptions.
 
-fig, ax = plt.subplots(figsize=(8, 8))
-corr.head(25).plot(kind="barh", ax=ax, color=["salmon" if v > 0 else "steelblue" for v in corr.head(25)])
-ax.axvline(0, color="black", linewidth=0.8)
-ax.set_title("Top 25 Features by Correlation with Churn")
-ax.set_xlabel("Pearson r with churn_flag")
+# %% [markdown]
+# ## Block 2 — Engagement features
+#
+# Recency and momentum matter more than lifetime totals: an account that used
+# the product heavily last year and nothing this quarter looks healthy on
+# volume alone.
+
+# %%
+usage_feats = feature_usage_features(obs["feature_usage"], obs["subscriptions"], CUTOFF_DATE)
+print(usage_feats.shape)
+usage_feats[["total_usage_events", "unique_features_used", "days_since_last_usage",
+             "usage_last_30d", "usage_last_90d", "usage_momentum", "error_rate"]].describe().T.round(2)
+
+# %% [markdown]
+# The windowed columns are anchored to the cutoff. In the first version they were
+# anchored to a hardcoded date seven months past the end of the data, which made
+# `usage_last_30d` and `usage_last_90d` identically zero for every account.
+
+# %%
+print("non-zero windowed activity (a zero-variance column would mean a bug):")
+for c in ["usage_last_30d", "usage_last_90d", "usage_last_180d"]:
+    if c in usage_feats.columns:
+        print(f"  {c:18s} nunique={usage_feats[c].nunique():>4}  mean={usage_feats[c].mean():.1f}")
+
+# %% [markdown]
+# ## Block 3 — Support features
+#
+# `resolution_time_hours` and `satisfaction_score` are censored for tickets still
+# open at the cutoff, so these aggregates skip them rather than counting a
+# resolution that has not happened. `n_open_tickets` replaces that lost signal
+# with something genuinely observable.
+
+# %%
+support_feats = support_features(obs["support_tickets"], CUTOFF_DATE)
+print(support_feats.shape)
+support_feats.describe().T.round(2)
+
+# %% [markdown]
+# ## Assemble
+
+# %%
+df = build_model_dataset(obs, cohort, CUTOFF_DATE)
+X, y = prep_xy(df)
+print(f"feature matrix : {X.shape}")
+print(f"positives      : {int(y.sum())} ({y.mean():.1%})")
+print(f"pruned as collinear: {df.attrs.get('dropped_collinear')}")
+print(f"events per variable: {y.sum()/X.shape[1]:.2f}   (want >= 10)")
+
+# %% [markdown]
+# 1.16 events per variable is severely under-powered. This is the number that
+# predicts the modelling result in notebook 04: with 75 candidate features and
+# 88 positives, regularisation matters more than model capacity.
+
+# %% [markdown]
+# ## Missing values: three meanings, three treatments
+#
+# The first version filled everything with 0, which conflates them.
+
+# %%
+na = X.isna().sum()
+na = na[na > 0]
+print("columns left as NaN for in-fold imputation:")
+print(na.to_string() if len(na) else "  (none)")
+print(f"\ntotal NaNs retained: {int(X.isna().sum().sum())}")
+print("\ncounts -> 0 (no activity is genuinely zero)")
+print("recency -> observation-window length (never used != used today)")
+print("rates   -> NaN, imputed inside the CV fold by model._pipe")
+
+# %% [markdown]
+# ## Association with the target
+#
+# Reported here for orientation only — feature *selection* is done by the L1
+# penalty inside cross-validation, not by picking winners off this list.
+
+# %%
+corr = X.corrwith(y.astype(float)).sort_values(key=abs, ascending=False)
+print(corr.head(15).round(4).to_string())
+print(f"\nmax |r| = {corr.abs().max():.4f}")
+
+# %%
+top = corr.abs().head(15).index
+fig, ax = plt.subplots(figsize=(8, 6))
+vals = corr[top]
+vals.plot(kind="barh", ax=ax, color=["salmon" if v > 0 else "steelblue" for v in vals])
+ax.axvline(0, color="black", lw=.8)
+ax.set_title("Top 15 features by |correlation| with 180-day churn")
+ax.set_xlabel("Pearson r")
 plt.tight_layout()
 plt.savefig("../outputs/figures/03_feature_correlations.png", bbox_inches="tight")
 plt.show()
 
-# %%
-# look at the strongest signals more closely
-top_feats = corr.abs().head(8).index.tolist()
-
-fig, axes = plt.subplots(2, 4, figsize=(16, 7))
-for ax, col in zip(axes.flat, top_feats):
-    df.boxplot(column=col, by=target, ax=ax)
-    ax.set_title(col, fontsize=9)
-    ax.set_xlabel("Churned")
-plt.suptitle("Top Features vs Churn Flag", y=1.02)
-plt.tight_layout()
-plt.savefig("../outputs/figures/03_top_features_boxplot.png", bbox_inches="tight")
-plt.show()
-
 # %% [markdown]
-# ## Missing value check on the final feature table
+# ## Leakage gate before anything is modelled
 
 # %%
-missing = df.isna().sum()
-missing_pct = (missing / len(df) * 100).round(1)
-missing_df = pd.DataFrame({"missing_n": missing, "missing_pct": missing_pct})
-print(missing_df[missing_df["missing_n"] > 0].sort_values("missing_n", ascending=False))
+import src.audit as audit
+res, passed = audit.run_all(X, y, df, obs, CUTOFF_DATE)
+print(f"max single-feature AUC : {res['single_feature_auc']['auc'].max():.4f}")
+print(f"temporal provenance    : {'PASS' if res['temporal_provenance']['pass'].all() else 'FAIL'}")
+print(f"\nSUITE: {'PASS' if passed else 'FAIL'}")
+assert passed, "leakage audit failed — do not proceed to modelling"
 
 # %%
-# fill remaining nulls (accounts with no tickets or no usage get 0s)
-fill_zero = ["n_tickets", "avg_resolution_hours", "avg_first_response_mins",
-             "avg_satisfaction", "n_escalations", "urgent_pct", "escalation_rate",
-             "total_usage_events", "unique_features_used", "total_usage_duration_mins",
-             "total_errors", "beta_feature_pct", "avg_usage_count", "error_rate",
-             "feature_breadth", "usage_per_seat", "tickets_per_seat", "mrr_per_seat"]
-
-for col in fill_zero:
-    if col in df.columns:
-        df[col] = df[col].fillna(0)
-
-print("Remaining nulls:", df.isna().sum().sum())
-
-# %% [markdown]
-# ## Save feature table
-
-# %%
-df.to_csv("../data/processed/features.csv", index=False)
-print("Saved features.csv —", df.shape)
-print("\nTarget distribution:")
-print(df["churn_flag"].value_counts(normalize=True).round(3))
+df.to_csv("../data/processed/features_temporal.csv", index=False)
+print(f"saved features_temporal.csv  {df.shape}")

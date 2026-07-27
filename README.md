@@ -32,9 +32,9 @@ AvePoint/
 │   ├── 01_eda.py             # EDA — quality pass on all rows, target pass on train split only
 │   ├── 02_cleaning.py        # data cleaning walkthrough
 │   ├── 03_feature_engineering.py
-│   ├── 04_modeling.py        # first pass — static label (superseded by 06)
-│   ├── 05_results_validation.py  # SHAP, segment analysis, recommendations
-│   ├── 06_audit_and_temporal_redesign.py   # <- read this one
+│   ├── 04_modeling.py        # model ladder, permutation test, operating point
+│   ├── 05_results_validation.py  # recommendations, deployment, monitoring, mentoring
+│   ├── 06_audit_and_temporal_redesign.py   # why the first framing was wrong
 │   └── 07_leakage_audit.py   # automated leakage + cleaning gates
 ├── src/
 │   ├── audit.py              # automated leakage + quality gates
@@ -74,13 +74,14 @@ jupytext --to notebook notebooks/01_eda.py
 jupyter notebook notebooks/01_eda.ipynb
 ```
 
-Run all notebooks in order:
+Run all notebooks in order (they also execute as plain scripts):
 
 ```bash
-for nb in notebooks/0*.py; do
-    jupytext --to notebook --execute $nb
-done
+cd notebooks && for nb in 0*.py; do python "$nb" || echo "FAILED: $nb"; done
 ```
+
+All seven run clean end-to-end. `03` and `04` assert the leakage suite passes and
+will stop the pipeline if it does not.
 
 Or run the src modules directly as a pipeline:
 

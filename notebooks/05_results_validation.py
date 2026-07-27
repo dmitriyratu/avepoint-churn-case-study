@@ -1,12 +1,12 @@
 # %% [markdown]
-# # 05 — Results & Validation
+# # 05 — Results, Recommendations & Scalability
 #
-# Deeper look at model performance, SHAP interpretability, and business recommendations.
+# Covers assignment Parts 4 and 5: strategic recommendations with a testing
+# approach, mentorship, deployment architecture, and monitoring.
 #
-# - SHAP global + local explanations
-# - Segment-level performance (do we predict worse for certain cohorts?)
-# - Business impact estimation
-# - Strategic recommendations
+# Everything here is read against a model with CV AUC 0.611 and a confidence
+# interval that touches 0.44. The recommendations are written to match that
+# strength — a weak ranker earns a call list, not an automated intervention.
 
 # %%
 import sys
@@ -20,278 +20,255 @@ import json
 import warnings
 warnings.filterwarnings("ignore")
 
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score, average_precision_score
-import shap
+from sklearn.metrics import roc_auc_score, recall_score, precision_score
 
-from src.model import prep_xy, load_model
-from src.evaluate import shap_summary, plot_roc_pr, plot_confusion
+from src.load_data import load_all
+from src.clean import clean_all
+from src.labeling import build_cohort, truncate_tables
+from src.model import prep_xy, load_model, oof_threshold, model_ladder
+from src.config import CUTOFF_DATE, TARGET
 
-df = pd.read_csv("../data/processed/features.csv")
+sns.set_theme(style="whitegrid", palette="muted")
+
+df = pd.read_csv("../data/processed/features_temporal.csv")
 X, y = prep_xy(df)
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, stratify=y, random_state=42
-)
+model = load_model("churn_l1_logistic")
+config = json.load(open("../outputs/models/config.json"))
 
-lgb_model = load_model("lgb_churn")
-xgb_model = load_model("xgb_churn")
+_, best_est = model_ladder()[4]
+threshold, _, oof = oof_threshold(best_est, X, y)
+pred = (oof >= threshold).astype(int)
 
-with open("../outputs/models/config.json") as f:
-    config = json.load(f)
-threshold = config["lgb_threshold"]
-
-lgb_proba = lgb_model.predict_proba(X_test)[:, 1]
-lgb_pred = (lgb_proba >= threshold).astype(int)
-
-print(f"Test set: {X_test.shape}  |  Churn rate: {y_test.mean():.3f}")
-print(f"LightGBM AUC: {roc_auc_score(y_test, lgb_proba):.4f}")
+print(f"CV AUC {config['cv_auc']:.3f}  CI {config['cv_auc_ci']}  p={config['permutation_p']}")
+print(f"out-of-fold @ t={threshold}: recall {recall_score(y,pred):.3f}, "
+      f"precision {precision_score(y,pred,zero_division=0):.3f}")
 
 # %% [markdown]
-# ## 1. SHAP Analysis
-
-# %%
-# Global SHAP — what does the model actually rely on?
-sv = shap_summary(lgb_model, X_test, model_name="lgb")
-
-# %%
-# SHAP dependence: feature_breadth vs churn (our strongest engagement signal)
-shap_vals_arr = sv  # already positive class values
-
-fig, ax = plt.subplots(figsize=(7, 5))
-shap.dependence_plot(
-    "feature_breadth", shap_vals_arr, X_test,
-    interaction_index="avg_satisfaction", ax=ax, show=False
-)
-ax.set_title("SHAP Dependence: Feature Breadth\n(color = avg satisfaction score)")
-plt.tight_layout()
-plt.savefig("../outputs/figures/05_shap_dependence_breadth.png", bbox_inches="tight")
-plt.show()
-
-# %%
-# example: waterfall for a high-risk account
-test_df = X_test.copy()
-test_df["churn_proba"] = lgb_proba
-test_df["actual"] = y_test.values
-
-high_risk = test_df[test_df["churn_proba"] > 0.7]
-print(f"High-risk accounts (p > 0.7): {len(high_risk)}")
-
-# show the top-risk one
-risk_idx = test_df["churn_proba"].idxmax()
-local_idx = test_df.index.get_loc(risk_idx)
-print(f"\nHighest risk account: churn_proba = {test_df.loc[risk_idx, 'churn_proba']:.3f}, actual = {test_df.loc[risk_idx, 'actual']}")
-
-explainer = shap.TreeExplainer(lgb_model)
-explanation = explainer(X_test)
-# pick positive class
-if len(explanation.shape) == 3:
-    explanation = explanation[:, :, 1]
-shap.waterfall_plot(explanation[local_idx], show=False)
-plt.tight_layout()
-plt.savefig("../outputs/figures/05_shap_waterfall_highrisk.png", bbox_inches="tight")
-plt.show()
-
-# %% [markdown]
-# ## 2. Segment-level Performance
+# ## What the model actually keys on
 #
-# Does the model work equally well across plan tiers and industries?
+# With a linear model on standardised inputs the coefficients are directly
+# readable — no SHAP needed to explain seven terms, and a simpler explanation is
+# a better one when it is available.
 
 # %%
-test_full = df.iloc[X_test.index].copy()
-test_full["churn_proba"] = lgb_proba
-test_full["predicted"] = lgb_pred
-test_full["correct"] = (lgb_pred == y_test.values).astype(int)
+coef = pd.Series(model.named_steps["clf"].coef_[0], index=X.columns)
+nz = coef[coef != 0].sort_values(key=abs, ascending=False)
+print(nz.round(4).to_string())
+
+# %% [markdown]
+# Reading the signs:
+#
+# - **`days_since_signup` (negative, strongest)** — longer-tenured accounts churn
+#   less. Standard survivorship: the risky period is early.
+# - **`latest_plan_tier_Pro` (negative)** — Pro accounts are stickier than the
+#   Basic baseline.
+# - **`n_trial_subs` (negative)** — more trial subscriptions in history
+#   associates with *lower* churn here, which is counter-intuitive and worth
+#   flagging rather than explaining away. Likely an artefact of the synthetic
+#   generator; on real data I would want this checked before acting on it.
+# - **`avg_usage_count` (positive)** — mildly counter-intuitive too.
+#
+# Two of seven coefficients point the wrong way relative to domain expectation.
+# On a model this weak that is what you would expect from noise, and it is a
+# reason to treat the ranking as triage rather than explanation.
+
+# %% [markdown]
+# ## Where the model is confident, and whether it is right there
+#
+# A weak average AUC can still be useful if the top of the ranking is reliable —
+# that is all a triage list needs.
 
 # %%
-# AUC by plan tier
-for tier in test_full["plan_tier"].dropna().unique():
-    mask = test_full["plan_tier"] == tier
-    if mask.sum() < 5:
-        continue
-    auc = roc_auc_score(test_full.loc[mask, "churn_flag"], test_full.loc[mask, "churn_proba"])
-    n = mask.sum()
-    n_churn = test_full.loc[mask, "churn_flag"].sum()
-    print(f"  {tier:12s}  AUC={auc:.3f}  n={n}  churned={n_churn}")
+rank = pd.DataFrame({"proba": oof, "actual": y.values}).sort_values("proba", ascending=False)
+base = y.mean()
+print(f"base rate: {base:.3f}\n")
+print(" top-K   churn rate   lift")
+for k in [10, 20, 30, 50, 80]:
+    r = rank.head(k)["actual"].mean()
+    print(f"  {k:>4}     {r:.3f}      {r/base:.2f}x")
 
 # %%
-# calibration check
-from sklearn.calibration import calibration_curve
-
-prob_true, prob_pred = calibration_curve(y_test, lgb_proba, n_bins=8)
-fig, ax = plt.subplots(figsize=(6, 5))
-ax.plot(prob_pred, prob_true, marker="o", label="LightGBM")
-ax.plot([0, 1], [0, 1], "k--", alpha=0.5, label="Perfect calibration")
-ax.set_xlabel("Mean Predicted Probability")
-ax.set_ylabel("Fraction of Positives")
-ax.set_title("Calibration Curve")
-ax.legend()
-plt.tight_layout()
-plt.savefig("../outputs/figures/05_calibration.png", bbox_inches="tight")
+deciles = pd.qcut(rank["proba"], 10, labels=False, duplicates="drop")
+by_dec = rank.groupby(deciles)["actual"].mean().sort_index(ascending=False)
+fig, ax = plt.subplots(figsize=(8, 4))
+by_dec.plot(kind="bar", ax=ax, color="steelblue")
+ax.axhline(base, color="red", ls="--", label=f"base rate {base:.2f}")
+ax.set_xlabel("risk decile (0 = highest)"); ax.set_ylabel("actual churn rate")
+ax.set_title("Does the ranking separate at the top?")
+ax.legend(); plt.tight_layout()
+plt.savefig("../outputs/figures/05_decile_lift.png", bbox_inches="tight")
 plt.show()
 
 # %% [markdown]
-# ## 3. Business Impact Estimation
+# ## Part 4 — Strategic recommendations
 #
-# Framing: what's the value of catching churners early?
-#
-# Assumptions (to discuss with stakeholders):
-# - Average account MRR: ~$2,300
-# - Intervention cost per at-risk account: $50 (outreach, discount, CSM time)
-# - Intervention success rate: 30% (i.e., we retain 30% of accounts we reach out to)
-
-# %%
-# test set results
-total_test = len(y_test)
-actual_churners = y_test.sum()
-caught_churners = (lgb_pred & y_test).sum()   # true positives
-missed_churners = ((1 - lgb_pred) & y_test).sum()  # false negatives
-false_alarms = (lgb_pred & (1 - y_test)).sum()  # false positives
-
-print(f"Test set: {total_test} accounts, {actual_churners} actual churners")
-print(f"  Caught:       {caught_churners}  (TP)")
-print(f"  Missed:       {missed_churners}  (FN)")
-print(f"  False alarms: {false_alarms}  (FP)")
-
-# %%
-avg_mrr = 2300
-intervention_cost = 50
-retention_rate = 0.30
-
-mrr_saved = caught_churners * avg_mrr * retention_rate
-intervention_spend = (caught_churners + false_alarms) * intervention_cost
-net_value = mrr_saved - intervention_spend
-
-print(f"\n--- Business Impact (Test Set) ---")
-print(f"  MRR saved via interventions:  ${mrr_saved:,.0f}")
-print(f"  Intervention spend:           ${intervention_spend:,.0f}")
-print(f"  Net monthly value:            ${net_value:,.0f}")
-print(f"\nAt 500 accounts (full), scale by {500/total_test:.1f}x -> est. net value: ${net_value*(500/total_test):,.0f}/mo")
+# Each is stated with the evidence behind it, the strength of that evidence, and
+# how it would be tested. Where the evidence is weak I say so.
 
 # %% [markdown]
-# ## 4. Strategic Recommendations
+# ### 1. Onboard the first 6 months harder  — *strongest evidence*
 #
-# Based on EDA + SHAP analysis, three actionable levers:
-
-# %% [markdown]
-# ### Recommendation 1: Feature Adoption Program
-#
-# SHAP shows `feature_breadth` is the single strongest predictor.
-# Accounts using fewer than 35% of available features (14/40) are ~2.3x more likely to churn.
-#
-# **Action**: Trigger a proactive in-app onboarding sequence when an account's 90-day breadth
-# falls below the 30th percentile. Pair with a CSM outreach for Enterprise accounts.
-#
-# **Testing approach**: A/B test — 50% of flagged accounts get the nudge campaign vs. control.
-# Primary metric: 90-day retention. Secondary: feature breadth increase.
+# `days_since_signup` is the largest coefficient and the strongest single feature
+# (AUC 0.650). Early-tenure accounts carry materially more risk.
 
 # %%
-# support the recommendation with data
-breadth_col = "feature_breadth" if "feature_breadth" in df.columns else None
-if breadth_col:
-    low_breadth = df["feature_breadth"] < 0.35
-    print("Churn rate — low breadth (<35%): ", df.loc[low_breadth, "churn_flag"].mean().round(3))
-    print("Churn rate — high breadth (>=35%):", df.loc[~low_breadth, "churn_flag"].mean().round(3))
+tables = clean_all(load_all())
+cohort = build_cohort(tables)
+obs = truncate_tables(tables, CUTOFF_DATE)
+tmp = cohort.copy()
+tmp["days_since_signup"] = (CUTOFF_DATE - tmp["signup_date"]).dt.days
+tmp["tenure_band"] = pd.cut(tmp["days_since_signup"], [0, 180, 365, 550, 10000],
+                            labels=["<6mo", "6-12mo", "12-18mo", "18mo+"])
+band = tmp.groupby("tenure_band")[TARGET].agg(["size", "mean"]).round(3)
+band.columns = ["n_accounts", "churn_rate"]
+print(band.to_string())
 
 # %% [markdown]
-# ### Recommendation 2: Support Experience as Early Warning
+# **Action.** Structured onboarding through day 180: milestone checks at 30/60/90,
+# with a CSM touch for Enterprise. Target the behaviour, not the tenure number.
 #
-# `escalation_rate` and `avg_resolution_hours` consistently appear in top SHAP features.
-# Accounts with high escalation rates churn at nearly 2x the base rate.
+# **Test.** Randomise new signups 50/50 into the enhanced track. Primary metric:
+# 180-day retention. Minimum detectable effect at this cohort size is large, so
+# this needs to run across several months of signups before it reads out —
+# roughly 300+ accounts per arm for a 10pp difference at 80% power.
+
+# %% [markdown]
+# ### 2. Treat plan tier as a retention lever — *moderate evidence*
 #
-# **Action**: Flag accounts where escalation_rate > 0.4 for priority CSM review.
-# Also: satisfaction score below 2.5 after ticket resolution should auto-trigger a follow-up.
-#
-# **Testing approach**: Monitor 60-day churn rate for accounts that receive the follow-up
-# vs. those that don't (propensity-score match to avoid selection bias).
+# Pro carries a negative coefficient relative to Basic.
 
 # %%
-if "escalation_rate" in df.columns:
-    esc_high = df["escalation_rate"] > 0.4
-    print("Churn rate — high escalation: ", df.loc[esc_high, "churn_flag"].mean().round(3))
-    print("Churn rate — low escalation:  ", df.loc[~esc_high, "churn_flag"].mean().round(3))
+print(cohort.groupby("plan_tier")[TARGET].agg(["size", "sum", "mean"]).round(3).to_string())
+print("\nGroup sizes are small — read as directional, not settled.")
 
 # %% [markdown]
-# ### Recommendation 3: Pricing / Downgrade Signal
+# **Action.** For Basic accounts showing Pro-level usage breadth, a guided upgrade
+# offer. The causal claim ("upgrading causes retention") is *not* established
+# here — the association could easily run the other way.
 #
-# `n_downgrades` and `sub_churn_rate` are strong predictors.
-# A downgrade event is often a precursor to full churn — but the gap varies.
+# **Test.** This one needs a genuine experiment precisely because the causality is
+# ambiguous. Randomise the offer among eligible Basic accounts and measure
+# 180-day retention plus net revenue, so a retention gain that costs more in
+# discount than it returns is visible.
+
+# %% [markdown]
+# ### 3. Instrument disengagement properly — *infrastructure, not a finding*
 #
-# **Action**: When a downgrade is detected, trigger a product-value review call within 7 days.
-# For Basic-tier accounts on month-to-month billing, offer a discounted annual commitment.
-#
-# **Testing approach**: Run holdout experiment — intervene with 50% of downgrade events.
-# Measure 6-month retention and net revenue change.
+# The honest observation is that the engagement features barely contributed:
+# usage recency and breadth were largely dropped by the L1 penalty. On real
+# telemetry these are normally among the strongest churn predictors, so the most
+# likely explanation is that this synthetic usage data carries little signal
+# rather than that engagement does not matter.
 
 # %%
-if "n_downgrades" in df.columns:
-    has_downgrade = df["n_downgrades"] > 0
-    print("Churn rate — had a downgrade:    ", df.loc[has_downgrade, "churn_flag"].mean().round(3))
-    print("Churn rate — no downgrade:       ", df.loc[~has_downgrade, "churn_flag"].mean().round(3))
+eng = [c for c in X.columns if any(k in c for k in
+       ["usage", "feature", "error", "recency", "momentum"])]
+kept = [c for c in eng if c in nz.index]
+print(f"engagement features offered : {len(eng)}")
+print(f"engagement features retained: {len(kept)}  {kept}")
 
 # %% [markdown]
-# ## 5. Deployment Architecture (High-Level)
+# **Action.** Before another modelling pass, fix the inputs: event-level product
+# telemetry with reliable timestamps, session depth, and seat-level activation
+# rather than account-level totals. The integrity problems found in EDA (19,128
+# usage rows predating their subscription) would have to be resolved first.
+#
+# **Test.** Not an A/B test — a data-quality milestone. Re-run this pipeline once
+# telemetry is trustworthy and compare CV AUC against the 0.611 baseline recorded
+# here.
+
+# %% [markdown]
+# ## Part 5 — Deployment architecture
 
 # %% [markdown]
 # ```
-# ┌─────────────────────────────────────────────────────────┐
-# │  Data Layer                                             │
-# │  - CRM / billing → daily account snapshot              │
-# │  - Product events → feature usage aggregations         │
-# │  - Support system → ticket metrics                      │
-# └────────────────┬────────────────────────────────────────┘
-#                  │ nightly ETL
-# ┌────────────────▼────────────────────────────────────────┐
-# │  Feature Store (e.g. Feast / Tecton)                    │
-# │  - Pre-computed account-level features                  │
-# │  - 30d, 60d, 90d rolling windows                        │
-# └────────────────┬────────────────────────────────────────┘
-#                  │
-# ┌────────────────▼────────────────────────────────────────┐
-# │  Scoring Service (FastAPI or batch)                     │
-# │  - Load lgb_churn.joblib                                │
-# │  - Predict daily for all active accounts                │
-# │  - Write risk scores to internal DB                     │
-# └────────────────┬────────────────────────────────────────┘
-#                  │
-# ┌────────────────▼────────────────────────────────────────┐
-# │  Action Layer                                           │
-# │  - Push risk scores to CRM (Salesforce)                 │
-# │  - Trigger Intercom campaigns for medium-risk           │
-# │  - CSM queue for high-risk Enterprise accounts          │
-# └─────────────────────────────────────────────────────────┘
+#  ┌──────────────────────────────────────────────────────────────┐
+#  │ Sources                                                      │
+#  │  billing/CRM · product telemetry · support desk              │
+#  └───────────────────────────┬──────────────────────────────────┘
+#                              │ nightly batch
+#  ┌───────────────────────────▼──────────────────────────────────┐
+#  │ Feature pipeline  (the same code path as training)           │
+#  │  - AS-OF semantics: every aggregate takes a cutoff argument   │
+#  │  - censors fields that resolve after the cutoff               │
+#  │  - the audit suite runs here and FAILS the job on violation   │
+#  └───────────────────────────┬──────────────────────────────────┘
+#                              │
+#  ┌───────────────────────────▼──────────────────────────────────┐
+#  │ Scoring  (batch; daily is ample for a 180-day horizon)       │
+#  │  - churn_l1_logistic.joblib                                   │
+#  │  - writes account_id, score, decile, top contributing terms   │
+#  └───────────────────────────┬──────────────────────────────────┘
+#                              │
+#  ┌───────────────────────────▼──────────────────────────────────┐
+#  │ Consumption                                                  │
+#  │  - CSM queue ordered by score (NOT auto-triggered actions)     │
+#  │  - scores written back to CRM for context                     │
+#  └──────────────────────────────────────────────────────────────┘
 # ```
 #
-# **Monitoring**:
-# - Weekly: feature distribution drift (PSI per feature)
-# - Monthly: AUC on closed accounts (delayed labels)
-# - Retrain trigger: AUC drops >0.03 from baseline or significant drift in top-5 features
-# - Log predictions + actuals → build labeled dataset for retraining
+# The load here is trivial — 500 accounts, a 180-day horizon. Real-time serving
+# would be over-engineering; a nightly batch job is the right answer and saying
+# so is part of the design.
+#
+# The point worth defending: **training and serving share one feature code path,
+# parameterised by cutoff date.** Training passes 2024-06-30, production passes
+# today. That is the structural defence against training/serving skew, and it is
+# why `build_model_dataset` takes `as_of` rather than assuming "now".
 
 # %% [markdown]
-# ## 6. Summary
+# ## Monitoring
+#
+# | Layer | Check | Cadence | Trigger |
+# |---|---|---|---|
+# | Input | Feature PSI vs training distribution | weekly | PSI > 0.2 → investigate |
+# | Input | Null-rate and row-count deltas | daily | job fails on schema change |
+# | Input | **Leakage suite** (`src/audit.py`) | every run | any violation → fail the job |
+# | Output | Score distribution drift | weekly | mean shift > 2 sd |
+# | Outcome | AUC on matured cohorts | quarterly | drop > 0.05 → retrain |
+# | Outcome | Calibration on matured cohorts | quarterly | — |
+#
+# Labels take 180 days to mature, so performance monitoring is inherently
+# lagged. Input drift is the early warning; outcome metrics confirm it later.
+#
+# Running the leakage suite in production is the unusual entry and the one I would
+# argue for hardest: the censoring bug in this project was a *pipeline* bug, and
+# pipeline bugs recur whenever someone adds a feature.
+
+# %% [markdown]
+# ## Mentoring a junior engineer on this project
+#
+# I would hand over the leakage work, because it is where the transferable
+# judgement lives:
+#
+# 1. **Start with the label, not the model.** The first version of this project
+#    modelled an undated flag that disagreed with the event log for 62% of
+#    accounts. No algorithm recovers from that. "Check your n's" found it.
+# 2. **Ask of every column: would I have this at prediction time?** Then write
+#    the check down so it runs automatically. Reasoning caught the obvious leak;
+#    the automated gate caught the one reasoning missed.
+# 3. **A high AUC is a hypothesis, not a result.** Their first strong number
+#    should prompt a leakage hunt, not a commit.
+# 4. **Establish the floor before celebrating.** `DummyClassifier` first, always.
+# 5. **Report the interval, not the point.** [0.44, 0.74] communicates something
+#    "0.611" does not.
+#
+# I would have them re-run the pipeline with `POST_OUTCOME_COLS` emptied and watch
+# AUC hit 0.997 — that lesson lands far better as an experiment than a lecture.
+
+# %% [markdown]
+# ## Summary
 
 # %%
-print("=== Model Performance Summary ===")
-print(f"LightGBM AUC (CV mean): see notebook 04")
-print(f"LightGBM AUC (test):    {roc_auc_score(y_test, lgb_proba):.4f}")
-print(f"AP (test):               {average_precision_score(y_test, lgb_proba):.4f}")
-print(f"Threshold used:          {threshold}")
+print(f"""
+  cohort            187 accounts, 88 positives (47%)
+  model             {config['model']}
+  CV ROC-AUC        {config['cv_auc']:.3f}   95% CI {config['cv_auc_ci']}
+  permutation p     {config['permutation_p']}
+  operating point   t={config['oof_threshold']} -> recall {config['oof_recall']:.3f}, precision {config['oof_precision']:.3f}
+  features used     {config['n_features_selected']} of {X.shape[1]}
 
-from sklearn.metrics import recall_score, precision_score, f1_score
-print(f"\nAt threshold={threshold}:")
-print(f"  Recall:    {recall_score(y_test, lgb_pred):.3f}")
-print(f"  Precision: {precision_score(y_test, lgb_pred, zero_division=0):.3f}")
-print(f"  F1:        {f1_score(y_test, lgb_pred, zero_division=0):.3f}")
-
-# %%
-# save final metrics
-metrics = {
-    "roc_auc_test": round(roc_auc_score(y_test, lgb_proba), 4),
-    "avg_precision_test": round(average_precision_score(y_test, lgb_proba), 4),
-    "recall_test": round(recall_score(y_test, lgb_pred), 4),
-    "precision_test": round(precision_score(y_test, lgb_pred, zero_division=0), 4),
-    "f1_test": round(f1_score(y_test, lgb_pred, zero_division=0), 4),
-    "threshold": threshold,
-}
-pd.DataFrame([metrics]).to_csv("../outputs/reports/final_metrics.csv", index=False)
-print("\nMetrics saved to outputs/reports/final_metrics.csv")
+  Verdict: a weak but statistically real ranker. Deploy as a CSM triage list;
+  do not attach automated actions or revenue decisions to it. The binding
+  constraint is data, not algorithm — 88 positives and synthetic telemetry.
+""")

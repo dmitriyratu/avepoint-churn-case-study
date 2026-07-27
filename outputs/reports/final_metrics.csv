@@ -1,2 +1,2 @@
-lgb_roc_auc_cv,xgb_roc_auc_cv,lr_roc_auc_cv,lgb_roc_auc_test,xgb_roc_auc_test,lr_roc_auc_test,lr_f1_test,lr_recall_test,lr_precision_test
-0.4265,0.4652,0.485,0.546,0.5542,0.5956,0.4043,0.8636,0.2639
+model,cv_auc,cv_auc_ci,oof_threshold,oof_f1,oof_recall,oof_precision,permutation_p,n_features_selected,cohort_n,positives
+"4. Logistic (L1, C=0.1)",0.6106,"[0.4385, 0.7351]",0.42,0.6613,0.9318181818181818,0.5125,0.0399,7,187,88

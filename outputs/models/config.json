@@ -1,5 +1,5 @@
 {
-  "model": "L1 logistic (C=0.1)",
+  "model": "4. Logistic (L1, C=0.1)",
   "cv_auc": 0.6106,
   "cv_auc_ci": [
     0.4385,
@@ -7,8 +7,9 @@
   ],
   "oof_threshold": 0.42,
   "oof_f1": 0.6613,
+  "oof_recall": 0.9318181818181818,
+  "oof_precision": 0.5125,
   "permutation_p": 0.0399,
-  "audit_suite": "PASS",
   "n_features_selected": 7,
   "cohort_n": 187,
   "positives": 88
