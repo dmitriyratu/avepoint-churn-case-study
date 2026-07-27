@@ -32,13 +32,16 @@ AvePoint/
 │   ├── 01_eda.py             # exploratory analysis
 │   ├── 02_cleaning.py        # data cleaning walkthrough
 │   ├── 03_feature_engineering.py
-│   ├── 04_modeling.py        # LightGBM + XGBoost, CV, threshold tuning
-│   └── 05_results_validation.py  # SHAP, segment analysis, recommendations
+│   ├── 04_modeling.py        # first pass — static label (superseded by 06)
+│   ├── 05_results_validation.py  # SHAP, segment analysis, recommendations
+│   └── 06_audit_and_temporal_redesign.py   # <- read this one
 ├── src/
+│   ├── config.py             # cutoff/horizon, leakage exclusion lists
 │   ├── load_data.py          # load the 5 tables
-│   ├── clean.py              # date parsing, null imputation
-│   ├── features.py           # feature aggregation + engineering
-│   ├── model.py              # train, cross_validate, save/load
+│   ├── clean.py              # cleaning + integrity_report
+│   ├── labeling.py           # cohort construction, table truncation
+│   ├── features.py           # cutoff-aware feature aggregation
+│   ├── model.py              # model ladder, permutation test, oof threshold
 │   └── evaluate.py           # metrics, ROC/PR plots, SHAP helpers
 ├── outputs/
 │   ├── figures/              # saved plots
@@ -95,35 +98,76 @@ print('Done')
 "
 ```
 
+## Problem framing
+
+`accounts.churn_flag` is a static flag with no date attached, so predicting it directly
+has no observation window — a customer's post-churn activity ends up in their own feature
+vector. This project models a forward-looking target instead:
+
+```
+|<------ observation window ------>|<---- prediction window ---->|
+2023-01-01                    2024-06-30                    2024-12-27
+       features built here              label defined here
+```
+
+- **Eligible**: signed up before the cutoff, not already churned at it → 187 accounts
+- **Label**: first churn event within 180 days after the cutoff → 88 positives (47%)
+- **Features**: computed only from rows dated before the cutoff
+
 ## Results
 
-| Model | CV AUC (5-fold) | Test AUC | Test Recall | Test Precision |
-|-------|----------------|----------|-------------|----------------|
-| LightGBM | 0.43 | 0.55 | — | — |
-| XGBoost | 0.47 | 0.55 | — | — |
-| **Logistic Reg** | **0.49** | **0.60** | **0.86** | 0.26 |
+Model ladder, repeated stratified CV (5 folds × 10 repeats, identical folds throughout):
 
-**Note on signal quality**: this is a fully synthetic dataset where features and labels were
-generated independently (max feature-target Pearson correlation ~0.12). CV AUC oscillating
-around 0.5 is the expected outcome. Logistic regression outperforms tree models here because
-regularized linear models generalize better than high-capacity models when there's no real
-signal to find — tree models overfit to noise and invert on out-of-fold data.
+| Rung | Model | CV ROC-AUC | 95% CI |
+|------|-------|-----------|--------|
+| 0 | Prior (no features) | 0.500 | — |
+| 1 | Decision stump | 0.531 | [0.43, 0.60] |
+| 2 | Logistic (L2, C=1) | 0.574 | [0.40, 0.71] |
+| 3 | Logistic (L2, C=0.05) | 0.583 | [0.37, 0.71] |
+| **4** | **Logistic (L1, C=0.1)** | **0.635** | **[0.44, 0.76]** |
+| 5 | Random forest (depth 4) | 0.587 | [0.44, 0.72] |
+| 6 | LightGBM (shallow) | 0.570 | [0.35, 0.70] |
 
-In production with real user behavior data, feature-target correlations of 0.3–0.6 are typical,
-and AUC of 0.75–0.85 is achievable with this feature set.
+Tuned LightGBM over a 54-point grid reaches 0.619 — still below the linear model.
+
+**Permutation test** (300 label shuffles): observed 0.636 vs null mean 0.494,
+95th percentile 0.605 → **p = 0.013**. The association is real, if modest.
+
+**Operating point** (threshold selected out-of-fold, never on the evaluation set):
+threshold 0.45 → recall 0.864, precision 0.547, F1 0.670.
+
+L1 keeps **8 of 76** features.
 
 ## Key Findings
 
-1. **Feature breadth** is the single highest-importance feature in the LightGBM model (by gain).
-   In real SaaS data, accounts touching a wider fraction of the product consistently retain longer.
+1. **Recency beats volume.** `days_since_last_sub_start` is the strongest single
+   predictor — accounts that have stopped opening new subscriptions are disengaging,
+   regardless of how much they used the product historically.
 
-2. **Support escalation rate** and **resolution time** appear in the top features — both
-   reflect product experience health, not just support workload.
+2. **Complexity does not pay here.** Both tree ensembles score below L1 logistic, and
+   grid search doesn't close the gap. At 1.16 events per variable, hard feature
+   selection is worth more than model capacity. Shipping the boosted model would have
+   been a worse product for more compute.
 
-3. **Recency of usage** (days_since_last_usage) is the strongest individual signal even in this
-   synthetic dataset. Active users don't churn — this should be tracked in production in real time.
+3. **Leakage was the real story, not "weak data."** Features derived from `churn_events`
+   (refund amount, churn reason, reactivation) take CV AUC to **0.997** — they encode the
+   answer, since a refund is issued *because* the customer left. They are excluded via
+   `config.POST_OUTCOME_COLS`.
 
-4. **Logistic regression beats tree models** on this data. When signal is weak, simpler models
-   with L2 regularization generalize better than high-capacity models that latch onto noise.
+4. **The label itself is inconsistent.** `churn_flag` and the `churn_events` table
+   disagree for 312 of 500 accounts. The event log is used as ground truth because it
+   carries dates.
 
-See `notebooks/05_results_validation.py` and `docs/ASSUMPTIONS.md` for full details.
+## Honest limitations
+
+- 187 accounts / 88 positives. The AUC interval [0.44, 0.76] is wide; the point estimate
+  should not be quoted alone.
+- A single cutoff date. Production evaluation needs rolling-origin backtesting.
+- Source data has integrity problems (1,077 tickets predate their account's signup;
+  19,128 usage rows predate their subscription's start) — surfaced by
+  `clean.integrity_report`, not silently ignored.
+- Synthetic data caps feature-target association at |r| = 0.28. Real telemetry typically
+  reaches 0.3–0.6, where AUC 0.75+ is achievable with this feature set.
+
+See `notebooks/06_audit_and_temporal_redesign.py` and `docs/ASSUMPTIONS.md` for the
+full audit, including the bugs found in the first pass and how they were corrected.

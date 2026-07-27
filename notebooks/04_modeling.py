@@ -1,4 +1,11 @@
 # %% [markdown]
+# > **Superseded by `06_audit_and_temporal_redesign.py`.**
+# >
+# > This notebook models the static `accounts.churn_flag` with no observation
+# > window, and its feature matrix includes columns derived from `churn_events`.
+# > Both problems are diagnosed and corrected in notebook 06. It is kept here as
+# > the record of the first pass and of what the review changed.
+#
 # # 04 — Modeling
 #
 # Churn prediction: binary classification (churn_flag).

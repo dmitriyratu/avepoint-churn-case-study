@@ -1,46 +1,117 @@
 # Assumptions & Decisions
 
+Every decision below is backed by a check in `notebooks/02_cleaning.py` or
+`notebooks/06_audit_and_temporal_redesign.py`. Where an earlier version of this
+project stated a rationale the data does not support, that is recorded too.
+
+## Problem framing
+
+- **The target is forward-looking, not static.** `accounts.churn_flag` is a
+  point-in-time flag with no date attached, so it cannot be predicted without
+  leaking the future. The modelled target is instead:
+
+  > Did the account's first churn event fall within 180 days after 2024-06-30?
+
+  Features come only from rows dated before that cutoff. Accounts that had
+  already churned at the cutoff are excluded — they are not at risk.
+
+- **Cutoff = 2024-06-30, horizon = 180 days** balances a usable observation
+  window (18 months) against a cohort large enough to model (187 accounts,
+  88 positives). Alternatives were checked in notebook 06.
+
+- **`churn_events` is treated as ground truth over `churn_flag`.** The two
+  disagree for 312 of 500 accounts (37.6% agreement). The event log wins because
+  it carries dates, which the flag does not. This should be confirmed with
+  whoever owns the upstream pipeline.
+
 ## Data
 
-- **Reference date**: `2025-07-21` (latest date in the dataset) is used as "today" for tenure calculations
-  and for imputing `end_date = null` (active subscriptions).
+- **Reference date is derived, not hardcoded.** An earlier version hardcoded
+  `2025-07-21` while the data ends `2024-12-31`, which silently zeroed out every
+  30- and 90-day recency window. All time arithmetic is now relative to
+  `config.CUTOFF_DATE`.
 
-- **Satisfaction score imputation**: ~41% of support ticket satisfaction scores are missing.
-  I impute with the **per-priority median** rather than a global median, under the assumption
-  that response rates differ by ticket severity (urgent tickets more likely to receive scores).
+- **`arr_amount` is dropped.** It equals `mrr_amount * 12` for all 5,000 rows —
+  perfectly collinear and worthless to any model.
 
-- **Zero-MRR subscriptions**: Kept as-is. These are legitimate trial or enterprise-pilot subscriptions.
-  The `is_trial` flag already captures this distinction.
+- **21 duplicate `usage_id` rows are dropped** so per-account event counts are
+  not inflated.
 
-- **Feature usage ↔ accounts join**: Usage records link to `subscription_id`, not `account_id` directly.
-  I join through the subscriptions table. A small number of usage records whose `subscription_id`
-  has no match in subscriptions are dropped (< 1%).
+- **Satisfaction score (41% missing): global median plus a missing indicator.**
+  An earlier version imputed the per-priority median, justified by "response
+  rates differ by ticket severity." The data does not support that: missing rates
+  are 0.405–0.422 across all four priorities, so the per-priority median is the
+  global median. A t-test also shows missingness is unrelated to churn
+  (p = 0.81), so imputation is safe — but the indicator is kept because
+  "did not respond" is free to encode.
 
-- **Accounts with no ticket history**: Imputed as 0 for all support metrics (no tickets = no escalations, etc.).
+- **Accounts with no tickets or no usage** get 0 for count and rate features.
+  Recency features are the exception: "never used the product" is not the same as
+  "used it today", so those are filled with the observation-window length.
 
-## Modeling
+- **Known integrity problems, surfaced not silenced** (`clean.integrity_report`):
+  1,077 of 2,000 tickets predate their account's signup date, and 19,128 of
+  24,979 usage rows predate their subscription's start. These are artefacts of
+  the synthetic generator. In a real engagement they would go back to data
+  engineering before any modelling.
 
-- **Target leakage check**: Excluded `account_name`, `account_id`, and `signup_date` from the feature matrix.
-  `churn_flag` on the subscriptions table is not used directly — only aggregated counts (e.g. `sub_churn_rate`),
-  which represent historical subscription-level churn, not the account-level label we're predicting.
+## Leakage controls
 
-- **Class imbalance**: 22% churn rate. Using `scale_pos_weight` (≈3.5) rather than SMOTE,
-  since tree models handle this well and SMOTE can introduce artifacts with mixed feature types.
+- **All `churn_events`-derived features are excluded from the model**
+  (`config.POST_OUTCOME_COLS`). Refund amount, churn reason, and reactivation
+  flags describe the outcome — a refund is issued *because* the customer left.
+  Including them takes CV AUC from 0.635 to **0.997**, which is the signature of
+  label leakage rather than a good model. They are retained in the frame for
+  post-hoc analysis only.
 
-- **No time-based split**: The accounts table doesn't have a clear temporal ordering for train/test.
-  Using stratified random 80/20 split, relying on 5-fold CV for reliable performance estimates.
+- **`subscriptions.churn_flag` is excluded** for the same reason: it is the label
+  at a different grain.
 
-- **Threshold**: Tuned on held-out test set to maximize F1. In production, the business team
-  should set this based on the actual cost ratio of a false negative (missed churner) vs.
-  false positive (wasted CSM time).
+- **Event tables are truncated before aggregation**, not filtered afterwards, so
+  no post-cutoff row can reach a feature.
+
+## Modelling
+
+- **Repeated stratified CV (5 folds x 10 repeats), not a single holdout.** With
+  187 rows a single split is not a measurement — fold-to-fold AUC ranges from
+  0.44 to 0.76. All reported scores carry a 95% interval.
+
+- **The decision threshold is chosen out-of-fold.** An earlier version tuned the
+  threshold on the test set and then reported test-set F1 and recall, which is
+  optimistically biased.
+
+- **Class weighting over resampling.** The cohort is 47% positive, so imbalance is
+  mild; `class_weight="balanced"` is sufficient and avoids the synthetic-sample
+  artefacts SMOTE introduces with mixed feature types.
+
+- **Model selection is a ladder, not a single choice.** Prior -> stump ->
+  logistic (L2, two strengths) -> logistic (L1) -> random forest -> LightGBM,
+  all on identical folds. L1 logistic wins at 0.635; neither ensemble beats it,
+  and a 54-point LightGBM grid search does not close the gap. With 1.16 events
+  per variable this is the expected outcome, and it is the reason the extra
+  capacity is not shipped.
+
+- **Significance is tested, not assumed.** A 300-shuffle permutation test gives
+  p = 0.013 against a null mean of 0.494.
+
+## Known limitations
+
+1. **Cohort size.** 187 accounts / 88 positives. The AUC confidence interval is
+   roughly [0.44, 0.76]; the point estimate should not be quoted alone.
+2. **A single cutoff date.** Production evaluation needs rolling-origin
+   backtesting across several cutoffs.
+3. **No nested CV**, so the reported score does not include
+   hyperparameter-selection variance.
+4. **76 candidate features on 88 positives** is over-parameterised before a model
+   is even fit. L1 reduces this to 8 in practice.
+5. **Synthetic data.** Feature-target associations top out at |r| = 0.28. On real
+   product telemetry, 0.3–0.6 is typical and AUC of 0.75+ is a reasonable target
+   with this feature set.
 
 ## Scope
 
-- This analysis focuses on **account-level churn prediction** (will an account eventually churn?).
-  A separate analysis could predict **time-to-churn** (survival model) or **subscription-level churn**.
-
-- Reactivated accounts (those with multiple churn events, `is_reactivation = True`) are treated
-  as single accounts. A reactivation prediction model is an interesting follow-on.
-
-- NLP on `feedback_text` in churn events is out of scope for this exercise but would likely
-  add signal for the "unknown" reason_code accounts.
+- Account-level binary classification over a fixed horizon. Survival modelling
+  (Cox or discrete-time hazard) would use *when* a customer churns rather than
+  only *whether*, and suits this problem better — noted as next work.
+- NLP over `churn_events.feedback_text` is out of scope but would likely help
+  segment the ~25% of events with reason code `unknown`.

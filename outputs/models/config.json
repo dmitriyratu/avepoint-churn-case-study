@@ -1,6 +1,14 @@
 {
-  "lgb_threshold": 0.13,
-  "lr_threshold": 0.363,
-  "churn_rate_train": 0.22,
-  "note": "Fully synthetic dataset \u2014 features and labels generated independently. Max feature-target correlation ~0.12. Models demonstrate correct methodology; expected AUC near 0.5 on this data."
+  "model": "L1 logistic (C=0.1)",
+  "cv_auc": 0.6353,
+  "cv_auc_ci": [
+    0.4449,
+    0.7559
+  ],
+  "oof_threshold": 0.45,
+  "oof_f1": 0.6696,
+  "permutation_p": 0.0133,
+  "n_features_selected": 8,
+  "cohort_n": 187,
+  "positives": 88
 }
