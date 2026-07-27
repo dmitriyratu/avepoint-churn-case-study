@@ -1,9 +1,8 @@
 ,coefficient
-days_since_last_sub_start,-0.3030719932196596
-latest_plan_tier_Pro,-0.17947640849837068
-n_trial_subs,-0.11003161579828447
-days_since_signup,-0.10436478721210053
-industry_DevTools,0.045595913410341936
-error_rate,-0.028949980908726736
-avg_first_response_mins,0.01416734375357262
-country_CA,-0.006086983525826805
+days_since_signup,-0.2760472737367796
+latest_plan_tier_Pro,-0.17348109705433906
+avg_usage_count,0.09751336982204006
+industry_DevTools,0.074687603694108
+n_trial_subs,-0.07107159028638259
+country_CA,-0.05452463231688963
+avg_first_response_mins,0.034447105144806894

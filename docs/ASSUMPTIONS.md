@@ -1,7 +1,8 @@
 # Assumptions & Decisions
 
 Every decision below is backed by a check in `notebooks/02_cleaning.py` or
-`notebooks/06_audit_and_temporal_redesign.py`. Where an earlier version of this
+`notebooks/06_audit_and_temporal_redesign.py`, or a gate in `src/audit.py`.
+Where an earlier version of this
 project stated a rationale the data does not support, that is recorded too.
 
 ## Problem framing
@@ -37,17 +38,38 @@ project stated a rationale the data does not support, that is recorded too.
 - **21 duplicate `usage_id` rows are dropped** so per-account event counts are
   not inflated.
 
-- **Satisfaction score (41% missing): global median plus a missing indicator.**
-  An earlier version imputed the per-priority median, justified by "response
-  rates differ by ticket severity." The data does not support that: missing rates
-  are 0.405–0.422 across all four priorities, so the per-priority median is the
-  global median. A t-test also shows missingness is unrelated to churn
-  (p = 0.81), so imputation is safe — but the indicator is kept because
-  "did not respond" is free to encode.
+- **Satisfaction score (41% missing): imputed inside the CV fold, not globally.**
+  An earlier version imputed the per-priority median in the cleaning step,
+  justified by "response rates differ by ticket severity." Two problems. The
+  rationale is unsupported — missing rates are 0.405–0.422 across all four
+  priorities, so the per-priority median *is* the global median, and a t-test
+  shows missingness is unrelated to churn (p = 0.81). And imputing during
+  cleaning lets validation rows influence the statistic applied to training rows.
+  Cleaning now records `satisfaction_missing` and leaves the value as `NaN`;
+  `model._pipe` imputes with a `SimpleImputer` fit on the training fold only.
 
-- **Accounts with no tickets or no usage** get 0 for count and rate features.
-  Recency features are the exception: "never used the product" is not the same as
-  "used it today", so those are filled with the observation-window length.
+- **Missing does not mean zero.** The first version filled every null with 0,
+  which conflates three different situations:
+
+  | Feature type | Missing means | Fill |
+  |---|---|---|
+  | counts (`n_tickets`, `total_usage_events`) | genuinely zero activity | `0` |
+  | recency (`days_since_last_usage`) | never happened — maximally stale | observation-window length |
+  | rates/means (`avg_satisfaction`, `error_rate`) | unknown, not zero | `NaN`, imputed in-fold |
+
+  An account with no tickets has an *undefined* average satisfaction, not a
+  satisfaction of zero — filling with 0 invents a maximally unhappy customer.
+
+- **Missingness disposition depends on cause, not just percentage.**
+  `subscriptions.end_date` is 90.3% null, which a naive ">60% missing, drop it"
+  rule would discard. That null is *structural* — the subscription is still open —
+  and is among the most informative fields in the table. Encoded as
+  `n_open_subs` / `pct_subs_ended` rather than dropped.
+
+- **Near-duplicate features pruned at |r| > 0.98.** `feature_breadth` was
+  `unique_features_used / 40`, correlated at exactly 1.000; keeping both splits
+  one effect across two coefficients. Dropped: `n_open_subs`, `feature_breadth`,
+  `open_ticket_rate`.
 
 - **Known integrity problems, surfaced not silenced** (`clean.integrity_report`):
   1,077 of 2,000 tickets predate their account's signup date, and 19,128 of
@@ -60,7 +82,7 @@ project stated a rationale the data does not support, that is recorded too.
 - **All `churn_events`-derived features are excluded from the model**
   (`config.POST_OUTCOME_COLS`). Refund amount, churn reason, and reactivation
   flags describe the outcome — a refund is issued *because* the customer left.
-  Including them takes CV AUC from 0.635 to **0.997**, which is the signature of
+  Including them takes CV AUC from 0.611 to **0.997**, which is the signature of
   label leakage rather than a good model. They are retained in the frame for
   post-hoc analysis only.
 
@@ -70,11 +92,31 @@ project stated a rationale the data does not support, that is recorded too.
 - **Event tables are truncated before aggregation**, not filtered afterwards, so
   no post-cutoff row can reach a feature.
 
+- **Fields that resolve after the cutoff are censored, not just filtered.**
+  Filtering `support_tickets` on `submitted_at` is insufficient: a ticket opened
+  in June and closed in July still carries `closed_at`, `resolution_time_hours`
+  and `satisfaction_score` that nobody could know at the cutoff.
+  `labeling.truncate_tables` sets those to `NaT`/`NaN` for the 5 affected tickets
+  and censors `first_response_time_minutes` when the response lands after the
+  cutoff. `ticket_open_at_cutoff` is added as a legitimate substitute — "how many
+  tickets is this account still waiting on" *is* knowable.
+
+  This leak was found by `audit.temporal_provenance`, not by reading the code.
+  Fixing it cost 0.024 AUC (0.635 -> 0.611) and weakened the permutation test
+  from p = 0.013 to p = 0.040. Part of the earlier result was the leak.
+
+- **Leakage checks are automated, not manual** (`src/audit.py`). The suite gates
+  temporal provenance across *every* datetime column, single-feature AUC
+  (fail >= 0.80), perfect separation, identifier and row-order leakage, duplicate
+  rows, and constant columns. It runs in `notebooks/07_leakage_audit.py` and is
+  asserted before any score is reported. Field-by-field verdicts are in
+  `docs/DATA_DICTIONARY.md`.
+
 ## Modelling
 
 - **Repeated stratified CV (5 folds x 10 repeats), not a single holdout.** With
   187 rows a single split is not a measurement — fold-to-fold AUC ranges from
-  0.44 to 0.76. All reported scores carry a 95% interval.
+  0.44 to 0.74. All reported scores carry a 95% interval.
 
 - **The decision threshold is chosen out-of-fold.** An earlier version tuned the
   threshold on the test set and then reported test-set F1 and recall, which is
@@ -86,25 +128,29 @@ project stated a rationale the data does not support, that is recorded too.
 
 - **Model selection is a ladder, not a single choice.** Prior -> stump ->
   logistic (L2, two strengths) -> logistic (L1) -> random forest -> LightGBM,
-  all on identical folds. L1 logistic wins at 0.635; neither ensemble beats it,
-  and a 54-point LightGBM grid search does not close the gap. With 1.16 events
+  all on identical folds. L1 logistic wins at 0.611; neither ensemble beats it,
+  and a 54-point LightGBM grid search reaches only 0.609. With 1.16 events
   per variable this is the expected outcome, and it is the reason the extra
   capacity is not shipped.
 
 - **Significance is tested, not assumed.** A 300-shuffle permutation test gives
-  p = 0.013 against a null mean of 0.494.
+  p = 0.040 against a null mean of 0.495. That is marginal, and stated as such.
 
 ## Known limitations
 
 1. **Cohort size.** 187 accounts / 88 positives. The AUC confidence interval is
-   roughly [0.44, 0.76]; the point estimate should not be quoted alone.
-2. **A single cutoff date.** Production evaluation needs rolling-origin
+   roughly [0.44, 0.74] — it crosses 0.50 at the low end, so the point estimate
+   should never be quoted alone.
+2. **Deployment posture.** At 93% recall / 51% precision this is a triage ranker
+   for CSM outreach, not an automated action trigger. It should not drive
+   anything with a real cost attached to a false positive.
+3. **A single cutoff date.** Production evaluation needs rolling-origin
    backtesting across several cutoffs.
-3. **No nested CV**, so the reported score does not include
+4. **No nested CV**, so the reported score does not include
    hyperparameter-selection variance.
-4. **76 candidate features on 88 positives** is over-parameterised before a model
-   is even fit. L1 reduces this to 8 in practice.
-5. **Synthetic data.** Feature-target associations top out at |r| = 0.28. On real
+5. **75 candidate features on 88 positives** is over-parameterised before a model
+   is even fit. L1 reduces this to 7 in practice.
+6. **Synthetic data.** Feature-target associations top out at |r| = 0.28. On real
    product telemetry, 0.3–0.6 is typical and AUC of 0.75+ is a reasonable target
    with this feature set.
 

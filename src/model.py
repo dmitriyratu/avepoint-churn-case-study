@@ -56,7 +56,9 @@ def prep_xy(df, target=TARGET):
                     .replace({"True": "1", "False": "0", "nan": "0", "": "0"}))
             X[c] = pd.to_numeric(X[c], errors="coerce").fillna(0)
 
-    X = X.replace([np.inf, -np.inf], np.nan).fillna(0)
+    # NaN is preserved deliberately — every pipeline in the ladder imputes inside
+    # the fold (see _pipe), so the fill statistic never sees validation rows.
+    X = X.replace([np.inf, -np.inf], np.nan)
     return X, y
 
 

@@ -1,0 +1,8 @@
+table,column,max_value,violations,pass
+accounts,signup_date,2024-06-28,0,True
+subscriptions,start_date,2024-06-29,0,True
+subscriptions,end_date,2024-06-29,0,True
+feature_usage,usage_date,2024-06-29,0,True
+support_tickets,submitted_at,2024-06-29,0,True
+support_tickets,closed_at,2024-06-29,0,True
+churn_events,churn_date,2024-06-29,0,True

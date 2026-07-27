@@ -1,0 +1,4 @@
+table,column,missing_pct,disposition
+subscriptions,end_date,90.3,"structural — NaN is a state, encode as a flag"
+support_tickets,satisfaction_score,41.2,impute in-fold + missing indicator
+churn_events,feedback_text,24.7,impute in-fold + missing indicator

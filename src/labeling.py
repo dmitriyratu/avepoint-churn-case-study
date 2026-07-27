@@ -45,20 +45,46 @@ def build_cohort(tables, cutoff=CUTOFF_DATE, horizon_days=HORIZON_DAYS):
 
 
 def truncate_tables(tables, cutoff=CUTOFF_DATE):
-    """Clip every event table to the observation window (strictly before cutoff)."""
+    """Clip every event table to the observation window (strictly before cutoff).
+
+    Filtering a table on its *start* timestamp is not sufficient. A row that
+    began before the cutoff can still carry outcome fields resolved after it —
+    a support ticket opened in June and closed in July has a resolution time and
+    a satisfaction score that nobody could know at the end of June. Those fields
+    are censored here so the feature layer cannot see them.
+    """
     subs = tables["subscriptions"]
     subs_t = subs[subs["start_date"] < cutoff].copy()
-    # An end_date after the cutoff is not knowable at prediction time.
+    # An end_date at or after the cutoff has not happened yet.
     subs_t.loc[subs_t["end_date"] >= cutoff, "end_date"] = pd.NaT
 
     usage_t = tables["feature_usage"][tables["feature_usage"]["usage_date"] < cutoff].copy()
     usage_t = usage_t[usage_t["subscription_id"].isin(subs_t["subscription_id"])]
 
     tix_t = tables["support_tickets"][tables["support_tickets"]["submitted_at"] < cutoff].copy()
+
+    # Still open at the cutoff -> every resolution-time outcome is unknown.
+    still_open = tix_t["closed_at"].isna() | (tix_t["closed_at"] >= cutoff)
+    tix_t["ticket_open_at_cutoff"] = still_open.astype(int)
+    tix_t.loc[still_open, "closed_at"] = pd.NaT
+    tix_t.loc[still_open, ["resolution_time_hours", "satisfaction_score"]] = np.nan
+
+    # First response is a timestamp we only have as an offset; if it lands after
+    # the cutoff it is equally unknowable.
+    fr_at = tix_t["submitted_at"] + pd.to_timedelta(
+        tix_t["first_response_time_minutes"], unit="m"
+    )
+    tix_t.loc[fr_at >= cutoff, "first_response_time_minutes"] = np.nan
+
     ce_t = tables["churn_events"][tables["churn_events"]["churn_date"] < cutoff].copy()
 
+    # The cohort already excludes later signups, but the invariant "nothing this
+    # function returns is dated at or after the cutoff" should hold on its own so
+    # the audit can assert it without exceptions.
+    acc_t = tables["accounts"][tables["accounts"]["signup_date"] < cutoff].copy()
+
     return {
-        "accounts": tables["accounts"],
+        "accounts": acc_t,
         "subscriptions": subs_t,
         "feature_usage": usage_t,
         "support_tickets": tix_t,

@@ -134,6 +134,11 @@ def support_features(tickets, as_of=CUTOFF_DATE):
         "days_since_last_ticket": (as_of - grp["submitted_at"].max()).dt.days,
     }).reset_index()
 
+    if "ticket_open_at_cutoff" in tickets.columns:
+        opn = grp["ticket_open_at_cutoff"].agg(["sum", "mean"]).reset_index()
+        opn.columns = ["account_id", "n_open_tickets", "open_ticket_rate"]
+        feats = feats.merge(opn, on="account_id", how="left")
+
     urgent = (tickets[tickets["priority"].isin(["urgent", "high"])]
               .groupby("account_id").size().reset_index(name="n_urgent_high"))
     feats = feats.merge(urgent, on="account_id", how="left")
@@ -150,13 +155,47 @@ def support_features(tickets, as_of=CUTOFF_DATE):
     return feats
 
 
-# Support metrics default to 0 for accounts with no tickets; usage metrics
-# likewise. Recency columns are the exception — "never used" is not "used today",
-# so they are filled with a large sentinel instead.
-_RECENCY_COLS = ["days_since_last_usage", "days_since_last_ticket", "usage_span_days"]
+# Missing values do not all mean the same thing, so they are not filled the
+# same way.
+#
+#   counts   an account with no tickets genuinely had zero tickets -> 0
+#   recency  "never used the product" is not "used it today" -> observation-
+#            window length, so the model sees it as maximally stale
+#   rates    an average satisfaction score with no responses is unknown, not 0.
+#            Left as NaN and imputed inside the CV fold by model._pipe, so the
+#            statistic is fit on training rows only.
+_RECENCY_COLS = ["days_since_last_usage", "days_since_last_ticket",
+                 "usage_span_days", "days_since_last_sub_start"]
+
+_COUNT_PREFIXES = ("n_", "total_", "usage_last_", "usage_prior_", "tickets_last_")
 
 
-def build_model_dataset(tables, cohort, as_of=CUTOFF_DATE):
+def _is_count_col(c):
+    return c.startswith(_COUNT_PREFIXES)
+
+
+def drop_collinear(df, threshold=0.98, protect=()):
+    """Drop one of each near-duplicate pair, keeping the earlier column.
+
+    feature_breadth is unique_features_used / 40, so the two are correlated at
+    exactly 1.0 — keeping both just splits the same coefficient in a linear model.
+    """
+    num = df.select_dtypes(include=[np.number])
+    cm = num.corr().abs()
+    cols, dropped = list(cm.columns), []
+    for i, a in enumerate(cols):
+        if a in dropped or a in protect:
+            continue
+        for b in cols[i + 1:]:
+            if b in dropped or b in protect:
+                continue
+            v = cm.loc[a, b]
+            if pd.notna(v) and v > threshold:
+                dropped.append(b)
+    return df.drop(columns=dropped), dropped
+
+
+def build_model_dataset(tables, cohort, as_of=CUTOFF_DATE, prune_collinear=True):
     """Join every feature block onto the cohort. Returns (X_frame, feature_names)."""
     base = cohort.copy()
     base["days_since_signup"] = (as_of - base["signup_date"]).dt.days
@@ -176,18 +215,26 @@ def build_model_dataset(tables, cohort, as_of=CUTOFF_DATE):
     df["tickets_per_seat"] = _safe_div(df.get("n_tickets", pd.Series(0, index=df.index)), seats).round(3)
     df["mrr_per_seat"] = _safe_div(df.get("total_mrr", pd.Series(0, index=df.index)), seats).round(1)
 
-    horizon = int((as_of - tables["feature_usage"]["usage_date"].min()).days) if len(tables["feature_usage"]) else 999
+    window_len = (int((as_of - tables["feature_usage"]["usage_date"].min()).days)
+                  if len(tables["feature_usage"]) else 999)
     for c in _RECENCY_COLS:
         if c in df.columns:
-            df[c] = df[c].fillna(horizon)
+            df[c] = df[c].fillna(window_len)
 
-    num = df.select_dtypes(include=[np.number]).columns
-    df[num] = df[num].fillna(0)
+    # Counts fill to zero; rates and means stay NaN for the in-fold imputer.
+    for c in df.select_dtypes(include=[np.number]).columns:
+        if _is_count_col(c):
+            df[c] = df[c].fillna(0)
 
     # drop_first avoids the dummy trap, which matters for the linear models in
     # the comparison ladder.
     cat_cols = [c for c in ["industry", "country", "referral_source", "plan_tier",
                             "latest_plan_tier", "billing_freq"] if c in df.columns]
     df = pd.get_dummies(df, columns=cat_cols, drop_first=True, dtype=int)
+
+    if prune_collinear:
+        protect = tuple(cohort.columns)
+        df, dropped = drop_collinear(df, threshold=0.98, protect=protect)
+        df.attrs["dropped_collinear"] = dropped
 
     return df

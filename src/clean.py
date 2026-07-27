@@ -33,12 +33,14 @@ def clean_support_tickets(df):
     #   1. Missingness is NOT associated with churn (t-test p = 0.81), so it is
     #      safe to impute rather than treat as informative.
     #   2. Missing rate is flat across priority (0.405-0.422), so a per-priority
-    #      median is effectively the global median. We use the global median and
-    #      keep an explicit indicator so a model can still use "did not respond".
+    #      median is effectively the global median.
+    #
+    # The indicator is recorded here, but the value is deliberately NOT filled.
+    # Imputing with a median computed over the whole table would let validation
+    # rows influence the statistic used on training rows. Imputation belongs
+    # inside the CV pipeline (see model._pipe -> SimpleImputer), where it is fit
+    # on the training fold only.
     df["satisfaction_missing"] = df["satisfaction_score"].isna().astype(int)
-    df["satisfaction_score"] = df["satisfaction_score"].fillna(
-        df["satisfaction_score"].median()
-    )
     return df
 
 
