@@ -37,8 +37,10 @@ df, X, y = data.frame, data.X, data.y
 model = load_model("churn_l1_logistic")
 config = json.load(open("../outputs/models/config.json"))
 
-_, best_est = model_ladder()[4]
-threshold, _, oof = oof_threshold(best_est, X, y)
+# Scores below describe the L1 rung, which is the persisted model.
+
+_, l1_est = model_ladder()[4]
+threshold, _, oof = oof_threshold(l1_est, X, y)
 pred = (oof >= threshold).astype(int)
 
 print(f"CV AUC {config['cv_auc']:.3f}  CI {config['cv_auc_ci']}  p={config['permutation_p']}")

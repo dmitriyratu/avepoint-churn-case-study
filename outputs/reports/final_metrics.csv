@@ -1,2 +1,2 @@
-model,cv_auc,cv_auc_ci,oof_threshold,oof_f1,oof_recall,oof_precision,permutation_p,n_features_selected,cohort_n,positives
-1. Single decision stump,0.5109,"[0.3508, 0.6323]",0.25,0.4712,0.9,0.3191489361702128,0.3056,6,168,50
+model,persisted_model,any_rung_beats_chance,cv_auc,cv_auc_ci,oof_threshold,oof_f1,oof_recall,oof_precision,permutation_p,n_features_selected,cohort_n,positives
+1. Single decision stump,"4. Logistic (L1, C=0.1)",False,0.5109,"[0.3508, 0.6323]",0.25,0.4712,0.9,0.3191489361702128,0.3056,6,168,50

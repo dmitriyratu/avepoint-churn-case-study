@@ -112,24 +112,23 @@ the lead time, which is how the sensitivity sweep is generated.
 ## Problem framing
 
 `accounts.churn_flag` is a static flag with no date attached, so predicting it
-directly has no observation window. This project models a forward-looking target
-with an explicit **buffer** between the last observable day and the first day a
-churn can count:
+directly has no observation window. This project models a dated, forward-looking
+target instead:
 
 ```
-|<------ observation ------>|<- buffer ->|<------ prediction ------>|
-2023-01-01             2024-05-31    2024-06-30              2024-12-27
-      features built here             30 days      label defined here
+|<------ observation ------>|<- buffer ->|<---- prediction ---->|
+2023-01-01             2024-05-31    2024-06-30           2024-09-28
+      features built here             30 days     label defined here
 ```
 
 - **Eligible**: signed up before the cutoff, not already churned when the
   prediction window opens → 168 accounts
-- **Label**: first churn event within 180 days of the prediction start → 74
-  positives (44%)
+- **Label**: first churn event within 90 days of the prediction start → 50
+  positives (30%)
 - **Features**: computed only from rows dated before the feature cutoff
 
-The buffer is the operational reality — a CSM needs lead time between the score
-landing and the customer leaving — and it turns out to decide the whole result.
+Both the horizon (90 days) and the buffer (30 days) are swept rather than
+assumed — see the table below.
 
 ## Headline result
 

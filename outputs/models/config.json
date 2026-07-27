@@ -1,5 +1,7 @@
 {
   "model": "1. Single decision stump",
+  "persisted_model": "4. Logistic (L1, C=0.1)",
+  "any_rung_beats_chance": false,
   "cv_auc": 0.5109,
   "cv_auc_ci": [
     0.3508,

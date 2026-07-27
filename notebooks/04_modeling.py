@@ -229,9 +229,14 @@ plt.show()
 # ## Persist
 
 # %%
-save_model(best_est, "churn_l1_logistic")
+# The L1 model is the one worth persisting: it is the interpretable rung and the
+# only one whose feature selection is readable. `best_est` is whatever topped a
+# table where nothing clears chance, so it is not a meaningful artefact.
+save_model(l1_est, "churn_l1_logistic")
 config = {
     "model": best_name,
+    "persisted_model": "4. Logistic (L1, C=0.1)",
+    "any_rung_beats_chance": bool(beats_chance),
     "cv_auc": float(ladder.loc[best_idx, "roc_auc_mean"]),
     "cv_auc_ci": [float(ladder.loc[best_idx, "ci_lo"]), float(ladder.loc[best_idx, "ci_hi"])],
     "oof_threshold": threshold,
