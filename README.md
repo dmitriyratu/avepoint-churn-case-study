@@ -1,9 +1,14 @@
 # AvePoint — SaaS Churn Analysis
 
-Churn case study using the RavenStack synthetic SaaS dataset (Kaggle /
-Rivalytics). Covers the prediction problem (notebooks 01–10) and the three
-questions the product team actually asked — why, predict, act (notebooks 11–15,
-summarised in `docs/PRODUCT_QUESTIONS.md`).
+Churn case study using the RavenStack synthetic SaaS dataset, created by
+**River @ Rivalytics** and published on Kaggle as
+[SaaS Subscription & Churn Analytics](https://www.kaggle.com/datasets/rivalytics/saas-subscription-and-churn-analytics-dataset).
+The data is fully synthetic and contains no PII; it is used here under its
+MIT-like licence, which requires crediting the author.
+
+Covers the prediction problem (notebooks 01–10) and the three questions the
+product team actually asked — why, predict, act (notebooks 11–15, summarised in
+`docs/PRODUCT_QUESTIONS.md`).
 
 ## The short version
 
