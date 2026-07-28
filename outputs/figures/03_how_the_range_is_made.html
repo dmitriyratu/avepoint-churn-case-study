@@ -1,0 +1,90 @@
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1300px; background: #fff; color: #1A1A1A;
+    font-family: Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { display: flex; gap: 46px; padding: 26px 30px 30px; align-items: stretch; }
+  .panel { flex: 1 1 0; display: flex; flex-direction: column; }
+  .panel.wide { flex: 1.18 1 0; }
+  h2 { font-size: 15.5px; font-weight: 700; letter-spacing: .015em; margin-bottom: 22px; }
+  h2 em { color: #5A6270; font-style: normal; margin-right: 11px; letter-spacing: .09em; font-size: 13px; }
+  .muted { color: #5A6270; }
+  .note { color: #5A6270; font-style: italic; font-size: 13.5px; }
+
+  /* step 1 */
+  .row { display: flex; align-items: baseline; height: 31px; }
+  .date { font-size: 14.5px; }
+  .lead { flex: 1 1 auto; margin: 0 9px 0 11px; border-bottom: 1px dotted #C9CFD6;
+           transform: translateY(-3px); }
+  .count { font-size: 15px; font-variant-numeric: tabular-nums; }
+  .total { display: flex; align-items: baseline; border-top: 1px solid #1A1A1A;
+            margin-top: 9px; padding-top: 11px; }
+  .total b { font-size: 21px; }
+  .total .who { margin-left: auto; font-size: 13.5px; color: #5A6270;
+                 text-align: right; max-width: 210px; line-height: 1.35; }
+
+  /* step 2 */
+  .split { display: flex; align-items: center; gap: 5px; height: 34px; }
+  .split .lbl { width: 58px; text-align: right; font-size: 13px; color: #5A6270;
+                 margin-right: 6px; }
+  .split i { width: 38px; height: 23px; border-radius: 1px; display: block; }
+  .train { background: #2a78d6; }
+  .test { background: #eb6834; }
+  .arrow { color: #5A6270; margin-left: 6px; font-size: 14px; }
+  .key { display: flex; align-items: center; gap: 9px; margin: 14px 0 0 64px; font-size: 13.5px; }
+  .key i { width: 26px; height: 15px; border-radius: 1px; display: block; }
+  .key .gap { width: 20px; }
+
+  /* step 3 */
+  .scale { position: relative; height: 168px; margin-top: 2px; }
+  .band { position: absolute; top: 26px; bottom: 26px; background: #2a78d6; opacity: .10; }
+  .mean, .guess { position: absolute; top: 26px; bottom: 26px; width: 2px; }
+  .mean { background: #1A1A1A; }
+  .guess { width: 0; border-left: 2px dashed #B02E2E; }
+  .dot { position: absolute; width: 9px; height: 9px; border-radius: 50%;
+          background: #2a78d6; opacity: .8; transform: translate(-50%, -50%); }
+  .cap { position: absolute; top: -2px; transform: translateX(-50%);
+          font-size: 15px; font-weight: 700; white-space: nowrap; }
+  .cap.g { color: #B02E2E; font-weight: 400; font-size: 13.5px;
+            transform: translateX(-100%); padding-right: 7px; }
+  .ticks { position: absolute; bottom: 0; left: 0; right: 0; height: 20px; }
+  .ticks span { position: absolute; transform: translateX(-50%); font-size: 13px; color: #5A6270; }
+</style>
+<div class="wrap">
+  <div class="panel">
+    <h2><em>STEP 1</em>How much data</h2>
+    <div class="note" style="margin:-12px 0 14px">customers we could ask the
+      question about, at each date</div>
+    <div class="row"><span class="date">Dec 2023</span><span class="lead"></span><span class="count">134</span></div><div class="row"><span class="date">Mar 2024</span><span class="lead"></span><span class="count">161</span></div><div class="row"><span class="date">Jun 2024</span><span class="lead"></span><span class="count">177</span></div><div class="row"><span class="date">Sep 2024</span><span class="lead"></span><span class="count">176</span></div>
+    <div class="total"><b>648 rows</b>
+      <span class="who">281 customers &mdash; most counted at
+        more than one date</span></div>
+  </div>
+
+  <div class="panel">
+    <h2><em>STEP 2</em>How sure we are</h2>
+    <div class="split"><span class="lbl">split 1</span><i class="test"></i><i class="train"></i><i class="train"></i><i class="train"></i><i class="train"></i><span class="arrow">&rarr;</span></div><div class="split"><span class="lbl">split 2</span><i class="train"></i><i class="test"></i><i class="train"></i><i class="train"></i><i class="train"></i><span class="arrow">&rarr;</span></div><div class="split"><span class="lbl">split 3</span><i class="train"></i><i class="train"></i><i class="test"></i><i class="train"></i><i class="train"></i><span class="arrow">&rarr;</span></div><div class="split"><span class="lbl">split 4</span><i class="train"></i><i class="train"></i><i class="train"></i><i class="test"></i><i class="train"></i><span class="arrow">&rarr;</span></div><div class="split"><span class="lbl">split 5</span><i class="train"></i><i class="train"></i><i class="train"></i><i class="train"></i><i class="test"></i><span class="arrow">&rarr;</span></div>
+    <div class="note" style="margin:10px 0 0 64px">then reshuffle and repeat,
+      5 rounds in all</div>
+    <div class="key"><i class="test"></i><span class="muted">scored on</span>
+      <span class="gap"></span><i class="train"></i><span class="muted">trained on</span></div>
+  </div>
+
+  <div class="panel wide">
+    <h2><em>THE RANGE</em>25 measurements, not one</h2>
+    <div class="scale">
+      <div class="band" style="left:36.99%;width:32.79%"></div>
+      <div class="guess" style="left:28.33%"></div>
+      <div class="mean" style="left:53.38%"></div>
+      <div class="cap g" style="left:28.33%">guessing</div>
+      <div class="cap" style="left:53.38%">0.575 &plusmn; 0.049</div>
+      <i class="dot" style="left:32.96%;top:61.1%"></i><i class="dot" style="left:66.44%;top:42.0%"></i><i class="dot" style="left:67.52%;top:30.1%"></i><i class="dot" style="left:51.33%;top:28.9%"></i><i class="dot" style="left:52.02%;top:70.3%"></i><i class="dot" style="left:57.96%;top:75.5%"></i><i class="dot" style="left:63.07%;top:59.5%"></i><i class="dot" style="left:11.57%;top:65.9%"></i><i class="dot" style="left:60.16%;top:56.3%"></i><i class="dot" style="left:46.69%;top:76.6%"></i><i class="dot" style="left:40.29%;top:70.4%"></i><i class="dot" style="left:65.85%;top:28.1%"></i><i class="dot" style="left:62.70%;top:72.6%"></i><i class="dot" style="left:60.11%;top:29.7%"></i><i class="dot" style="left:22.27%;top:65.9%"></i><i class="dot" style="left:40.54%;top:37.1%"></i><i class="dot" style="left:49.59%;top:72.9%"></i><i class="dot" style="left:46.50%;top:56.2%"></i><i class="dot" style="left:55.46%;top:43.6%"></i><i class="dot" style="left:84.77%;top:50.0%"></i><i class="dot" style="left:72.54%;top:29.5%"></i><i class="dot" style="left:30.82%;top:34.5%"></i><i class="dot" style="left:65.80%;top:62.9%"></i><i class="dot" style="left:70.24%;top:61.7%"></i><i class="dot" style="left:57.39%;top:60.0%"></i>
+      <div class="ticks"><span style="left:11.67%">0.45</span><span style="left:28.33%">0.50</span><span style="left:45.00%">0.55</span><span style="left:61.67%">0.60</span><span style="left:78.33%">0.65</span><span style="left:95.00%">0.70</span></div>
+    </div>
+    <div class="note" style="margin-top:8px;text-align:center">every dot is the
+      same model, scored on customers it never saw</div>
+  </div>
+</div>
