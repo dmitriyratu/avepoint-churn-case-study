@@ -1,0 +1,6 @@
+finding,consequence,fix
+No intervention is recorded in the data,the causal question is not identified at all,"log every CSM touch, discount, and campaign with a timestamp"
+Every AIPW interval crosses zero (min p = 0.14),no proxy action shows a detectable effect,n/a - see below
+E-values 1.3-2.2,a mild unmeasured confounder erases every estimate,"randomise, which removes confounding by construction"
+Placebo band +/-0.1506,cannot detect effects below 15% of churn probability,power the experiment properly; notebook 15 sizes it
+"Qini p = 0.3, and treatment was self-selected",uplift targeting is not supported,"estimate uplift from a randomised pilot, not from history"

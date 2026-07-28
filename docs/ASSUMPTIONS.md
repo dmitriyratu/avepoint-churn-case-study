@@ -245,10 +245,72 @@ Each decision below is backed by a check in the notebooks or a gate in
    Until `churn_flag`, `churn_events` and subscription end dates agree on what
    churn means, no amount of modelling effort is recoverable.
 
+## Product-question analyses (notebooks 11–15)
+
+These answer the brief's three questions directly. Full write-up in
+`PRODUCT_QUESTIONS.md`; the decisions that constrain the numbers are here.
+
+7. **Retrospective columns are read on purpose, and never by a model.**
+   `reason_code`, `feedback_text` and `refund_amount_usd` are banned from the
+   feature layer by name because a reason only exists once a customer has gone.
+   Reading them *after the fact* to describe churn is a different question and a
+   legitimate one. `src/reasons.py` is kept separate from `src/features/` so the
+   distinction cannot erode, and `tests/test_analyses.py` asserts the separation.
+
+8. **Censoring date is 2024-12-31** (`config.EXTRACT_DATE`). Every table stops
+   there — latest signup, churn, subscription end and usage row all land on it —
+   so it is the extract boundary rather than a real event. The 148 accounts still
+   active are **censored, not retained**, which a binary label cannot express and
+   is the main thing survival analysis buys here.
+
+9. **Survival covariates are baseline, from the first subscription.**
+   `accounts.plan_tier`, `seats` and `is_trial` are documented as current state
+   as of extraction, so conditioning on them would condition on the future. This
+   is the survival-analysis form of the point-in-time discipline
+   `labeling.truncate_tables` enforces for the classifier.
+
+10. **The tenure effect was a composition artefact, and the earlier onboarding
+    recommendation is withdrawn.** The pooled hazard falls at ρ = 0.737
+    (p = 1.7e-13), which reads as "churn is front-loaded, fix onboarding" — the
+    recommendation notebook 05 makes. Within each signup cohort ρ returns to 1
+    and none is distinguishable from exponential, and at *fixed tenure* 30-day
+    survival runs from 0.98 (2023Q2) to 0.59 (2024Q4). Recent cohorts churn
+    faster at every age and contribute most of the short-tenure observations.
+    Notebook 05 is left in place with the reversal recorded in 12 and in the
+    README rather than quietly edited, because the sequence is the lesson.
+
+11. **Causal confounders are pre-specified, not selected.** Ten covariates
+    (`causal.CONFOUNDERS`), each included for the reason it confounds. Handing
+    all 71 available features to a propensity model on 177 rows is not a more
+    careful analysis: it separates the arms almost perfectly, overlap disappears,
+    IPW weights reach 100, and the first version of that code returned an ATE of
+    −0.53 on a probability scale. Nuisance models use `C=0.1` for the same reason.
+
+12. **No intervention exists in the data, so question 3 is not identified.** Not
+    underpowered — unidentified. The observational proxies (upgrade, downgrade,
+    escalation, auto-renew) are estimated under an explicit unconfoundedness
+    assumption that is then stress-tested with E-values and placebo treatments,
+    and every estimate sits inside the ±15pp placebo band.
+
+13. **Economics defaults are illustrative and declared in one place.**
+    `economics.py` sets intervention cost $150, effectiveness 20%, gross margin
+    80%, discount 10%/yr. Every downstream figure scales with them, so a real
+    engagement replaces them on day one. The *structural* finding — compare the
+    base rate to `C / (e·V)` before building anything — does not depend on the
+    values.
+
 ## Scope
 
-Account-level binary classification over a fixed horizon. A discrete-time hazard
-model would use *when* rather than only *whether* and would handle the censoring
-this data is full of — the natural next step. NLP over
-`churn_events.feedback_text` is out of scope but could segment the ~25% of events
-coded `unknown`.
+Account-level binary classification over a fixed horizon, plus the time-to-event
+and causal analyses in 11–15.
+
+Two items previously listed here as future work have been done and are recorded
+above: the hazard model (notebook 12, which changed a conclusion) and the
+`feedback_text` question. The latter needs no NLP — notebook 11 shows the free
+text is statistically independent of the reason code (Cramér's V = 0.09), so
+segmenting the `unknown` bucket by text would partition noise.
+
+Still out of scope: a discrete-time hazard model with **time-varying**
+covariates, which is the formulation that could actually exploit the calendar
+effect. It needs calendar-varying inputs — pricing changes, releases, competitor
+events — and the extract contains none, which is recommendation 1 in the README.

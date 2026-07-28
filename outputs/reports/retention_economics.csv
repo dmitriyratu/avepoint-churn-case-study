@@ -1,0 +1,9 @@
+quantity,value
+"CLV (median MRR, 3yr, discounted)","$7,310"
+Expected days retained of 1095,324.6
+Break-even churn probability,10.3%
+Cohort base rate,30.5%
+Treat-all net value on cohort,"$52,400"
+Model best-threshold net value,"$53,000"
+"MDE, 88 per arm",17.2%
+Months to detect 5pp,124.3

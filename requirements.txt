@@ -12,6 +12,14 @@ matplotlib~=3.10.0
 seaborn~=0.13.2
 joblib~=1.5.2
 
+# Product-question analyses (notebooks 11-15).
+# statsmodels: BH-FDR correction, Wilson intervals, Poisson trend test, power.
+# lifelines:   Kaplan-Meier, Cox PH, Schoenfeld residuals, Weibull/Exponential.
+# shap:        TreeSHAP for the driver analysis in notebook 13.
+statsmodels~=0.14.6
+lifelines~=0.30.3
+shap~=0.52.0
+
 # Notebook tooling
 jupytext~=1.16
 notebook~=7.0

@@ -1,0 +1,8 @@
+analysis,result,verdict
+"Kaplan-Meier, overall","median 151d, S(90d)=0.6159",solid
+"Log-rank, 7 baseline segments",min BH p = 0.39,no effect
+"Cox PH, 21 covariates","global p = 0.5743, C = 0.5712",no effect
+"Hazard shape, pooled","rho = 0.7369, p = 1.7e-13",confounded
+"Hazard shape, within cohort","rho 0.87-1.25, none significant",tenure has no effect
+Calendar-time Poisson trend,"RR 1.0893/month (x2.79/yr), p = 2e-16",REAL AND LARGE
+Cox concordance on cohort features,0.5093 +/- 0.0845,chance

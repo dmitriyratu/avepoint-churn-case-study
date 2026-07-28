@@ -13,6 +13,13 @@ HORIZON_DAYS = 90
 TARGET = "churned_next_90d"
 ID_COLS = ["account_id", "account_name", "signup_date"]
 
+# End of observation for the whole extract, used as the right-censoring date in
+# the survival analyses (src/survival.py). Every table stops here — the latest
+# signup, churn, subscription end and usage row all land on 2024-12-31 — so it is
+# the extract boundary rather than a real event. Anyone still active on this date
+# is censored, not retained.
+EXTRACT_DATE = pd.Timestamp("2024-12-31")
+
 # Outcome variables, dropped by prep_xy. A refund is issued *because* the
 # customer left; restoring these is worth +0.37 AUC (06_leakage_quantification).
 # Only churn_flag reaches the feature layer today — the rest are a standing

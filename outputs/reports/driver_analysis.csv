@@ -1,0 +1,6 @@
+check,observed,null,p,verdict
+SHAP top feature vs shuffled labels,0.31791,0.2781,0.24,at the noise mean
+Attribution concentration (Gini),0.6775,0.6352,0.08,"marginally above noise, p > 0.05"
+Top-10 stability under bootstrap (Jaccard),0.2984,0.1969,,12 distinct winners in 25 fits
+Permutation importance vs shuffled labels,0.01168,0.04955,1.0,below the noise mean
+TreeSHAP vs logistic top-10 agreement,0.2,,,models disagree on the drivers

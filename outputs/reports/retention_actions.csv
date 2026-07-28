@@ -1,0 +1,7 @@
+rank,action,evidence,strength,why
+1,Investigate the calendar-time churn increase,"hazard x2.8/yr on a flat at-risk base, p = 2e-16 (nb 12)",strong,the only large effect in the data; dwarfs anything account-level
+2,Fix the churn label and usage timestamps,"3 definitions agree on 20% of accounts; 19,128/24,979 usage rows predate their subscription",strong,blocks every re-measurement; cheap relative to its leverage
+3,Contact the whole at-risk cohort; do not rank it,base rate 31% vs break-even 10%,strong,"profitable without a model, and the model is at chance"
+4,"Instrument interventions (CSM touch, discount, campaign)",no treatment variable exists anywhere in the schema (nb 14),structural,without it Q3 stays unanswerable at any sample size
+5,Run a randomised pilot on the one testable effect size,15pp detectable in ~15 months; 5pp needs 10+ years,moderate,only worth launching for an intervention expected to halve churn
+6,Do NOT build a structured onboarding programme,"within-cohort hazard is flat, rho ~ 1 (nb 12)",strong,the tenure effect that motivated it is a composition artefact
