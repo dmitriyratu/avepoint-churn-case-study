@@ -15,6 +15,12 @@
 # Separating them is what survival analysis is for, and it is the reason this
 # notebook exists.
 #
+# There is a fourth explanation, which none of the three can be separated from by
+# any method in this notebook, and which turns out to be the right one here: the
+# extract has a hard end date, and a churn date drawn at random before it
+# manufactures all three patterns at once. **Notebook 16 tests that and it is
+# where this notebook's headline result is withdrawn.** Read them together.
+#
 # **Why the framing change matters independently.** The classification setup used
 # everywhere else keeps 177 accounts and 54 positives from one cutoff. This uses
 # all 500 accounts and all 352 observed churn dates, and it handles the 148 still
@@ -256,16 +262,14 @@ for col, colour in zip(["S(30d)", "S(60d)", "S(90d)"], ["#4c72b0", "#dd8452", "#
     valid = by_cohort.dropna(subset=[col])
     ax.plot(valid["cohort"], valid[col], "o-", color=colour, label=col)
 ax.set_xlabel("signup cohort"); ax.set_ylabel("share surviving to that tenure")
-ax.set_title("Same tenure, different cohorts — the gradient is the finding")
+ax.set_title("Same tenure, different signup cohorts")
 ax.legend(); plt.tight_layout()
 plt.savefig("../outputs/figures/12_cohort_gradient.png", bbox_inches="tight")
 plt.show()
 
 # %% [markdown]
 # 30-day survival falls from **0.98 for the 2023Q2 cohort to 0.59 for 2024Q4** —
-# measured at the identical age, so this is not censoring. Accounts acquired in
-# late 2024 are dramatically more likely to leave in their first month than
-# accounts acquired eighteen months earlier were.
+# measured at the identical age, so unequal follow-up is not the explanation.
 #
 # So the pooled falling hazard was composition, and the conclusion inverts:
 #
@@ -279,6 +283,15 @@ plt.show()
 # effect seen through a weaker lens. **A structured onboarding programme is the
 # wrong intervention** — within any cohort, a day-300 account is as likely to
 # leave as a day-10 account.
+#
+# > **Read on with notebook 16 open.** "Recent cohorts churn faster at every age"
+# > is itself reproduced by a generator that draws each churn date uniformly
+# > between signup and the last day of the extract: a recent signup has a shorter
+# > window for that draw to land in. Simulated data with no tenure effect in it
+# > clears p < 0.05 in 93% of runs. The recommendation above survives — nothing
+# > here supports an onboarding programme — but "composition" is a symptom, not
+# > the cause. The cause is the shape of the file, and section 5 below is where
+# > that becomes unavoidable.
 
 # %% [markdown]
 # ## 5. Cohort or period?
@@ -327,36 +340,53 @@ plt.savefig("../outputs/figures/12_calendar_hazard.png", bbox_inches="tight")
 plt.show()
 
 # %% [markdown]
-# **This is the answer to "why are users leaving", and it is a period effect.**
+# **A period effect, and by a wide margin the strongest number in the project.**
 #
 # The monthly churn hazard rises from ~0.05 through 2023 to **0.225 in December
 # 2024** — a rate ratio of 1.089 per month, 95% CI [1.067, 1.112], which
 # compounds to **2.8× per year**, p = 2e-16. The at-risk base is flat at ~200
-# accounts through all of 2024, so this is not a growth artefact: the same-sized
-# customer base is leaving four times faster at the end of the window than at the
-# start.
+# accounts through all of 2024, so this is not a growth artefact.
 #
-# Set against everything else in this project, the contrast is the finding:
+# Set against everything else in this project, the contrast is stark:
 #
 # | question | best evidence | verdict |
 # |---|---|---|
 # | Which *customers* churn? | Cox global p = 0.57, concordance 0.571 | nothing |
 # | Which *segment* churns? | 7 log-rank tests, min BH p = 0.39 | nothing |
 # | Does *tenure* predict churn? | within-cohort rho ≈ 1 | nothing |
-# | Does the *date* predict churn? | RR 1.089/month, p = 2e-16 | **everything** |
+# | Does the *date* predict churn? | RR 1.089/month, p = 2e-16 | **see notebook 16** |
 #
-# Churn in this business is almost entirely a time-varying, account-invariant
-# process. That is precisely why every model in notebooks 04–10 sits at chance:
-# they are cross-sectional models fitted at a single cutoff, and a factor that
-# moves everyone equally at a given moment has **no cross-sectional variance to
-# fit**. The models are not failing to find the signal. The signal is orthogonal
-# to the thing they are allowed to look at.
+# **That asymmetry is the reason to distrust it.** One enormous, exquisitely
+# significant result surrounded by nothing but nulls is a pattern that deserves
+# explaining before it is acted on, and the tests above cannot explain it. The
+# Poisson trend asks "is the rate flat". The cohort view asks "is this unequal
+# follow-up". Both are sound and both are answered. Neither can see the failure
+# mode that applies to any file with a hard end date:
 #
-# The dataset contains no calendar-varying covariate — no price change log, no
-# release history, no competitor entry, no macro series — so it can establish
-# that the rate rose and cannot attribute it. Naming the cause requires data
-# that is not here, and that is a specific, answerable request to make of the
-# business rather than a shrug.
+# > No churn date can land after 2024-12-31. A generator that draws each one
+# > uniformly between signup and that boundary produces a hazard of
+# > `1 / (END - t)` — rising without limit toward the end of the file, on data
+# > where nothing whatever happened.
+#
+# **Notebook 16 runs that test, and this claim does not survive it.** The churn
+# dates are uniform on exactly that interval (KS p = 0.92 pooled, and inside
+# every signup quarter). Redrawing them from that rule alone — same signup dates,
+# same number of events per account, nothing else — and rerunning
+# `survival.calendar_hazard` 400 times gives a rate ratio of **1.0885 against the
+# 1.0893 observed**, with all 24 months inside the null band. The observed effect
+# sits at the 52nd percentile of pure noise, and the null's median trend p-value
+# is 2.8e-16 — marginally *more* significant than the real data.
+#
+# So the fourth row of the table joins the other three. Churn here is not a
+# time-varying account-invariant process; it is a random number. Every model in
+# notebooks 04–10 sits at chance because there is nothing to find, in the
+# cross-section or over time.
+#
+# What survives is the negative, and it is worth stating precisely. This extract
+# cannot answer why customers leave. Not "we need a price-change log to attribute
+# the rise" — there is no rise to attribute. Sending the business to hunt for a
+# 2024 pricing event or outage would be sending a team after something that did
+# not happen.
 
 # %% [markdown]
 # ## 6. Does the time-to-event framing rescue prediction? (Q2)
@@ -453,13 +483,15 @@ print(findings.to_string(index=False))
 # 3. **Tenure is not a risk factor, and the obvious analysis says it is.** The
 #    pooled hazard falls at p = 1.7e-13; within cohorts it is flat. This
 #    overturns notebook 05's onboarding recommendation.
-# 4. **Churn is a period effect** — 2.8× per year, p = 2e-16, on a flat at-risk
-#    base. That is why cross-sectional models sit at chance: there is no
-#    cross-sectional variance to fit.
+# 4. **What reads as a period effect** — 2.8× per year, p = 2e-16, on a flat
+#    at-risk base — **is right-truncation, not a business change.** Notebook 16
+#    reproduces it in full from a uniform random date, at the 52nd percentile of
+#    the null. Findings 3 and 4 have the same single cause.
 # 5. **The prediction negative is framing-independent.** Binary/90-day, nested
 #    CV, and time-to-event all land at chance.
 #
-# The action this implies is not a model and not an onboarding programme. It is
-# to find what changed between 2023 and 2024 — and that needs data the extract
-# does not contain. Notebook 14 tests what can be recovered causally from what is
-# here, and notebook 15 prices the options.
+# The action this implies is not a model, not an onboarding programme, and not an
+# investigation into 2024. It is a different extract — one whose timestamps are
+# recorded against the accounts they belong to. Notebook 14 tests what can be
+# recovered causally from what is here, notebook 15 prices the options, and
+# notebook 16 is where finding 4 is withdrawn.

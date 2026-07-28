@@ -10,9 +10,18 @@ claim in the footnote. Executives do not need the method, but they do need to
 see that a number exists and where it stops holding. Anything a sceptical reader
 would ask next goes in the speaker notes, not on the slide.
 
-Claims are stated at the strength the evidence supports. "We could not find X"
-is not "X does not exist", and slide 3 says so explicitly, because the planted
-positive control scores the same as the real one.
+Claims are stated at the strength the evidence supports, and that strength is
+not uniform. For product usage and support the negative is flat — those records
+were never linked to the customers they describe, so there was nothing to find.
+For customer characteristics it is an underpowered null: "we could not detect X"
+rather than "X does not exist", because the planted weak-signal control scores
+the same as the real one. Slide 3 separates the two on the slide itself.
+
+Slide 2 states a withdrawn finding rather than hiding it. The rise in churn over
+2024 was the strongest result in the study and it is reproduced exactly by a
+random-date simulation (src/generator.py, notebook 16). The deck presents the
+test once, forwards, as the answer to Question 1 — not as a correction appended
+to a claim made earlier in the same deck.
 """
 from pathlib import Path
 
@@ -52,57 +61,71 @@ run(p, "Executive summary. You asked three questions. Here are the three "
 
 bullets(s, [
     ("Why are customers leaving?", INK, True),
-    ("  The pattern is about when, not who. Churn roughly quadrupled over two "
-     "years, and no customer characteristic we hold separates those who left "
-     "from those who stayed.", INK),
+    ("  This data cannot tell us. The one pattern that looked like an answer — "
+     "churn climbing through 2024 — is produced by the way the file was built, "
+     "and we can show that directly.", RED),
     ("Can we predict who will leave?", INK, True),
-    ("  Not from this data as it stands. Two data faults have to be fixed "
-     "before the question can be answered properly. A better algorithm is not "
-     "the missing piece.", RED),
+    ("  No, and a better algorithm is not the missing piece. Most of what we "
+     "hold about customer behaviour is not connected to the customers it is "
+     "supposed to describe.", RED),
     ("What actions will improve retention?", INK, True),
     ("  Contacting every at-risk customer already pays for itself on the cost "
      "arithmetic alone. Beyond that we cannot yet prove what works, because no "
      "retention action has ever been recorded.", GREEN),
 ], top=Inches(3.5), size=16, space=7)
-footnote(s, "Each answer carries its supporting numbers on its own slide, "
-            "including where the evidence is thin. Two of the three are limited "
-            "by the data we hold, not by the analysis.")
-note(s, "One minute. Give all three answers immediately, then spend one slide on "
-        "each. Two of the three answers are negative and I say so on slide one "
-        "rather than building up to it. If pressed on how firm they are: answer "
-        "one is the strongest result in the study, answer two is a 'cannot "
-        "tell' rather than a 'no', answer three rests on cost arithmetic we can "
-        "check rather than on any model.")
+footnote(s, "Each answer carries its numbers on its own slide. The first two are "
+            "limited by the data we hold, not by the analysis — and knowing that "
+            "is what stops us spending money on either of them.")
+note(s, "One minute. Give all three answers immediately, then one slide each. "
+        "Two of the three are negative and I say so here rather than building "
+        "up to it.\n\n"
+        "The first answer changed late in the work, and that is the part worth "
+        "being open about if asked. We had a strong result — churn accelerating "
+        "2.8x a year, p = 2e-16 — and it is reproduced exactly by a simulation "
+        "that contains nothing but a random number generator. Slide 2 shows the "
+        "overlay. Catching it is worth more than the finding was, because acting "
+        "on it would have cost a quarter of somebody's time.\n\n"
+        "The third answer is untouched by any of this. It rests on cost "
+        "arithmetic we can check, not on the model.")
 
 # ============================================================ 2 · QUESTION 1
-s = add("Question 1", "Why are customers leaving?")
-verdict(s, "The clearest signal is when they were with us, not who they are.", BLUE)
-picture(s, "12_calendar_hazard.png", height=Inches(2.50), top=Inches(2.45))
+s = add("Question 1", "Why are customers leaving?", RED)
+verdict(s, "This data cannot tell us — and the pattern that looked like an "
+           "answer is not one.", RED)
+picture(s, "16_artefact_exec.png", height=Inches(2.55), top=Inches(2.42))
 bullets(s, [
-    ("Churn rose from about 5 in every 100 customers a month in 2023 to 22 in "
-     "100 by December 2024, on a customer base that did not grow. A 2.8x "
-     "increase per year, and the most tightly estimated effect in the data.",
+    ("Churn looks like it climbed from 5 in every 100 customers a month to 22 in "
+     "100 by December 2024. That was our strongest number by a distance.",
      INK, True),
-    ("We tested every characteristic we hold: industry, country, plan, size, "
-     "how they found us, usage, support history. None separated leavers from "
-     "stayers by more than chance produces. The best reaches AUC 0.62, against "
-     "AUC 0.61 from deliberately scrambled labels.", INK),
-    ("What we cannot yet say is why the rate rose. The data holds nothing that "
-     "varies over time, so we can establish the increase but not attribute it. "
-     "Slide 6 says what would fix that.", RED),
-], top=Inches(5.02), size=12.5, space=4)
-footnote(s, "AUC is ranking accuracy: 0.50 is a coin flip, 1.00 is perfect. "
-            "With 54 churners we could only have detected a large difference "
-            "between customer types, so \"none found\" is not proof that none "
-            "exists. The rise over calendar time is the opposite case: large, "
-            "and precisely estimated.")
-note(s, "If asked how solid each half is. The rise: Poisson trend on calendar "
-        "month with accounts-at-risk as offset, rate ratio 1.089 per month, "
-        "p = 2e-16. The flat cross-section: Cox over 21 characteristics returns "
-        "global p = 0.57 and concordance 0.571; log-rank across 7 segments has "
-        "a smallest adjusted p of 0.39. The two facts are one fact. Something "
-        "that moves every account at once leaves no differences between "
-        "accounts for a model to find.")
+    ("It is manufactured. Every churn date in the file is a random date between "
+     "the day the customer joined and the last day of the file. Random dates "
+     "crowd towards the end of a file, which makes churn look like it is "
+     "speeding up when nothing has happened. Rebuilding the data from that one "
+     "rule reproduces the black line exactly — that is the red band.", RED, True),
+    ("We also tested every customer characteristic we hold: industry, country, "
+     "plan, size, how they found us, usage and support history. None separates "
+     "the customers who left from those who stayed.", INK),
+], top=Inches(5.10), size=12, space=4)
+footnote(s, "What this is worth: it stops us spending a quarter hunting for a "
+            "2024 price change, outage or competitor move that did not happen. "
+            "Slide 6 says what would actually let us answer the question.", INK)
+note(s, "Expect: 'you showed us a rising chart last time — what changed?'\n\n"
+        "What changed is the test. The original one asked whether the rise was "
+        "bigger than random noise. It was, comfortably: rate ratio 1.089 a "
+        "month, p = 2e-16. The right question on a data extract is different — "
+        "would the file produce this on its own. Nothing can be recorded after "
+        "the last day of the file, so if churn dates are assigned at random they "
+        "pile up at the end and the rate appears to climb.\n\n"
+        "We tested that by rebuilding the data: same customers, same joining "
+        "dates, same number of departures each, only the dates redrawn at "
+        "random. That gives a 2.78x annual rise against the 2.79x we observe, "
+        "with all 24 months inside the band. Our result sits at the 52nd "
+        "percentile of pure chance.\n\n"
+        "If pressed on the flat cross-section: Cox over 21 characteristics "
+        "returns global p = 0.57 and concordance 0.571; log-rank across 7 "
+        "segments has a smallest adjusted p of 0.39.\n\n"
+        "The honest summary is that we now have a proven negative rather than an "
+        "unproven positive, and the proven negative saves money.")
 
 # ============================================================ 3 · QUESTION 2
 s = add("Question 2", "Can we predict churn before it happens?")
@@ -116,26 +139,30 @@ bullets(s, [
     "deliberately scrambled data reached AUC 0.58 or better in 7 of 20 "
     "attempts, and priced for the fact that we picked the winner it is AUC 0.53.",
     "",
-    ("The careful version: we cannot tell, rather than there is nothing there.",
-     INK, True),
-    "  A planted relationship that is real but weak also reaches AUC 0.58 here. "
-    "At 54 churners the two are indistinguishable. Hence re-measure, rather "
-    "than close the question.",
+    ("The reason is the data, and it is now specific.", INK, True),
+    "  Product usage and support tickets are not tied to the customers they "
+    "describe. Their dates are scattered at random across the whole two years, "
+    "which is why three-quarters of usage rows are dated before the subscription "
+    "they belong to and half the tickets before the customer existed.",
+    "  The thing we are predicting is a random date too, as slide 2 shows.",
+    "  Three sources disagree on who churned: they agree on about one account "
+    "in five, which is what two unrelated columns would do.",
+    "",
+    ("How firm is this? Firmer for some parts than others.", INK, True),
+    "  For usage and support we can say there is nothing there, because those "
+    "records were never linked to the customer in the first place.",
+    "  For customer characteristics — industry, plan, size — the honest claim is "
+    "that we could not detect anything with 54 churners, not that nothing "
+    "exists.",
     "",
     ("The warning time we would need makes it harder, not easier.", INK, True),
     "  Asking for 30 days of notice, so somebody could act, moves every horizon "
     "into the AUC 0.42 to 0.52 band. A prediction that arrives too late to use "
     "is not useful.",
     "",
-    ("Two data faults are doing most of the damage.", INK, True),
-    "  Three sources disagree on who churned: they agree on about one account "
-    "in five, which is what two unrelated columns would do.",
-    "  Roughly three-quarters of usage rows are dated before the subscription "
-    "they belong to.",
-    "",
-    ("Practically: do not buy or build churn scoring yet. Fix those two faults "
-     "and re-measure, which is one command once the data is clean.", BLUE, True),
-], top=BODY_TOP, size=14, space=3)
+    ("Practically: do not buy or build churn scoring on this. It needs a "
+     "different export, not a better model — see slide 6.", BLUE, True),
+], top=BODY_TOP, size=13.5, space=3)
 footnote(s, "AUC is ranking accuracy: 0.50 is a coin flip, 1.00 is perfect. The "
             "metric is not doing the work — precision-recall and F1 agree, and "
             "on F1 the model beats a no-model policy by less than the optimism "
@@ -159,10 +186,14 @@ note(s, "Two challenges to expect on this slide.\n\n"
         "F1 is the weakest of the three for this claim precisely because it is "
         "threshold-dependent and has no natural null.\n\n"
         "The three approaches are the cross-sectional classifier, a Cox "
-        "survival model (concordance 0.509) and the horizon sweep. Do not "
-        "overclaim the negative: the planted weak-signal control scores AUC "
-        "0.584 against our 0.583, so 'underpowered' is the defensible claim and "
-        "'no signal exists' is not.")
+        "survival model (concordance 0.509) and the horizon sweep.\n\n"
+        "Be precise about how strong the negative is, because it differs by "
+        "source. For usage and support it is flat: those timestamps correlate "
+        "with their own account's signup date at r = 0.002 and r = 0.014, so "
+        "there was never anything to find. For customer characteristics it is "
+        "an underpowered null rather than an absence — the planted weak-signal "
+        "control scores AUC 0.584 against our 0.583, so at 54 churners the two "
+        "are indistinguishable. The slide separates them deliberately.")
 
 # ============================================================ 4 · QUESTION 3
 s = add("Question 3", "What actions will improve retention?")
@@ -180,9 +211,10 @@ bullets(s, [
     "",
     ("Hold off on this: the structured onboarding programme.", RED, True),
     "  New customers look more fragile, which is the usual reason to invest here. "
-    "The pattern appears to be composition rather than tenure: pooled together "
-    "the risk looks front-loaded, but within each signup cohort it is flat. On "
-    "that reading a ten-month customer is about as likely to leave as a ten-day one.",
+    "It is the same random date as slide 2: a customer who joined recently has a "
+    "shorter window for that date to land in, so they look worse at every age "
+    "without anything about them being worse. Within a single joining month, a "
+    "ten-month customer is as likely to leave as a ten-day one.",
     "",
     ("Everything else we might try is currently untestable, not disproven.",
      INK, True),
@@ -191,18 +223,19 @@ bullets(s, [
     "retention ideas are opinions for now, including the good ones.",
 ], top=Inches(2.45), size=15, space=5)
 footnote(s, "Costs and save rates are our estimates and should be replaced with "
-            "finance's figures. The onboarding finding is a within-cohort "
-            "result on 54 churners and would be worth revisiting if richer "
-            "cohort data arrives.")
+            "finance's figures. The conclusion holds across a wide range of "
+            "them: break-even would have to rise past 31% to reverse it.")
 note(s, "The first action is the one thing on this deck that does not depend on "
-        "the modelling. Break-even is 10.3% against a base rate of 30.5%, a "
-        "factor of three, so it survives large errors in the cost assumptions. "
+        "the modelling, or on slide 2. Break-even is 10.3% against a base rate "
+        "of 30.5%, a factor of three, so it survives large errors in the cost "
+        "assumptions.\n\n"
         "On onboarding: the pooled hazard genuinely does fall, rho = 0.737 with "
-        "p = 1.7e-13, which is why the obvious analysis recommends the "
-        "programme. Within each signup cohort rho comes back to about 1 (range "
-        "0.87 to 1.25, none significant), so the pooled shape is which cohorts "
-        "are present at each tenure, not tenure itself. This reverses a "
-        "recommendation an earlier pass of this work made.")
+        "p = 1.7e-13, which is why the obvious analysis funds the programme. "
+        "Simulated data with no tenure effect in it at all clears the "
+        "significance bar in 93% of runs, and more strongly than the real data "
+        "does — p = 0.002 against 0.006. Within each signup cohort rho comes "
+        "back to about 1 (range 0.87 to 1.25, none significant). This reverses "
+        "a recommendation an earlier pass of this work made.")
 
 # ============================================================ 5 · NUMBERS
 s = add("The economics", "Why calling everyone is the right call today")
@@ -232,17 +265,20 @@ note(s, "Every figure here is arithmetic on quantities we can check, not model "
 # ============================================================ 6 · ASK
 s = add("What we need", "Three data requests, and what each one unlocks")
 bullets(s, [
-    ("To explain why churn is rising  (Question 1)", BLUE, True),
-    "  Give us anything that varies over time and could plausibly affect "
-    "customers: price changes, release dates, outages, competitor moves. We can "
-    "already establish the rise. This is what would let us attribute it.",
+    ("An export we can trust  (unlocks Questions 1 and 2 together)", BLUE, True),
+    "  Every usage record and support ticket carried with the customer and the "
+    "date it actually happened. Today those dates are unrelated to the customer "
+    "they are filed against, which is the single reason both questions are "
+    "unanswerable.",
+    "  One definition of churn, applied everywhere, with a date on it. The three "
+    "we currently have agree on about one account in five.",
+    "  This is the request to push. Nothing else on this page matters without it, "
+    "and re-running our analysis afterwards is one command.",
     "",
-    ("To make prediction answerable  (Question 2)", INK, True),
-    "  Agree one definition of churn and apply it everywhere. The three "
-    "definitions we currently have agree on about one account in five.",
-    "  Fix the product usage timestamps. Roughly three-quarters of rows are "
-    "dated before the subscription they belong to.",
-    "  We would put this first, because it also unblocks the other two.",
+    ("Then, and only then, the business timeline  (Question 1)", INK, True),
+    "  Price changes, release dates, outages, competitor moves. This is the right "
+    "request, but it is worth nothing against the current export — we would be "
+    "matching real events to random dates.",
     "",
     ("To learn which actions work  (Question 3)", GREEN, True),
     "  Start logging every call, discount and campaign with a date and an "
@@ -251,14 +287,17 @@ bullets(s, [
     "  Worth setting expectations on what a trial of our size can settle: "
     "roughly halving churn would show up in about 15 months, while a 5-point "
     "improvement would take years.",
-], size=15, space=7)
+], size=14, space=6)
 footnote(s, "None of these is a modelling problem. All three are data "
             "collection, none of them is expensive, and none asks for a "
             "decision on tooling yet.", INK)
-note(s, "Close on the ask rather than on the negative results. The second "
-        "request is the one to push, because the label and the timestamps block "
-        "any re-measurement of question two and also limit what we can say "
-        "about the other two.")
+note(s, "Close on the ask rather than on the negative results.\n\n"
+        "The ordering is the message. The obvious request after slide 2 is "
+        "'give us the 2024 event timeline', and it is the wrong one to lead "
+        "with: joining real business events onto timestamps that were assigned "
+        "at random produces confident nonsense. Fix the export first.\n\n"
+        "Request three is independent of the other two and can start on Monday. "
+        "It costs a field in the CRM.")
 
 prs.save(OUT)
 print(f"{OUT.name}  ({OUT.stat().st_size/1e6:.2f} MB, {len(prs.slides._sldIdLst)} slides)")

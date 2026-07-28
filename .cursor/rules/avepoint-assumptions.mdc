@@ -28,3 +28,25 @@ inverting `churn_flag` does not recover a signal either.
 Computed by `src.audit.label_source_agreement` and
 `src.audit.churn_date_coherence`; pinned by tests in `tests/test_analyses.py`.
 Do not restate the agreement figures without their chance baselines.
+
+## The one thing to know before reporting a time trend
+
+**Churn dates are a uniform draw between `signup_date` and `EXTRACT_DATE`**
+(KS p = 0.92 pooled, and inside every signup quarter). Because no date can land
+after the end of the extract, that draw produces a hazard of `1 / (END − t)` —
+a large, exquisitely significant rising trend on data where nothing happened.
+
+It manufactures every timing pattern in this dataset at once: the ×2.8/yr
+calendar rise, the cohort gradient, and the tenure effect behind the onboarding
+case. All three are **withdrawn findings**. `src/generator.py` and
+`notebooks/16_generator_audit.py` reproduce them from the draw alone — observed
+rate ratio 1.0893 against a null of 1.0885, at the 52nd percentile of pure noise.
+
+Do not reinstate "churn is rising, find what changed in 2024". The relevant null
+on this data is never "is the effect flat" but **"would the file produce this on
+its own"**, and `generator.calendar_hazard_null` is how that is tested.
+
+Related: `feature_usage.usage_date` and `support_tickets.submitted_at` are
+uniform over the whole extract and correlate with their own account's signup
+date at r = 0.002 and r = 0.014. Those tables cannot carry a signal about the
+accounts they are attached to, at any sample size.

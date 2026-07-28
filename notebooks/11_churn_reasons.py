@@ -264,14 +264,23 @@ print(f"2024 cohorts: mean month-3 retention {m3[m3.index >= '2024'].mean():.3f}
 # %% [markdown]
 # **Month-3 retention fell by a third over two years** — 0.82 for 2023 cohorts
 # against 0.54 for 2024 cohorts, at the *same* age, and the late-2024 rows are
-# worse still. That is not a tenure effect and not a segment effect; it is
-# something changing over calendar time.
+# worse still. That is not a tenure effect and not a segment effect. Something
+# is changing along the calendar axis.
 #
-# This is the first thing in the project that looks like a real answer to "why are
-# users leaving", and it is the reason notebook 12 exists: separating a tenure
-# effect from a cohort effect from a calendar-period effect is what survival
-# analysis is for, and doing it by eye on this triangle is exactly the mistake
-# that would follow.
+# This is the first thing in the project that looks like a real answer to "why
+# are users leaving", and it is the reason notebook 12 exists: separating a
+# tenure effect from a cohort effect from a calendar-period effect is what
+# survival analysis is for, and doing it by eye on this triangle is exactly the
+# mistake that would follow.
+#
+# **It is also the reason notebook 16 exists, and that is where this pattern
+# ends.** There is a fourth explanation none of the three can be separated from
+# here: the extract stops on 2024-12-31, and a churn date drawn at random before
+# that boundary crowds into the end of the file. Later cohorts have a shorter
+# window for the draw to land in, so their retention falls at every age with
+# nothing about them being different. Notebook 16 tests it and the pattern does
+# not survive — so read the verdict below as "yes, along the calendar axis",
+# not as "yes, because of something the business did".
 
 # %%
 summary = pd.DataFrame([
@@ -291,7 +300,7 @@ summary = pd.DataFrame([
      "test": "cohort retention triangle",
      "result": f"month-3 retention {m3[m3.index < '2024'].mean():.3f} -> "
                f"{m3[m3.index >= '2024'].mean():.3f}",
-     "verdict": "YES"},
+     "verdict": "yes, but see notebook 16 - reproduced by a random-date null"},
 ])
 summary.to_csv("../outputs/reports/churn_reasons.csv", index=False)
 print(summary.to_string(index=False))
@@ -310,6 +319,9 @@ print(summary.to_string(index=False))
 # - **churn is concentrated in calendar time** — month-3 retention halved between
 #   the 2023 and 2024 signup cohorts
 #
-# The one real pattern is a *when*, not a *who*. Notebook 12 establishes whether
-# it is tenure, cohort or period, because the three imply completely different
-# actions and the triangle alone cannot tell them apart.
+# The one surviving pattern is a *when*, not a *who*. Notebook 12 establishes
+# whether it is tenure, cohort or period, because the three imply completely
+# different actions and the triangle alone cannot tell them apart. Notebook 16
+# then asks the question none of the three can answer — whether a file that
+# stops on a fixed date produces this pattern on its own — and the answer is
+# yes. Read this notebook's positive finding as provisional until 16.

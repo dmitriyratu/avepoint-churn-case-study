@@ -79,6 +79,48 @@ plt.show()
 # plausible, which is exactly the problem.
 
 # %% [markdown]
+# ### The same chart, from labels that mean nothing
+#
+# The fastest way to see what that chart is worth is to build it twice: once on
+# the real labels, once on labels shuffled at random. If the second is also
+# confident, ordered and plausible-looking, then confidence, order and
+# plausibility are not evidence of anything.
+
+# %%
+shuffled_y = pd.Series(
+    np.random.default_rng(0).permutation(y.values), index=y.index, name=y.name)
+shuffled_importance, _, _ = drivers.shap_importance(X, shuffled_y)
+
+
+def _tidy(name):
+    """Encoded columns carry a num__/cat__ prefix the audience does not need."""
+    return name.split("__", 1)[-1].replace("_", " ")
+
+
+fig, axes = plt.subplots(1, 2, figsize=(13, 4.4), sharex=True)
+panels = [(axes[0], importance, "Real labels", "#2a78d6"),
+          (axes[1], shuffled_importance, "Labels shuffled at random", "#eb6834")]
+for ax, series, title, colour in panels:
+    top = series.head(12).iloc[::-1]
+    ax.barh([_tidy(i) for i in top.index], top.values, color=colour, height=0.62)
+    ax.set_xlabel("mean |SHAP value|", fontsize=10.5)
+    ax.set_title(title, loc="left", fontsize=13, fontweight="bold")
+    ax.tick_params(labelsize=10.5)
+    ax.grid(False)
+    for side in ("top", "right", "left"):
+        ax.spines[side].set_visible(False)
+plt.tight_layout(w_pad=3)
+plt.savefig("../outputs/figures/13_shap_real_vs_shuffled.png",
+            bbox_inches="tight", dpi=150)
+plt.show()
+
+# %% [markdown]
+# **They are the same chart.** Same shape, same decay, comparable magnitudes,
+# and the noise model is every bit as decisive about its winner. Nothing on the
+# left is available to a reader that is not also on the right, which is why a
+# driver chart without a null beside it is not a result — it is a rendering.
+
+# %% [markdown]
 # ## 2. What noise says
 #
 # Identical procedure, labels shuffled. If the ranking above reflects structure,

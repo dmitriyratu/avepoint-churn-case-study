@@ -1,0 +1,8 @@
+question,test,result,verdict
+Is churn_date distinguishable from a uniform draw after signup?,"KS, pooled and by signup quarter","p = 0.9206, mean position 0.5032",no - it is a coin toss
+Does that draw reproduce the calendar trend?,24-month hazard vs 400 simulations,RR 1.0893 observed vs 1.0885 null; 24/24 inside band,YES - the finding is an artefact
+Is the trend p-value evidence of anything?,Poisson trend p under the null rule,median null p = 3e-16,no - the null tested was the wrong one
+Does the null also manufacture the tenure effect?,Mann-Whitney on tenure vs 400 simulations,"observed p = 0.00607, null median p = 0.00218, 93% of null runs significant",YES - onboarding evidence is an artefact too
+Do usage timestamps relate to their account?,Spearman vs signup_date,r = 0.002,no - unlinked
+Do ticket timestamps relate to their account?,Spearman vs signup_date,r = 0.014,no - unlinked
+Do any tables have internal structure?,7 within-table relationships from the schema,"2 of 7 hold, both in subscriptions",subscriptions only

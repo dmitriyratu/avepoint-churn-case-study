@@ -45,9 +45,11 @@ def clv_from_survival(survival_curve, monthly_revenue, gross_margin=DEFAULT_GROS
 
     The textbook shortcut `ARPU / churn_rate` assumes a constant hazard and an
     infinite horizon. Notebook 12 measured the hazard directly, so there is no
-    need to assume it — and the constant-hazard assumption is the one that
-    turned out to be defensible *within* a cohort but badly wrong across the
-    whole base, where the rate is rising 2.8x a year.
+    need to assume it — and the measured hazard is flat *within* a cohort but
+    climbs 2.8x a year across the whole base. Notebook 16 attributes that climb
+    to right-truncation rather than to the business, but integrating the observed
+    curve stays the conservative choice: it prices what the data shows without
+    assuming the shape means anything.
 
     Integrates S(t) * daily_margin * discount(t) over `horizon_days`.
     """

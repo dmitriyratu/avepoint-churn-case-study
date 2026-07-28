@@ -48,8 +48,11 @@ print(f"median MRR ${tables['subscriptions']['mrr_amount'].median():,.0f}")
 #
 # The textbook shortcut is `ARPU / churn_rate`, which assumes a constant hazard
 # and an infinite horizon. Notebook 12 *measured* the hazard, so there is no need
-# to assume it — and the constant-hazard assumption turned out to hold within a
-# cohort but fail badly across the base, where the rate is rising 2.8x a year.
+# to assume it — and the measured hazard is not constant across the base, where
+# the observed rate climbs 2.8x a year. Notebook 16 shows that climb is
+# right-truncation rather than a business trend, but integrating the observed
+# curve is the conservative choice either way: it prices what the data shows
+# without assuming the shape is real.
 #
 # Integrating the actual Kaplan-Meier curve instead:
 

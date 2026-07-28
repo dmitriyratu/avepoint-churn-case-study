@@ -36,13 +36,14 @@ import sys
 sys.path.insert(0, "..")
 
 import matplotlib.pyplot as plt
+import pandas as pd
 import seaborn as sns
 import warnings
 warnings.filterwarnings("ignore")
 
 from src import pipeline, robustness
 from src.features import subscription_features, support_features, usage_features
-from src.config import CUTOFF_DATE, HORIZON_DAYS
+from src.config import CUTOFF_DATE, EXTRACT_DATE, HORIZON_DAYS
 
 sns.set_theme(style="whitegrid", palette="muted")
 
@@ -133,6 +134,128 @@ print(f"events per variable: {y.sum()/X.shape[1]:.2f}   (want >= 10)")
 # Well under one event per variable — severely under-powered, and the number
 # that predicts the modelling result in notebook 04. With this many columns and
 # this few positives, regularisation matters more than capacity.
+
+# %% [markdown]
+# ### The contract, drawn
+#
+# Two things about this feature set are easy to state and hard to picture: where
+# the 73 columns come from, and what "point-in-time" actually excludes. The
+# figure below is the deck's version of both.
+#
+# Provenance is taken from block membership rather than from name patterns, so
+# the counts are exact rather than a guess at what `usage_` means. The row
+# counts on the right are what `truncate_tables` actually kept.
+
+# %%
+blocks = {"subscription": set(sub_feats.columns),
+          "usage": set(usage_feats.columns),
+          "support": set(support_feats.columns)}
+families = {name: sum(c in cols for c in X.columns) for name, cols in blocks.items()}
+# Per-seat ratios and the account attributes are built in `assemble`, so they
+# belong to no upstream block.
+families["account / ratios"] = X.shape[1] - sum(families.values())
+families = pd.Series(families).sort_values(ascending=False)
+print(families.to_string())
+print(f"total: {families.sum()}  (matches X: {X.shape[1] == families.sum()})")
+
+# %%
+from matplotlib.patches import FancyArrowPatch
+
+# Two validated categorical hues (dataviz slots 1 and 2) plus a neutral. One hue
+# carries "the model may see this", the other "this is the outcome", and
+# everything discarded is grey. The story is the cutoff, not the four tables, so
+# the tables are deliberately not hued apart.
+SEEN, LABEL, GONE = "#2a78d6", "#eb6834", "#c9ccd1"
+INK, MUTED, RULE, ALERT = "#1A1A1A", "#5A6270", "#D8DCE0", "#B02E2E"
+
+START = pd.Timestamp("2023-01-01")
+PRED_END = CUTOFF_DATE + pd.Timedelta(days=HORIZON_DAYS)
+DAY = pd.Timedelta(days=1)
+
+fig, (ax_a, ax_b) = plt.subplots(
+    1, 2, figsize=(13, 3.9), gridspec_kw={"width_ratios": [1, 2.6]})
+
+ax_a.barh(range(len(families)), families.values, color=SEEN, height=0.42)
+for i, n in enumerate(families.values):
+    ax_a.text(n + 0.8, i, str(n), va="center", fontsize=12.5, color=INK,
+              fontweight="bold")
+ax_a.set_yticks(range(len(families)))
+ax_a.set_yticklabels(families.index, fontsize=12)
+ax_a.invert_yaxis()
+ax_a.set_xlim(0, families.max() + 8)
+ax_a.set_xticks([])
+ax_a.grid(False)
+for side in ax_a.spines:
+    ax_a.spines[side].set_visible(False)
+ax_a.set_title(f"{families.sum()} features, four families", loc="left",
+               fontsize=13.5, fontweight="bold", color=INK, pad=12)
+
+ax_b.axvspan(START, CUTOFF_DATE, color=SEEN, alpha=0.07, zorder=0)
+for ypos, (key, label) in zip([3.0, 2.2, 1.4],
+                              [("subscriptions", "subscriptions"),
+                               ("feature_usage", "product usage"),
+                               ("support_tickets", "support tickets")]):
+    ax_b.barh(ypos, CUTOFF_DATE - START, left=START, height=0.30, color=SEEN, zorder=3)
+    ax_b.barh(ypos, EXTRACT_DATE - CUTOFF_DATE - DAY, left=CUTOFF_DATE + DAY,
+              height=0.30, color=GONE, zorder=3)
+    ax_b.text(START - pd.Timedelta(days=16), ypos, label, ha="right", va="center",
+              fontsize=11.5, color=INK)
+    ax_b.text(EXTRACT_DATE + pd.Timedelta(days=18), ypos,
+              f"{len(obs[key]):,} of {len(tables[key]):,} rows kept",
+              ha="left", va="center", fontsize=10.5, color=MUTED)
+
+ax_b.barh(0.6, PRED_END - CUTOFF_DATE, left=CUTOFF_DATE, height=0.30,
+          color=LABEL, zorder=3)
+ax_b.text(START - pd.Timedelta(days=16), 0.6, "churn events", ha="right",
+          va="center", fontsize=11.5, color=INK)
+ax_b.text(EXTRACT_DATE + pd.Timedelta(days=18), 0.6,
+          f"{HORIZON_DAYS} days — the label, never a feature", ha="left",
+          va="center", fontsize=10.5, color=MUTED)
+
+# The zone labels sit on either side of the rule so neither can collide with it:
+# what the model may see to the left, the rule's own name to the right.
+ax_b.axvline(CUTOFF_DATE, color=ALERT, lw=2.2, zorder=5)
+ax_b.text(START + pd.Timedelta(days=24), 3.62, "everything the model may see",
+          fontsize=11, color=MUTED, va="center")
+ax_b.text(CUTOFF_DATE + pd.Timedelta(days=22), 3.62,
+          f"cutoff · {CUTOFF_DATE.day} {CUTOFF_DATE:%b %Y}", fontsize=11.5,
+          fontweight="bold", color=ALERT, va="center", ha="left")
+
+n_censored = int(obs["support_tickets"]["ticket_open_at_cutoff"].sum())
+ax_b.add_patch(FancyArrowPatch(
+    (CUTOFF_DATE + pd.Timedelta(days=215), 0.16),
+    (CUTOFF_DATE - pd.Timedelta(days=6), 1.26),
+    arrowstyle="-|>", mutation_scale=11, lw=1.2, color=ALERT,
+    connectionstyle="arc3,rad=0.18", zorder=6))
+ax_b.text(CUTOFF_DATE + pd.Timedelta(days=232), 0.14,
+          f"{n_censored} tickets are still open on this line. Their fix time and\n"
+          "satisfaction are blanked — nobody knew them on 30 June.",
+          fontsize=10, color=ALERT, va="top")
+
+ax_b.set_ylim(-0.30, 3.95)
+ax_b.set_xlim(START - pd.Timedelta(days=215), EXTRACT_DATE + pd.Timedelta(days=430))
+ax_b.set_yticks([])
+ax_b.grid(False)
+for side in ("top", "right", "left"):
+    ax_b.spines[side].set_visible(False)
+ax_b.spines["bottom"].set_color(RULE)
+ticks = pd.date_range("2023-01-01", "2024-12-01", freq="6MS")
+ax_b.set_xticks(ticks)
+ax_b.set_xticklabels([d.strftime("%b %Y") for d in ticks], fontsize=10, color=MUTED)
+ax_b.set_title("Every feature is built from one side of a line", loc="left",
+               fontsize=13.5, fontweight="bold", color=INK, pad=12)
+
+plt.tight_layout(w_pad=3)
+plt.savefig("../outputs/figures/03_point_in_time.png", bbox_inches="tight", dpi=150)
+plt.show()
+
+# %% [markdown]
+# The right-hand panel is the one worth dwelling on. Filtering rows on their own
+# timestamp is the easy half; the hard half is the arrow. A ticket opened on 28
+# June and closed on 1 July is a legitimate pre-cutoff row, but its
+# `resolution_time_hours` and `satisfaction_score` did not exist on 30 June.
+# Those two fields are blanked while the row itself is kept — and it is
+# `audit.temporal_provenance`, not code review, that caught them.
 
 # %% [markdown]
 # ## Missing values: three meanings, three treatments

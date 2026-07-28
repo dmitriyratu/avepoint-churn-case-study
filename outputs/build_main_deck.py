@@ -33,11 +33,17 @@ p = tf.add_paragraph(); p.space_before = Pt(16)
 _run(p, "Senior ML Engineer case study. RavenStack subscription data: "
         "500 customers across 5 tables.", 18, color=MUTED)
 p = tf.add_paragraph(); p.space_before = Pt(28)
-_run(p, "The short version: the model does not beat a coin flip. "
-        "The analysis still gives three clear actions.", 19, bold=True, color=BLUE)
+_run(p, "The short version: no model here beats a coin flip, the one pattern "
+        "that looked like a cause comes from how the file was written, and "
+        "three actions still follow.", 19, bold=True, color=BLUE)
 note(s, "Thirty to forty minutes, five parts, following the brief. I say the "
         "headline up front because the value of this work is in proving the "
-        "negative properly and in what we do anyway.")
+        "negatives properly and in what we do anyway.\n\n"
+        "The second clause is the part to sit on if there is only time for one "
+        "thing. The strongest result I had — churn accelerating through 2024, "
+        "p = 2e-16 — is reproduced exactly by a simulation containing nothing "
+        "but a random number generator. Slide 10 is that test. Finding it is "
+        "the piece of work I would most want to be judged on.")
 
 # ============================================================ 2 · PROBLEM
 s = add("Part 1 · Problem framing", "The business problem, and a target I had to rebuild")
@@ -67,8 +73,9 @@ bullets(s, [
 ], size=14, space=6)
 footnote(s, "I found this by counting, not by modelling. No algorithm recovers a "
             "fact the source data never recorded the same way twice.")
-note(s, "Lead with the target problem. It is the highest-value finding and it "
-        "shows the instinct to check the label before fitting anything.\n\n"
+note(s, "Lead with the target problem. Along with slide 10 it is the most "
+        "valuable thing here, and it shows the instinct to check the label "
+        "before fitting anything.\n\n"
         "If challenged on the 188: the point is not that agreement is low, it is "
         "that it is exactly what chance produces. The flag fires for 22% of "
         "customers and the event log for 70%, so two unrelated columns agree "
@@ -111,28 +118,38 @@ bullets(s, [
 # ============================================================ 4 · RISKS
 s = add("Part 1 · Problem framing", "Risks and assumptions, said out loud")
 bullets(s, [
-    ("The data has real quality problems. I report them rather than quietly "
-     "patching them.", RED, True),
-    "  19,128 of the 24,979 usage records are dated before the subscription they "
-    "belong to had even started.",
-    "  1,077 of the 2,000 support tickets are dated before the customer signed up.",
+    ("Two of the five tables are not joined to their customers in time.",
+     RED, True),
+    "  Usage and support ticket dates are spread at random across the whole two "
+    "years. They line up with their own customer's signup date at r = 0.002 and "
+    "r = 0.014, where 0 means no connection at all.",
+    "  That is what produces the numbers people quote: 19,128 of 24,979 usage "
+    "rows are dated before the subscription they belong to, and 1,077 of 2,000 "
+    "tickets before the customer signed up.",
+    "  Nothing links inside those tables either. Ticket priority does not predict "
+    "how fast we answered. Plan tier does not predict how much people used.",
     "  Satisfaction is documented as a 1 to 5 score, but only ever takes the "
     "values 3, 4 and 5.",
     "  There are three ways to say a customer churned. All three agree for only "
     "20% of customers.",
     "",
-    ("There is very little to learn from.", INK, True),
-    "  We have 54 customers who left and 73 features. That is well under one "
-    "example per feature, so every result comes with a wide range.",
+    ("Subscriptions is the one table built with rules, and the only one I lean "
+     "on. Price follows the plan and the seat count, ARR is exactly 12 times "
+     "MRR, and no subscription starts before its customer did.", INK, True),
+    "",
+    ("There is very little to learn from: 54 customers who left, against 73 "
+     "features. Well under one example per feature, so every result carries a "
+     "wide range.", INK, True),
     "",
     ("Assumptions I am making", INK, True),
     "  A 90 day window and a 30 June 2024 cutoff. I picked both before testing "
     "anything, so they are not chosen to flatter the result.",
     "  Customers still active when the data ends are treated as unknown, not as "
     "successes.",
-    "  This is a generated dataset. It may hold no real signal at all, so the "
-    "work is built to tell that apart from a modelling mistake.",
-])
+    "  This is a generated dataset, so every finding is tested against a null "
+    "that imitates the generator — including the findings I liked. Slide 10 is "
+    "that test, and it is the one that changed the answer.",
+], size=14, space=5)
 
 # ============================================================ 5 · EDA
 s = add("Part 2 · Data exploration", "What the data does and does not contain")
@@ -148,30 +165,27 @@ bullets(s, [
 
 # ============================================================ 6 · FEATURES
 s = add("Part 2 · Feature engineering", "73 features, and the reason for each one")
+picture(s, "03_point_in_time.png", height=Inches(3.05), top=Inches(1.68))
 bullets(s, [
-    ("Four families of feature", INK, True),
-    "  Subscription: how many they have had, what they pay, how steady that "
-    "payment is, upgrades, downgrades, and how long they have been a customer.",
-    "  Usage: how much they used the product in the last 30, 60, 90 and 180 days. "
-    "Whether that is speeding up or slowing down. How long the quiet gaps are.",
-    "  Support: how many tickets, how fast we answered, how long we took to fix "
-    "things, their satisfaction scores, and how often things were escalated.",
-    "  Ratios: usage and tickets per seat, so a 10 seat customer and a 500 seat "
-    "customer can be compared fairly.",
+    ("What each family measures.", INK, True),
+    "  Subscription: what they pay, how steady it is, upgrades, downgrades, how "
+    "long they have been a customer.  Usage: activity over 30 to 180 days, and "
+    "whether it is speeding up or slowing down.  Support: ticket load, how fast "
+    "we answered, how long fixes took, satisfaction, escalations.  Account and "
+    "ratios: industry, country, how they found us, plan, and per-seat versions of "
+    "usage and tickets so a 10 seat and a 500 seat customer sit on the same scale.",
     "",
-    ("The important part is that features can only see the past.", BLUE, True),
-    "  Every calculation takes a date and only looks before it. Training passes "
-    "30 June 2024 and production passes today. It is the same code both times, so "
-    "the two cannot drift apart.",
-    "  A ticket opened in June and closed in July still carries a fix time that "
-    "nobody knew in June. Those fields are blanked. An automatic check caught 5 "
-    "such tickets that I had missed by reading the code.",
+    ("The same code builds these in training and in production.", BLUE, True),
+    "  Training passes 30 June 2024, production passes today, so the two cannot "
+    "drift apart. The blanking on the right is the part that reading the code "
+    "misses: an automatic check found those 5 tickets, I did not.",
     "",
     ("Being honest about what worked: the 21 extra features I engineered made the "
      "score slightly worse, not better. I kept them anyway, because swapping to "
      "the smaller set just because it scored higher is the exact mistake I warn "
-     "about later.", RED),
-], size=14, space=6)
+     "about later. None of them could have helped, for the reason slide 8 gives.",
+     RED),
+], top=Inches(4.90), size=11.5, space=3)
 
 # ============================================================ 7 · LADDER
 s = add("Part 3 · Modelling", "Choosing an algorithm: make it earn the complexity")
@@ -203,22 +217,24 @@ bullets(s, [
     "genuinely better model wins nearly every time. Eight different winners is "
     "what noise looks like.",
     "",
-    ("Why the score is low. I tested each possible cause rather than guessing.",
-     INK, True),
-    "  Not enough data. This is the main one. Adding rows still improves the "
-    "score steadily, so we have not hit the ceiling of the method.",
-    "  Target risk, which I cannot put a number on. The target comes from the "
-    "churn event log, and the other two records of leaving are unrelated to it. "
-    "At least one of the three is noise and nothing says which.",
-    "  A natural limit in the data. Two customers who look almost identical still "
-    "end up differently 41% of the time. Two random customers differ 42% of the "
-    "time. There is almost nothing to separate them on.",
-    "  It is not leakage, not the features, and not tuning. I checked all three.",
-], size=13, space=5)
+    ("Why the score is low. Each cause is measured, not guessed at.", INK, True),
+    "  The inputs hold nothing. Usage and ticket dates are scattered at random "
+    "across the two years and match their own customer's signup date at r = 0.002 "
+    "and r = 0.014. Inside those tables, priority does not predict how fast we "
+    "answered and plan does not predict how much people used.",
+    "  The target is a random date. Every churn date is a coin toss between the "
+    "day the customer joined and the last day of the file. Slide 10 is that test.",
+    "  Subscriptions is the one table with real rules, and none of it relates to "
+    "churn.",
+    "  Sample size is real but secondary: 54 churners against 73 features.",
+    "  It is not leakage, not the feature build, and not tuning. I checked all "
+    "three.",
+], size=13.5, space=6)
 footnote(s, "Scores are ROC-AUC: 0.50 is guessing, 1.00 is perfect. I confirmed "
             "the pipeline works by planting targets of known strength — a strong "
             "one scores AUC 0.965, a deliberately weak one 0.584, a meaningless "
-            "one 0.494. The method is fine. The data does not support more.", INK)
+            "one 0.494. The method works. AUC 0.534 is the right answer to the "
+            "question this data can be asked.", INK)
 
 # ============================================================ 9 · REQUIRED THREE
 s = add("Part 3 · Modelling", "Imbalance, leakage and interpretability")
@@ -255,34 +271,68 @@ bullets(s, [
 ], size=14, space=5)
 
 # ============================================================ 10 · INSIGHT 1
-s = add("Part 4 · Recommendation 1", "Find out what changed during 2024", BLUE)
-picture(s, "12_calendar_hazard.png", height=Inches(3.7), top=Inches(1.8))
+s = add("Part 4 · Recommendation 1",
+        "Do not go looking for what changed in 2024", RED)
+picture(s, "16_generator_artefact.png", height=Inches(3.05), top=Inches(1.70))
 bullets(s, [
-    ("Each month, more of our customers leave than the month before. In 2023 "
-     "about 5 in every 100 left each month. By December 2024 it was 22 in every "
-     "100. The customer base stayed the same size throughout, so this is not a "
-     "growth effect. The rise is far too large and too steady to be luck.",
-     INK, True),
-    ("This also explains the model. The cause is hitting every customer at the "
-     "same time, so comparing customers with each other cannot find it.", BLUE),
-], top=Inches(5.55), size=12.5, space=4)
-footnote(s, "What to do: join pricing changes, release dates and competitor "
-            "events onto this timeline. The data we have holds nothing that "
-            "changes over time, so this is a clear and answerable request.")
+    ("Churn looks like it is accelerating. About 5 in every 100 customers left "
+     "each month in 2023, rising to 22 in 100 by December 2024 — a 2.8x rise per "
+     "year, p = 2e-16. It was by far the strongest number in this study.", INK, True),
+    ("It is not a fact about customers. Every churn date in this file is a "
+     "random date between the day the customer joined and the last day of the "
+     "extract. A random date has nowhere to go but the end of the file, so the "
+     "rate climbs on its own, with nothing happening in the business.", RED, True),
+    ("Rebuilding the data from that one rule gives the same answer: a 2.78x rise "
+     "per year, all 24 months inside the range chance produces, and our result "
+     "sitting at the 52nd percentile of pure noise. So there is nothing here to "
+     "investigate, and that is the recommendation.", INK, True),
+], top=Inches(5.00), size=12.5, space=4)
+footnote(s, "The test that mattered was not \"is this bigger than noise\" — it "
+            "was, comfortably. It was \"would the file produce this on its own\". "
+            "On generated data that is the only null worth testing, and it is "
+            "the one I had not run.", INK)
+note(s, "This is the slide I would want to be asked about.\n\n"
+        "How the artefact works: no churn date can land after 2024-12-31. If "
+        "each is drawn uniformly between signup and that boundary, the hazard "
+        "is 1/(END - t), which rises without limit as t approaches the end. "
+        "Pooled across accounts that signed up over two years, that is "
+        "indistinguishable by eye from a business problem.\n\n"
+        "The evidence, in order. Rescale each churn date to its position in the "
+        "account's own window: uniform, KS p = 0.92 on 600 events, mean position "
+        "0.503, and uniform inside every signup quarter. Then the simulation — "
+        "keep each account's real signup date and real number of churn events, "
+        "redraw only the dates, run the same survival.calendar_hazard used to "
+        "produce the original claim, 400 times. Observed rate ratio 1.0893, null "
+        "1.0885 with a 95% band of [1.072, 1.106].\n\n"
+        "The p-value is the part worth dwelling on. p = 2e-16 felt like the most "
+        "secure number I had. The null rule produces a median p of 2.8e-16 — "
+        "very slightly more significant than the real data. A p-value tells you "
+        "nothing about whether the null it tests is the one that matters.\n\n"
+        "If asked what I would have done differently: run this before writing "
+        "the recommendation, not after. On any generated or vendor-supplied "
+        "extract, simulate the file before trusting a time trend in it.\n\n"
+        "src/generator.py, notebook 16.")
 
 # ============================================================ 11 · INSIGHT 2
 s = add("Part 4 · Recommendation 2", "Do not build the onboarding programme", RED)
-picture(s, "12_cohort_gradient.png", height=Inches(3.5), top=Inches(1.8))
+picture(s, "12_cohort_gradient.png", height=Inches(3.0), top=Inches(1.78))
 bullets(s, [
-    ("At first it looks like new customers are fragile and risk drops with age. "
-     "That is the standard reason to invest in onboarding, and the evidence for "
-     "it looks very strong.", INK, True),
-    ("It is not real. Customers who joined recently leave faster at every age. "
-     "They are also the only ones young enough to appear in the early weeks. "
-     "Mixing the two makes age look like the cause. Within a single joining "
-     "month, a customer at day 300 is just as likely to leave as one at day 10.",
-     RED, True),
-], top=Inches(5.45), size=13)
+    ("New customers look fragile, and risk looks like it falls with age. That is "
+     "the usual reason to fund onboarding, and the evidence for it looks strong: "
+     "30-day survival drops from 0.98 for the 2023 intake to 0.59 for the 2024 "
+     "one, measured at the same age.", INK, True),
+    ("It is the same random date. A customer who joined recently has a shorter "
+     "window for that date to land in, so a larger share of their draws fall "
+     "inside any 90-day question we ask. They look worse at every age without "
+     "anything about them being worse.", RED, True),
+    ("Simulated data with no tenure effect in it at all clears the significance "
+     "bar in 93% of runs, and does so more strongly than the real data does "
+     "(p = 0.002 against 0.006). Within one joining month there is nothing left: "
+     "a day-300 customer leaves as often as a day-10 one.", INK, True),
+], top=Inches(4.95), size=12.5, space=4)
+footnote(s, "The recommendation does not change; the reason for it gets one "
+            "layer deeper. This is the same finding as slide 10, applied to a "
+            "spending decision instead of an investigation.")
 
 # ============================================================ 12 · INSIGHT 3
 s = add("Part 4 · Recommendation 3", "Call every at-risk customer, do not rank them", GREEN)
@@ -303,10 +353,13 @@ footnote(s, "This is one division. Had I run it first, it would have shown that 
 s = add("Part 4 · Testing approach", "How I would test this, and what is worth testing")
 picture(s, "15_experiment_power.png", height=Inches(3.2), top=Inches(1.9), left=Inches(7.1))
 bullets(s, [
-    ("Recommendation 1 is not an A/B test.", INK, True),
-    "  It is a data job. Add the sources that change "
-    "over time, then rerun this pipeline and compare "
-    "against the score recorded today.",
+    ("Recommendation 1 is not an experiment. It is a "
+     "data request.", INK, True),
+    "  Nothing in this extract can say why customers "
+    "leave, because the timestamps were never recorded "
+    "against the customers they belong to. Ask for an "
+    "export where they are, then rerun this pipeline "
+    "and compare against the score written down today.",
     "",
     ("Recommendation 3 is a proper experiment.", INK, True),
     "  Split the at-risk customers in half at random. "
@@ -327,32 +380,37 @@ footnote(s, "Two separate methods agree on this. A standard power calculation "
 # ============================================================ 14 · MENTORSHIP
 s = add("Part 5 · Mentorship", "What I would teach a junior engineer")
 bullets(s, [
-    ("I would hand them the leakage work, because that is where the judgement "
-     "that transfers to other projects lives.", INK, True),
+    ("I would hand them my own worst mistake on this project, because that is "
+     "where the judgement that transfers to other work lives.", INK, True),
     "",
-    ("1. Start with the target, not the model.", INK, True),
-    "  My first version modelled a flag that turns out to be unrelated to the "
-    "event log. Counting rows found it. Then check your own check: I first "
-    "called 38% agreement ‘worse than a coin flip’, and it is not — for two "
-    "columns this different in size, chance agreement is 39%, not 50%.",
-    ("2. Ask of every column: would I really have this on the day I predict?",
+    ("1. Be hardest on the finding you like.", RED, True),
+    "  I had one positive result and a page of nulls, and I checked the nulls. "
+    "The positive one was manufactured by the file. Ask of any finding: what "
+    "else could have produced this, and can I generate it from nothing?",
+    ("2. A small p-value is not evidence. It is evidence against one null.",
+     RED, True),
+    "  p = 2e-16 felt unarguable. Random dates gave p = 3e-16. If the null is "
+    "the wrong one, no amount of significance rescues it.",
+    ("3. Start with the target, not the model.", INK, True),
+    "  My first version modelled a flag unrelated to the event log. Counting "
+    "rows found it. Then check your own check: I first called 38% agreement "
+    "‘worse than a coin flip’, and it is not — for two columns this different "
+    "in size, chance agreement is 39%, not 50%.",
+    ("4. Ask of every column: would I really have this on the day I predict?",
      INK, True),
-    "  Then write that check down so a machine runs it. Careful reading caught "
-    "the obvious problem. The automatic check caught the one I missed.",
-    ("3. A high score is a question, not an answer.", INK, True),
-    "  The first time they see a great number, it should start a hunt for "
-    "leakage, not a celebration.",
-    ("4. Find the floor before you celebrate.", INK, True),
-    "  Always run the model that uses no features first.",
-    ("5. Report the range, not the single number.", INK, True),
-    "  A range that includes guessing tells you something the average hides.",
+    "  Then write the check down so a machine runs it. Reading caught the "
+    "obvious problem; the automatic check caught the one I missed.",
+    ("5. Find the floor, and report the range.", INK, True),
+    "  Always run the model with no features first. A range that includes "
+    "guessing says something the average hides.",
     ("6. Choosing a model is part of fitting it.", BLUE, True),
-    "  In this project, the gap between the best model and the honest score was "
-    "the entire apparent signal. This is the lesson I would spend the most time on.",
+    "  Here the gap between the best model and the honest score was the entire "
+    "apparent signal.",
 ], size=13, space=4)
-footnote(s, "I would teach it as an experiment, not a lecture. Have them switch "
-            "off the banned column list and watch AUC jump from 0.58 to 0.79 on "
-            "its own.")
+footnote(s, "I would teach all of it as experiments rather than lectures. Switch "
+            "off the banned column list and watch AUC jump from 0.58 to 0.79. "
+            "Then simulate a dataset with nothing in it and watch it produce a "
+            "publishable-looking trend.")
 
 # ============================================================ 15 · DEPLOY
 s = add("Part 5 · Scalability", "How I would run this in production")
@@ -398,9 +456,10 @@ bullets(s, [
      "come back every time someone adds a feature.", BLUE, True),
 ], top=Inches(1.88), left=Inches(7.1), width=Inches(5.5), size=13)
 footnote(s, "This is what I would build if the model were worth shipping. On "
-            "these results it is not. Fix the target and the timestamps first, "
-            "then measure again. The pipeline takes a date, so that is one "
-            "command.", INK)
+            "these results it is not, and this extract cannot be repaired into "
+            "one — the timestamps have to be collected against the right "
+            "customers, not corrected. Once they are, the pipeline takes a "
+            "date, so re-measuring is one command.", INK)
 
 prs.save(OUT)
 print(f"{OUT.name}  ({OUT.stat().st_size/1e6:.2f} MB, {len(prs.slides._sldIdLst)} slides)")

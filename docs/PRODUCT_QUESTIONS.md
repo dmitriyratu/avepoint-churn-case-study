@@ -19,15 +19,16 @@ product team can use.
 
 | Question | Answer | Strength |
 |---|---|---|
-| **1. Why are users leaving?** | Not *who* — *when*. Churn hazard rose **2.8× per year** (p = 2e-16) on a flat customer base. No customer attribute, segment, tenure band or stated reason explains who leaves. | Strong for the period effect; strong negatives elsewhere |
-| **2. Can we predict churn before it happens?** | **No.** Three independent formulations land at chance (nested CV 0.534, Cox concordance 0.509, log-rank/Cox global p = 0.57). This is expected given (1): a factor that moves everyone at once has no cross-sectional variance to fit. | Strong |
+| **1. Why are users leaving?** | **This extract cannot say.** No attribute, segment, tenure band or stated reason explains who leaves — and the ×2.8/yr calendar rise that looked like the answer is reproduced in full by drawing each churn date at random between signup and the last day of the file. | Strong negatives throughout; the artefact is demonstrated, not suspected |
+| **2. Can we predict churn before it happens?** | **No.** Three independent formulations land at chance (nested CV 0.534, Cox concordance 0.509, log-rank/Cox global p = 0.57). Expected given (1): the target is a random date and two of the five tables are not joined to their accounts in time. | Strong |
 | **3. What actions improve retention?** | **Not identifiable from this data** — no intervention is recorded anywhere in the schema. Separately, the economics say targeting is unnecessary: break-even churn probability is **10.3%** against a base rate of **30.5%**. | Structural; the economics are robust to the model being useless |
 
 ---
 
 ## Question 1 — Why are users leaving?
 
-Five standard routes to "why". Four return nothing, and the negatives matter
+Five standard routes to "why", then a sixth section that tests the only one of
+them that returned anything. All six end in a negative, and the negatives matter
 because each closes off an analysis that would otherwise be shipped with
 confidence.
 
@@ -113,9 +114,10 @@ account ever becoming safer.
 > intervention** — within any cohort, a day-300 account is as likely to leave as
 > a day-10 account.
 
-### 1e. Calendar time — the answer (notebook 12)
+### 1e. Calendar time — where the answer appeared to be (notebook 12)
 
-The person-period table separates cohort from period, and it is a period effect:
+The person-period table separates cohort from period, and it reads as a period
+effect:
 
 | | Result |
 |---|---|
@@ -127,14 +129,48 @@ The person-period table separates cohort from period, and it is a period effect:
 | p | **2e-16** |
 
 The at-risk base is flat at ~200 accounts through 2024, so this is not a growth
-artefact — the same-sized customer base is leaving four times faster at the end
-of the window than at the start. Cohort retention curves show the same thing:
-month-3 retention fell from 0.82 (2023 cohorts) to 0.54 (2024 cohorts).
+artefact, and cohort retention curves agree: month-3 retention fell from 0.82
+(2023 cohorts) to 0.54 (2024 cohorts).
 
-**The dataset cannot attribute the rise.** There is no price-change log, no
-release history, no competitor entry, no macro series — no calendar-varying
-covariate of any kind. It can establish that the rate rose and by how much. That
-is a specific, answerable request to make of the business rather than a shrug.
+### 1f. That answer does not survive the right null (notebook 16)
+
+One enormous, exquisitely significant result surrounded by nothing but nulls is
+a pattern worth explaining before acting on it. The tests above cannot explain
+it, because their null is "the rate is flat" — which is not the null that
+matters on an extract with a hard end date.
+
+> No churn date can land after 2024-12-31. A generator that draws each one
+> uniformly between signup and that boundary produces a hazard of
+> `1 / (END − t)`, rising without limit toward the end of the file, on data where
+> nothing whatever happened.
+
+The churn dates are exactly that draw, and rebuilding the file from that one
+rule reproduces the finding in full:
+
+| | Observed | Uniform-draw null |
+|---|---|---|
+| Churn date position in `[signup, END]` | mean 0.503, KS p = **0.92** | uniform by construction |
+| Monthly rate ratio | 1.0893 | **1.0885**, 95% band [1.072, 1.106] |
+| Implied annual | ×2.79 | **×2.78** |
+| Poisson trend p | 2.2e-16 | median **2.8e-16** |
+| Months inside the null band | — | **24 of 24** |
+| Where the observed effect sits in the null | — | **52nd percentile** |
+
+Uniformity holds inside every signup quarter, so this is not a mixture effect.
+The null's median p-value is marginally *more* significant than the real data's:
+**a small p-value is evidence against one null, and this was the wrong one.**
+
+The same draw manufactures the tenure gradient in 1d. Simulated data with no
+tenure effect in it clears p < 0.05 in **93%** of runs (median p = 0.002 against
+the observed 0.006), because a recent signup has a shorter window for a random
+date to land in.
+
+> **Answer to Question 1: this extract cannot say why customers leave.** Not
+> "we need a price-change log to attribute the rise" — there is no rise to
+> attribute. Asking the business to hunt for a 2024 pricing event or outage
+> would send a team after something that did not happen. The business timeline
+> is still the right request, but only against an export whose timestamps are
+> recorded against the accounts they belong to.
 
 ---
 
@@ -165,13 +201,28 @@ drops to 0.42–0.52, consistently across four horizons.
 > Whatever weak association exists sits in the period immediately before the
 > customer leaves — **accurate too late to act on**.
 
-### Why this was predictable from Q1
+### Why this follows from Q1
 
-A model fitted at a single cutoff can only use variation *between accounts*. The
-one large effect in this data moves all accounts together at a given moment.
-**A period effect has no cross-sectional variance for a cross-sectional model to
-fit.** The models are not failing to find the signal; the signal is orthogonal to
-what they are allowed to look at.
+Section 1f leaves nothing for a model to find. The target is a random date, and
+the tables the features are built from are not joined to their accounts in time:
+
+| Column | Uniform over the whole extract? | Correlation with its own account's signup date |
+|---|---|---|
+| `feature_usage.usage_date` | yes, KS p = 0.48 | **r = 0.002** |
+| `support_tickets.submitted_at` | yes, KS p = 0.53 | **r = 0.014** |
+| `subscriptions.start_date` | no, KS p < 1e-4 | r = 0.68 |
+
+That is the origin of the quality numbers reported since notebook 01 — 77% of
+usage rows before their own subscription, 53% of tickets before the customer
+existed. They are not columns to repair; they are the visible edge of "the date
+was drawn at random".
+
+`generator.table_linkage` goes one level more basic and asks whether the columns
+*inside* each table relate to each other as the schema says. Only subscriptions
+passes: price tracks plan tier and seat count, ARR is exactly 12 × MRR. Usage
+volume does not differ by plan (p = 0.92) or for beta features (p = 0.45).
+Ticket priority does not predict resolution time (p = 0.33) or first response
+(p = 0.13), and escalated tickets do not score lower on satisfaction (p = 0.33).
 
 ### What is diagnosed as the constraint
 
@@ -179,9 +230,15 @@ what they are allowed to look at.
 |---|---|---|
 | Data leakage | full audit suite passes | ruled out |
 | Feature engineering | 21 added features moved AUC *down* | not the constraint |
-| Sample size | learning curve rising at +0.09 AUC/100 rows | primary |
+| **Unlinked inputs** | usage/ticket timestamps at r = 0.002 / 0.014 to their own account | **primary** |
+| **Random target** | churn dates uniform on `[signup, END]`, KS p = 0.92 | **primary** |
 | Label quality | 3 definitions agree on **20%** of accounts | major |
+| Sample size | learning curve rising at +0.09 AUC/100 rows | secondary — the curve was reading noise |
 | Irreducible | neighbours disagree 41.0% vs 42.4% for random pairs | large floor |
+
+Sample size was previously listed as the primary constraint. More rows of
+unlinked timestamps do not help; **AUC 0.534 is the correct answer to the
+question this data can be asked.**
 
 ---
 
@@ -281,17 +338,19 @@ experiment on 500 customers, not about the analysis.
 
 | # | Action | Evidence | Strength |
 |---|---|---|---|
-| 1 | **Investigate the calendar-time churn increase** | hazard ×2.8/yr on a flat base, p = 2e-16 | strong |
-| 2 | **Fix the churn label and usage timestamps** | 3 definitions agree on 20%; 19,128/24,979 usage rows predate their subscription | strong |
+| 1 | **Get an export whose timestamps belong to their accounts** | usage/ticket dates at r = 0.002 / 0.014 to their own account; 19,128/24,979 usage rows predate their subscription; 3 churn definitions agree on 20% | strong |
+| 2 | **Do _not_ investigate the calendar-time churn increase** | the ×2.8/yr rise sits at the 52nd percentile of a random-date null | strong |
 | 3 | **Contact the whole at-risk cohort; do not rank it** | base rate 30.5% vs break-even 10.3% | strong |
 | 4 | **Instrument interventions** (CSM touch, discount, campaign) | no treatment variable exists | structural |
 | 5 | **Run a randomised pilot**, only for an intervention expected to halve churn | 15pp detectable in ~15 months | moderate |
 | 6 | **Do _not_ build a structured onboarding programme** | within-cohort hazard flat, ρ ≈ 1 | strong |
 
-Item 6 reverses an earlier recommendation in this project. Notebook 05 proposed
-onboarding on the strength of `days_since_signup` being the top single feature
-and a tenure-band table; notebook 12 shows both are the same composition artefact
-viewed through a weaker lens.
+Items 2 and 6 both reverse earlier recommendations in this project, and both
+for the same reason. Notebook 05 proposed onboarding on the strength of
+`days_since_signup` being the top single feature; notebook 12 showed that was
+composition; notebook 16 shows the composition is itself produced by the random
+churn date, which also produced the calendar trend that item 2 now withdraws.
+One cause, two reversals, both left recorded where they were found.
 
 ---
 
@@ -299,10 +358,11 @@ viewed through a weaker lens.
 
 | Question | Blocker | What unblocks it |
 |---|---|---|
-| 1. Why | no calendar-varying covariates | pricing changes, release log, competitor events, macro series joined on date |
-| 2. Predict | 54–81 events; label incoherent; effect is not cross-sectional | coherent label, event-level telemetry with correct timestamps, and features that vary over calendar time |
+| 1. Why | timestamps are not recorded against the accounts they belong to, so there is no real timeline to explain | an export where every event carries its account and its true date — *then* pricing changes, release log, competitor events joined on date |
+| 2. Predict | target is a random date; usage and support tables unlinked; label incoherent; 54–81 events | coherent dated label, and event-level telemetry whose timestamps belong to the right accounts |
 | 3. Actions | no intervention recorded | log every touch with a timestamp; then a randomised pilot sized as above |
 
 All three are data-collection problems rather than modelling problems, and they
-are ordered by leverage: item 2 in the recommendation table unblocks
-re-measurement for all three at once.
+are ordered by leverage: item 1 in the recommendation table unblocks
+re-measurement for all three at once. Item 4 is independent of it and can start
+immediately — it costs one field in the CRM.

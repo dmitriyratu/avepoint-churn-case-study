@@ -22,7 +22,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from src import audit, causal, drivers, economics, pipeline, reasons, survival
+from src import (audit, causal, drivers, economics, generator, pipeline,
+                 reasons, survival)
 from src.clean import clean_all
 from src.config import CUTOFF_DATE, EXTRACT_DATE, POST_OUTCOME_COLS
 from src.load_data import load_all
@@ -353,3 +354,117 @@ def test_decision_curve_treat_all_matches_prevalence_at_zero_threshold():
     dca = economics.decision_curve(y, scores, thresholds=np.array([0.001]))
     assert dca["net_benefit_treat_all"].iloc[0] == pytest.approx(y.mean(), abs=1e-3)
     assert (dca["net_benefit_treat_none"] == 0).all()
+
+
+# --------------------------------------------------------------------------
+# The right-truncation null (notebook 16)
+#
+# These pin the finding that withdrew this project's only positive result. The
+# regression they guard against runs in both directions: a change that stops the
+# null reproducing the data, and a change that makes the null look explanatory
+# while no longer exercising the real code path.
+# --------------------------------------------------------------------------
+
+def test_uniformity_can_reject():
+    """The test must be capable of rejecting, or "KS p = 0.92" means nothing."""
+    lower = pd.Series(pd.Timestamp("2023-01-01"), index=range(600))
+    upper = pd.Series(pd.Timestamp("2024-12-31"), index=range(600))
+    span = (upper[0] - lower[0]).days
+    rng = np.random.default_rng(0)
+
+    uniform = lower + pd.to_timedelta(rng.integers(0, span, 600), unit="D")
+    _, flat = generator.uniformity(uniform, lower, upper)
+    assert flat["ks_p"] > 0.05
+
+    # Front-loaded, which is what a genuine onboarding-driven churn process
+    # looks like. If this were not rejected, the notebook would be vacuous.
+    early = lower + pd.to_timedelta((rng.beta(1, 4, 600) * span).astype(int), unit="D")
+    _, skewed = generator.uniformity(early, lower, upper)
+    assert skewed["ks_p"] < 1e-6
+
+
+def test_churn_dates_are_indistinguishable_from_a_uniform_draw(tables):
+    """Slide 10's premise, pinned pooled and within every signup quarter."""
+    cohorts, u = generator.churn_date_uniformity(tables)
+    overall = cohorts[cohorts["cohort"] == "all"].iloc[0]
+
+    assert overall["ks_p"] > 0.5
+    assert overall["mean_u"] == pytest.approx(0.5, abs=0.03)
+    assert overall["outside_bounds"] == 0
+    assert len(u) == overall["n"]
+
+    # Uniformity has to survive within cohorts too, or the pooled result could
+    # be a mixture of non-uniform pieces. One quarter in eight below 0.05 is
+    # what eight tests give by chance; two would not be.
+    per_cohort = cohorts[cohorts["cohort"] != "all"]
+    assert len(per_cohort) >= 6
+    assert (per_cohort["ks_p"] < 0.05).sum() <= 1
+
+
+def test_simulation_changes_nothing_except_the_dates(tables):
+    """The null must be minimal, or reproducing the finding proves nothing."""
+    sim = generator.simulate_churn_dates(tables, np.random.default_rng(0))
+    real, fake = tables["churn_events"], sim["churn_events"]
+
+    assert real["account_id"].tolist() == fake["account_id"].tolist()
+    for column in real.columns:
+        if column != "churn_date":
+            pd.testing.assert_series_equal(real[column], fake[column])
+    assert sim["accounts"] is tables["accounts"]
+
+    # The draw respects the generator's own signup <= churn <= extract bounds.
+    signup = tables["accounts"].set_index("account_id")["signup_date"]
+    assert (fake["churn_date"].values >=
+            signup.reindex(fake["account_id"]).values).all()
+    assert (fake["churn_date"] <= EXTRACT_DATE).all()
+
+
+def test_calendar_trend_is_reproduced_by_the_null(tables):
+    """The finding itself: the observed effect sits inside the null, not beyond it.
+
+    Few replicates — this asserts the conclusion, not the published band.
+    """
+    frame, summary = generator.calendar_hazard_null(tables, n_sims=40, seed=0)
+
+    lo, hi = summary["null_rate_ratio_ci"]
+    assert lo <= summary["observed_rate_ratio"] <= hi
+    assert 5 < summary["observed_percentile_in_null"] < 95
+    assert summary["months_inside_band"] >= 0.9 * summary["months_total"]
+
+    # Significant under the null as well. This is the p-value point the
+    # mentorship slide is built on.
+    assert summary["null_median_p_trend"] < 1e-6
+    assert (frame["null_lo"] <= frame["null_hi"]).all()
+
+
+def test_usage_and_ticket_timestamps_are_unlinked_from_their_accounts(tables):
+    """Why more rows would not have helped."""
+    report = generator.date_column_uniformity(tables).set_index("column")
+
+    for column in ["feature_usage.usage_date", "support_tickets.submitted_at"]:
+        row = report.loc[column]
+        assert row["ks_p"] > 0.05, f"{column} should look uniform over the extract"
+        assert abs(row["signup_correlation"]) < 0.05
+
+    # The control: the one date column that was built with a rule.
+    subs = report.loc["subscriptions.start_date"]
+    assert subs["ks_p"] < 0.01
+    assert subs["signup_correlation"] > 0.5
+    assert subs["before_signup_pct"] == 0.0
+
+
+def test_only_subscriptions_has_internal_structure(tables):
+    """The basis for "the model was never short of rows"."""
+    report = generator.table_linkage(tables)
+    holds = report[report["holds"]]
+    assert set(holds["table"]) == {"subscriptions"}
+    assert len(holds) == 2
+    assert not report[report["table"] == "support_tickets"]["holds"].any()
+
+
+def test_tenure_gradient_is_reproduced_by_the_null(tables):
+    """The onboarding slide's number: the null clears the bar most of the time."""
+    result = generator.tenure_gradient_null(tables, n_sims=40, seed=1)
+    assert result["observed_p"] < 0.05
+    assert result["null_share_significant"] > 0.5
+    assert result["observed_churn_rate"] == pytest.approx(0.31, abs=0.05)

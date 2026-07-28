@@ -3,4 +3,4 @@ Is there a dominant churn reason?,chi-square vs uniform over 6 codes,p = 0.7017,
 Do stated reasons match behaviour?,"Kruskal-Wallis x 9 measures, BH-corrected",min p_BH = 0.91,no
 Do the code and the free text agree?,chi-square independence,V = 0.0918,no
 Does churn concentrate in a segment?,"5 segments, BH-corrected",min p_BH = 0.71,no
-Does churn concentrate in time?,cohort retention triangle,month-3 retention 0.815 -> 0.535,YES
+Does churn concentrate in time?,cohort retention triangle,month-3 retention 0.815 -> 0.535,"yes, but see notebook 16 - reproduced by a random-date null"

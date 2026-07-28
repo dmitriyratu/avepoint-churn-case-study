@@ -110,6 +110,22 @@ Each decision below is backed by a check in the notebooks or a gate in
   Generator artefacts that cannot be fixed without inventing data; in a real
   engagement they go back to data engineering first.
 
+  `src/generator.py` establishes what those counts actually are. `usage_date`
+  and `submitted_at` are uniform over the whole extract (KS p = 0.48 and 0.53)
+  and correlate with their own account's signup date at **r = 0.002** and
+  **r = 0.014**. They are not misaligned columns that could be shifted back into
+  place — the dates were drawn without reference to the account they belong to,
+  so there is nothing to realign them *to*. The consequence is stated plainly in
+  the deck: every recency, trend, acceleration and gap feature built on these
+  tables is a function of random numbers, and no sample size fixes that.
+
+  `generator.table_linkage` confirms it one level lower. Only `subscriptions`
+  holds the relationships its schema implies (price tracks plan tier and seat
+  count, ARR is exactly 12 × MRR). Usage volume does not vary by plan (p = 0.92)
+  or beta flag (p = 0.45); ticket priority predicts neither resolution time
+  (p = 0.33) nor first response (p = 0.13); escalated tickets do not score lower
+  on satisfaction (p = 0.33).
+
 ## Leakage controls
 
 - **All `churn_events`-derived columns are excluded** (`config.POST_OUTCOME_COLS`).
@@ -254,7 +270,7 @@ Each decision below is backed by a check in the notebooks or a gate in
    Until `churn_flag`, `churn_events` and subscription end dates agree on what
    churn means, no amount of modelling effort is recoverable.
 
-## Product-question analyses (notebooks 11–15)
+## Product-question analyses (notebooks 11–16)
 
 These answer the brief's three questions directly. Full write-up in
 `PRODUCT_QUESTIONS.md`; the decisions that constrain the numbers are here.
@@ -278,15 +294,15 @@ These answer the brief's three questions directly. Full write-up in
    is the survival-analysis form of the point-in-time discipline
    `labeling.truncate_tables` enforces for the classifier.
 
-10. **The tenure effect was a composition artefact, and the earlier onboarding
+10. **The tenure effect was an artefact, and the earlier onboarding
     recommendation is withdrawn.** The pooled hazard falls at ρ = 0.737
     (p = 1.7e-13), which reads as "churn is front-loaded, fix onboarding" — the
     recommendation notebook 05 makes. Within each signup cohort ρ returns to 1
     and none is distinguishable from exponential, and at *fixed tenure* 30-day
-    survival runs from 0.98 (2023Q2) to 0.59 (2024Q4). Recent cohorts churn
-    faster at every age and contribute most of the short-tenure observations.
-    Notebook 05 is left in place with the reversal recorded in 12 and in the
-    README rather than quietly edited, because the sequence is the lesson.
+    survival runs from 0.98 (2023Q2) to 0.59 (2024Q4). Notebook 12 attributed
+    that to cohort composition; notebook 16 gives the cause underneath it (item
+    14). Notebook 05 is left in place with the reversal recorded in 12, 16 and
+    the README rather than quietly edited, because the sequence is the lesson.
 
 11. **Causal confounders are pre-specified, not selected.** Ten covariates
     (`causal.CONFOUNDERS`), each included for the reason it confounds. Handing
@@ -308,10 +324,41 @@ These answer the brief's three questions directly. Full write-up in
     base rate to `C / (e·V)` before building anything — does not depend on the
     values.
 
+14. **Every finding is tested against a null that imitates the generator, and
+    the project's only positive result did not survive it.** On a generated or
+    vendor-supplied extract, "is this bigger than sampling noise" is the wrong
+    question; "would the file produce this on its own" is the right one.
+
+    The specific hazard is right-truncation. No churn date can land after
+    2024-12-31, and each one is a uniform draw between signup and that boundary
+    (KS p = 0.92 pooled, and inside every signup quarter). A uniform draw on a
+    shrinking remaining window has hazard `1/(END − t)`, which climbs without
+    limit toward the end of the file. Redrawing the dates from that rule alone —
+    same signup dates, same event counts per account, nothing else — and
+    rerunning the same `survival.calendar_hazard` gives a rate ratio of
+    **1.0885** against the observed **1.0893**, all 24 months inside the null
+    band, and the observed effect at the **52nd percentile** of pure noise. It
+    also reproduces the tenure gradient in item 10, clearing p < 0.05 in 93% of
+    runs with no tenure effect present.
+
+    **The recommendation to investigate what changed in 2024 is withdrawn.** It
+    rested on p = 2e-16, and the null rule's median trend p-value is 2.8e-16 —
+    marginally more significant than the real data. A p-value is evidence
+    against one null and says nothing about whether that null was the relevant
+    one. The business timeline is still the right request for question 1, but
+    only against an export whose timestamps belong to their accounts, because
+    joining real events onto randomly assigned dates produces confident nonsense.
+
+    `tests/test_analyses.py` pins this in both directions: the uniformity test
+    must reject a front-loaded process, the simulation must preserve every
+    column except `churn_date`, and the observed effect must land *inside* the
+    null band — so a future extract that is genuinely distinguishable from the
+    null fails the test rather than passing silently.
+
 ## Scope
 
-Account-level binary classification over a fixed horizon, plus the time-to-event
-and causal analyses in 11–15.
+Account-level binary classification over a fixed horizon, plus the time-to-event,
+causal and generator-audit analyses in 11–16.
 
 Two items previously listed here as future work have been done and are recorded
 above: the hazard model (notebook 12, which changed a conclusion) and the

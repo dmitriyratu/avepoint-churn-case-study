@@ -19,6 +19,13 @@ They imply completely different actions — fix onboarding, fix acquisition, or
 find what changed in the business — so the decomposition is the point. The
 functions below run it in that order, and the pooled result does not survive it.
 
+**There is a fourth explanation this module cannot separate from the other
+three, and on this dataset it is the right one.** The extract has a hard end
+date, and a churn date drawn at random before it manufactures all three patterns
+simultaneously. Nothing here tests for that; `src/generator.py` does, and it
+withdraws the period-effect finding this module reports. Read `calendar_hazard`
+and `km_at_tenure_by_cohort` with `generator.calendar_hazard_null` alongside.
+
 Baseline covariates come from the *first* subscription, never from
 `accounts.plan_tier` / `seats` / `is_trial`: those are documented as current
 state as of extraction (docs/DATA_DICTIONARY.md), so conditioning on them is
@@ -296,6 +303,13 @@ def calendar_hazard(tables, extract_date=EXTRACT_DATE, freq="M"):
     A Poisson trend test with log(at_risk) as offset gives the monthly rate
     ratio. The offset is what makes it a test of the *rate* rather than of the
     raw count, which would rise simply because the customer base grew.
+
+    **Do not read a trend from this without running `generator.calendar_hazard_null`
+    first.** The null here is "the rate is flat", which is not the null that
+    matters on an extract with a hard end date: churn dates drawn uniformly
+    between signup and that boundary produce a hazard of 1/(END - t), so this
+    function returns a large, highly significant rising trend on data containing
+    nothing at all. On this dataset it does exactly that — see notebook 16.
     """
     accounts = tables["accounts"]
     first_churn = tables["churn_events"].groupby("account_id")["churn_date"].min()
