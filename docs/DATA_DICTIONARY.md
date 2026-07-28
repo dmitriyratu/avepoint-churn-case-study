@@ -29,7 +29,7 @@ are not.
 | `plan_tier` | OK | *Initial* plan, so it is a signup-time fact. The current plan is taken from the truncated subscription history as `latest_plan_tier`. |
 | `seats` | **STALE** | Documented as current licensed seats. It matches the seat count on the account's latest pre-cutoff subscription only **51.6%** of the time, which confirms it carries a later value. Replaced by `latest_seats`, built from truncated subscriptions — including in the per-seat normalisations, which inherited the problem. |
 | `is_trial` | **STALE** | Same reasoning; matches the latest pre-cutoff subscription 70.1% of the time. Replaced by `latest_is_trial` and `n_trial_subs`. |
-| `churn_flag` | **EXCLUDE** | The outcome. Also undated, so it cannot be placed relative to any cutoff, and it disagrees with `churn_events` for 312/500 accounts. Not used as the target — see `labeling.py`. |
+| `churn_flag` | **EXCLUDE** | The outcome. Also undated, so it cannot be placed relative to any cutoff, and it is statistically unrelated to `churn_events` — 188/500 agreement against 193 expected by chance, κ = −0.016, p = 0.56. Not used as the target — see `labeling.py`. |
 
 Both **STALE** columns are enforced by name through
 `config.POINT_IN_TIME_UNSAFE_COLS` and `audit.forbidden_columns`, not by a

@@ -128,7 +128,7 @@ print(f"  C + outcome columns             {design_c.mean():.4f}   "
 # ## Why the label had to be redefined
 #
 # `accounts.churn_flag` carries no date, so it cannot be placed relative to any
-# cutoff. It also disagrees with the event log it should summarise.
+# cutoff. It is also unrelated to the event log it should summarise.
 
 # %%
 accounts, events = tables["accounts"], tables["churn_events"]
@@ -142,9 +142,14 @@ print()
 print(pd.crosstab(accounts["churn_flag"], has_event.rename("has_churn_event")))
 
 # %% [markdown]
-# 37.6% agreement is worse than a coin flip. The event log is used as ground
-# truth because it carries dates; an undated flag cannot support a forward-looking
-# target at all.
+# 37.6% agreement is not "worse than a coin flip" — the coin-flip baseline here
+# is 38.6%, not 50%, because the two columns fire at 22% and 70.4%. Observed
+# agreement sits exactly on that baseline: kappa −0.016, chi-square p = 0.56.
+# The flag is unrelated to the event log rather than merely noisy, and inverting
+# it does not help. See `01_eda.py` §4 for the full comparison.
+#
+# The event log is used as ground truth because it carries dates; an undated
+# flag cannot support a forward-looking target at all.
 #
 # This is the kind of thing that caps achievable performance no matter how good
 # the features are, and it is found by counting rather than by modelling.
@@ -154,7 +159,8 @@ print(pd.crosstab(accounts["churn_flag"], has_event.rename("has_churn_event")))
 #
 # - Post-outcome columns are worth roughly **+0.37 AUC**, and are excluded by
 #   name rather than by threshold.
-# - The label is internally inconsistent for 62% of accounts.
+# - The three recorded churn signals are mutually unrelated, so the choice of
+#   ground truth is an assumption the scores are conditional on.
 # - Requiring any realistic intervention lead time drops every horizon to chance
 #   or below — see the horizon/buffer sweep in `03_feature_engineering.py`.
 #

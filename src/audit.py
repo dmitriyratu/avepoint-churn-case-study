@@ -5,7 +5,8 @@ rather than eyeballed. `run_all` is called before any score is reported.
 """
 import numpy as np
 import pandas as pd
-from sklearn.metrics import roc_auc_score
+from scipy.stats import chi2_contingency
+from sklearn.metrics import cohen_kappa_score, roc_auc_score
 
 SINGLE_FEATURE_AUC_WARN = 0.70
 SINGLE_FEATURE_AUC_FAIL = 0.80
@@ -134,6 +135,70 @@ def missingness_report(tables, structural=None):
     return pd.DataFrame(rows).sort_values("missing_pct", ascending=False)
 
 
+def label_source_agreement(tables):
+    """Do the three recordings of "this customer left" agree with each other?
+
+    Raw agreement is the wrong instrument and flatters nobody here: the three
+    sources fire at very different rates (22%, 70%, 61%), and two independent
+    columns with rates that far apart already agree ~39% of the time. So the
+    column that carries the argument is `kappa` — agreement above chance, where
+    0 means the two sources are unrelated. Reported, never gated: it describes
+    the data we were given, not something the pipeline can fix.
+    """
+    accounts, events = tables["accounts"], tables["churn_events"]
+    ids = accounts["account_id"]
+    sources = {
+        "churn_flag": accounts["churn_flag"].astype(bool).values,
+        "churn_events": ids.isin(events["account_id"]).values,
+        "ended_subscription": ids.isin(
+            tables["subscriptions"].dropna(subset=["end_date"])["account_id"]).values,
+    }
+
+    rows = []
+    for a, b in (("churn_flag", "churn_events"),
+                 ("churn_flag", "ended_subscription"),
+                 ("churn_events", "ended_subscription")):
+        x, y_ = sources[a], sources[b]
+        pa, pb = x.mean(), y_.mean()
+        rows.append({
+            "source_a": a, "source_b": b,
+            "observed": round(float((x == y_).mean()), 3),
+            "expected_if_unrelated": round(float(pa * pb + (1 - pa) * (1 - pb)), 3),
+            "kappa": round(float(cohen_kappa_score(x, y_)), 3),
+            "p_value": round(float(chi2_contingency(
+                pd.crosstab(x, y_).values, correction=False)[1]), 3),
+        })
+    return pd.DataFrame(rows)
+
+
+def churn_date_coherence(tables, windows=(0, 7, 30, 90)):
+    """Does a churn event land near the subscription it supposedly ended?
+
+    This is the version of the argument that does not depend on `churn_flag` at
+    all, so it survives anyone who insists the flag is fine.
+    """
+    subs = tables["subscriptions"].assign(
+        end_date=lambda d: pd.to_datetime(d["end_date"], errors="coerce"))
+    events = tables["churn_events"].assign(
+        churn_date=lambda d: pd.to_datetime(d["churn_date"], errors="coerce"))
+
+    ends = (subs.dropna(subset=["end_date"])
+            .groupby("account_id")["end_date"].apply(list))
+    gaps = pd.Series([
+        min((abs((row.churn_date - end).days) for end in ends.get(row.account_id, [])),
+            default=np.nan)
+        for row in events.itertuples()]).dropna()
+
+    rows = [{"window_days": w, "n": int((gaps <= w).sum()),
+             "pct_of_comparable": round(float((gaps <= w).mean() * 100), 1)}
+            for w in windows]
+    return pd.DataFrame(rows), {
+        "events": len(tables["churn_events"]),
+        "comparable": len(gaps),
+        "median_gap_days": float(gaps.median()),
+    }
+
+
 def run_all(X, y, df, tables, cutoff, raw_tables=None):
     """Full suite. Returns (results, passed).
 
@@ -152,6 +217,7 @@ def run_all(X, y, df, tables, cutoff, raw_tables=None):
     }
     if raw_tables is not None:
         results["missingness"] = missingness_report(raw_tables)
+        results["label_source_agreement"] = label_source_agreement(raw_tables)
 
     passed = (
         all(results[k]["pass"].all() for k in

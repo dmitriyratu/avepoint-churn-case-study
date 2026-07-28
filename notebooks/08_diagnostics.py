@@ -354,7 +354,7 @@ print(f"\nvalidation range across three orders of magnitude of C: "
 # | **Feature engineering** | ~20 added features moved AUC down; cutting features also hurts | not the constraint |
 # | **Overfitting** | train 0.97–1.00 vs validation 0.54–0.58 | real, but a symptom |
 # | **Sample size** | learning curve still rising, +0.09 AUC per 100 rows | **primary constraint** |
-# | **Data quality** | label agrees with event log 37.6%; 19k usage rows predate their subscription | **major contributor** |
+# | **Data quality** | three churn records mutually unrelated (kappa ≈ 0); 19k usage rows predate their subscription | **major contributor** |
 # | **Irreducible** | neighbours disagree at ~the random-pair rate | **large floor** |
 #
 # The overfitting is real but downstream: with 54 positives and genuinely weak
@@ -368,8 +368,11 @@ print(f"\nvalidation range across three orders of magnitude of C: "
 #    four quarterly cutoffs — done above — roughly triples the positives and
 #    substantially tightens the estimate. This is the only lever with direct
 #    evidence behind it, and the only one already exercised.
-# 2. **A trustworthy label.** 37.6% agreement between `churn_flag` and the event
-#    log caps everything downstream.
+# 2. **A trustworthy label.** The target is built from `churn_events`, so it is
+#    not itself 37.6%-noisy — but the two other recordings of the same fact are
+#    unrelated to it, so at least one of the three is noise and nothing in the
+#    data identifies which. That risk is unquantifiable from the extract and
+#    caps how much any score here can be trusted.
 # 3. **Telemetry with coherent timestamps.** 19,128 of 24,979 usage rows predate
 #    their own subscription's start, so recency and trend features are built on
 #    incoherent history.

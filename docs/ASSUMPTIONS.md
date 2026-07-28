@@ -18,9 +18,18 @@ Each decision below is backed by a check in the notebooks or a gate in
   `FEATURE_ENGINEERING.md` — that sweep is where the most important negative
   result lives, so the dial is reported rather than assumed in either direction.
 
-- **`churn_events` is ground truth over `churn_flag`.** The two agree for only
-  37.6% of accounts. The event log wins because it carries dates. This should be
-  confirmed with whoever owns the upstream pipeline.
+- **`churn_events` is ground truth over `churn_flag`.** This is the load-bearing
+  assumption in the project and it is not defensible from the data — it is a
+  choice made on one criterion only: the event log carries dates and the flag
+  does not, so only the event log can support a forward-looking target.
+
+  It is *not* justified by the agreement numbers. All three recordings of churn
+  are mutually unrelated (κ = −0.016, +0.024, +0.065; p = 0.56, 0.45, 0.14), and
+  churn dates do not coincide with subscriptions ending either — 1.6% land on
+  the day, median gap 62 days. Nothing in the extract identifies which source is
+  the clean one, so **if the event log is the noisy one, every score in this
+  project is measuring nothing.** That risk is unquantifiable from the extract
+  and must be confirmed with whoever owns the upstream pipeline.
 
 - **Eligible accounts** signed up before the cutoff, held a subscription still
   open at the cutoff, and had not already churned when the prediction window

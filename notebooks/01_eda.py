@@ -31,6 +31,7 @@ warnings.filterwarnings("ignore")
 from sklearn.model_selection import train_test_split
 
 from src.load_data import load_all, TABLES
+from src.audit import label_source_agreement
 from src.clean import clean_all, integrity_report
 from src.labeling import build_cohort, cohort_summary
 from src.config import CUTOFF_DATE, HORIZON_DAYS, TARGET
@@ -131,13 +132,33 @@ print(pd.crosstab(acc["churn_flag"],
                   acc["account_id"].isin(ce["account_id"]).rename("has_churn_event")))
 
 # %% [markdown]
-# **These cannot all describe the same thing, and they don't.** `churn_flag`
-# agrees with the event log for 37.6% of accounts — worse than a coin flip.
+# 37.6% *looks* damning, but raw agreement is the wrong instrument and it is
+# worth being careful here rather than banking a number that reads well. The two
+# columns fire at very different rates — 22% and 70.4% — and two columns with
+# rates that far apart already agree most of the time by accident. The
+# comparison that matters is against that accidental rate, not against 50%.
+
+# %%
+print(label_source_agreement(tables).to_string(index=False))
+
+# %% [markdown]
+# **The flag is not a noisy version of the truth. It is unrelated to it.**
+# Observed agreement is 37.6% against 38.6% expected if the two columns had
+# nothing to do with each other. Cohen's kappa is −0.016, where 0 means
+# unrelated, and chi-square gives p = 0.56.
 #
-# This is a labelling decision that has to be made explicitly, not discovered
-# after the model underperforms. `churn_events` is used as ground truth because
-# it carries dates and `churn_flag` does not; an undated flag cannot be placed
-# relative to any cutoff, so it is unusable for a forward-looking target.
+# This kills the obvious rebuttal, which is worth having ready: *"37.6% is below
+# half, so the flag is informative but inverted — flip it and you get 62.4%."*
+# Inverted it agrees 62.4% against 61.4% expected by chance, kappa +0.025. There
+# is no signal in it in either direction. Note also that `churn_flag` scores an
+# AUC of 0.51 against the modelled target in the leakage audit — categorically
+# the outcome, statistically invisible.
+#
+# So the labelling decision has to be made explicitly, not discovered after the
+# model underperforms. `churn_events` becomes ground truth because it carries
+# dates and `churn_flag` does not; an undated flag cannot be placed relative to
+# any cutoff, so it is unusable for a forward-looking target. That choice is an
+# assumption, not a finding — §10 tests whether the event log deserves it.
 
 # %% [markdown]
 # ## §5 — Validate against an external source

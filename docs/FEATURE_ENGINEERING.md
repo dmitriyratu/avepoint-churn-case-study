@@ -144,7 +144,8 @@ constraint here is **data, not feature engineering**:
    against a rule of thumb of 10.
 2. Synthetic usage logs — 19,128 of 24,979 rows predate their own subscription's
    start, so trend and recency features are built on incoherent timestamps.
-3. `churn_flag` disagrees with the event log for 62% of accounts.
+3. The three recorded churn signals are mutually unrelated (all κ ≈ 0), so which
+   one is ground truth cannot be settled from the extract.
 
 No amount of feature work fixes any of those. What *would* help is more rows,
 and that lever is exercised in `08_diagnostics.py`: pooling four quarterly

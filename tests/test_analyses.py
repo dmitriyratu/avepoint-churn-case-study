@@ -22,7 +22,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from src import causal, drivers, economics, pipeline, reasons, survival
+from src import audit, causal, drivers, economics, pipeline, reasons, survival
 from src.clean import clean_all
 from src.config import CUTOFF_DATE, EXTRACT_DATE, POST_OUTCOME_COLS
 from src.load_data import load_all
@@ -41,6 +41,54 @@ def data():
 @pytest.fixture(scope="module")
 def surv(tables):
     return survival.survival_frame(tables)
+
+
+# --------------------------------------------------------------------------
+# The label-coherence claim the deck leads with
+# --------------------------------------------------------------------------
+
+def test_churn_sources_are_unrelated_not_merely_inconsistent(tables):
+    """The deck's headline finding, pinned.
+
+    The claim is specifically *independence*, not low agreement. Raw agreement
+    would be a much weaker result: with rates of 22% and 70.4%, unrelated
+    columns already agree ~39% of the time, so "37.6% agreement" alone invites
+    the rebuttal that the flag is informative-but-inverted. It is not.
+    """
+    report = audit.label_source_agreement(tables).set_index(["source_a", "source_b"])
+
+    flag_vs_events = report.loc[("churn_flag", "churn_events")]
+    assert flag_vs_events["observed"] == pytest.approx(0.376, abs=0.001)
+    assert flag_vs_events["expected_if_unrelated"] == pytest.approx(0.386, abs=0.001)
+
+    # Every pair sits on its own chance baseline: no association, in either
+    # direction, between any two recordings of the same event.
+    assert (report["kappa"].abs() < 0.1).all()
+    assert (report["p_value"] > 0.05).all()
+
+
+def test_inverting_the_flag_does_not_recover_a_signal(tables):
+    """Pre-empts the obvious challenge to the slide."""
+    accounts, events = tables["accounts"], tables["churn_events"]
+    has_event = accounts["account_id"].isin(events["account_id"])
+    inverted = ~accounts["churn_flag"].astype(bool)
+
+    agreement = (inverted == has_event).mean()
+    pa, pb = inverted.mean(), has_event.mean()
+    by_chance = pa * pb + (1 - pa) * (1 - pb)
+
+    assert agreement == pytest.approx(0.624, abs=0.001)
+    assert agreement - by_chance < 0.02  # 62.4% observed vs 61.4% by chance
+
+
+def test_churn_dates_do_not_coincide_with_subscriptions_ending(tables):
+    """The form of the argument that never touches churn_flag."""
+    windows, meta = audit.churn_date_coherence(tables)
+
+    same_day = windows.loc[windows["window_days"] == 0, "pct_of_comparable"].iloc[0]
+    assert same_day < 5.0                      # 1.6% — two systems, same event
+    assert meta["median_gap_days"] > 30        # 62 days
+    assert meta["comparable"] < meta["events"]  # 214 events have nothing to compare
 
 
 # --------------------------------------------------------------------------

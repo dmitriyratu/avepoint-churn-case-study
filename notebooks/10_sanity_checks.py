@@ -25,6 +25,7 @@ warnings.filterwarnings("ignore")
 from sklearn.model_selection import cross_val_score
 
 from src import pipeline
+from src.audit import label_source_agreement
 from src.config import HORIZON_DAYS, TARGET
 from src.features import build_model_dataset
 from src.labeling import at_risk_accounts, first_churn_date
@@ -199,6 +200,27 @@ print(f"  churn_flag  vs ended subscription  {(definitions.churn_flag == definit
 print(f"  churn_event vs ended subscription  {(definitions.has_churn_event == definitions.has_ended_subscription).mean():.1%}")
 print(f"\nall three agree on {(definitions.nunique(axis=1) == 1).mean():.1%} of accounts")
 
+# %% [markdown]
+# Those percentages are not interpretable on their own. The three sources fire
+# at 22%, 70.4% and 61.4%, and two unrelated columns with rates that far apart
+# agree a good share of the time by accident. Every pair needs its own chance
+# baseline before any of this means anything.
+
+# %%
+print(label_source_agreement(tables).to_string(index=False))
+
+# %% [markdown]
+# **All three pairs sit on their own chance baseline.** Observed agreement is
+# within a few points of what unrelated columns produce, every kappa rounds to
+# zero, and no pair reaches significance (p = 0.56, 0.45, 0.14). "Churn" is not
+# a noisy concept in this data — it is three unrelated columns wearing the same
+# name.
+#
+# Worth stating plainly, because it changes what the modelling result means: the
+# choice of `churn_events` as ground truth is an assumption, not a finding. If
+# the event log is the noisy one, every score in this project is measuring
+# nothing. Nothing in the extract can settle that.
+
 # %%
 ends_by_account = ended.groupby("account_id")["end_date"].apply(list)
 gaps = pd.Series([
@@ -224,6 +246,17 @@ ax.legend()
 plt.tight_layout()
 plt.savefig("../outputs/figures/10_churn_coherence.png", bbox_inches="tight")
 plt.show()
+
+# %% [markdown]
+# **This is the strongest form of the argument, because it never touches
+# `churn_flag`.** Anyone can wave away a disagreement between a flag and a log
+# by declaring the log authoritative. Nobody can wave this away: a churn event
+# and the subscription it supposedly ended land on the same day 6 times out of
+# 386, the median gap is 62 days, and 214 of the 600 churn events belong to
+# accounts with no ended subscription at all.
+#
+# Two systems recording the same departure should agree on the date. These do
+# not agree even approximately. That is the sentence to put on the slide.
 
 # %% [markdown]
 # ## 4. The cheapest version of the whole argument
@@ -283,10 +316,11 @@ print(f"  P(noise beats the observed max)        : {(null_max >= observed_max).m
 #   relationship looks like at this sample size. So "there is definitely nothing
 #   here" overstates it.
 # - The single-feature null shows no column beats noise, the nested CV sits at
-#   chance, and the label contradicts itself. So "there is something here"
-#   overstates it just as much.
+#   chance, and the three recordings of the outcome are mutually unrelated. So
+#   "there is something here" overstates it just as much.
 #
 # The accurate statement is the one that commits to neither: **if a weak
-# relationship exists, this dataset cannot resolve it** — 54 positives, a label
-# that contradicts itself, and timestamps that do not order events correctly.
+# relationship exists, this dataset cannot resolve it** — 54 positives, three
+# mutually unrelated recordings of the outcome, and timestamps that do not order
+# events correctly.
 # Everything measured here is consistent with that and with nothing else.

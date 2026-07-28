@@ -73,9 +73,17 @@ reason about is the cheapest bug detector available.
 
 **Finding**: 500 accounts vs 352 appearing in `churn_events` vs 110 with
 `churn_flag = True`. Those three numbers cannot all be describing the same
-thing — and they aren't. `churn_flag` agrees with the event log for only 37.6%
-of accounts. This was the single most important EDA finding in the project and
-the first version missed it entirely.
+thing — and they aren't. This was the single most important EDA finding in the
+project and the first version missed it entirely.
+
+**The second-order lesson is about the instrument.** The first write-up reported
+"37.6% agreement — worse than a coin flip", which is wrong: the two columns fire
+at 22% and 70.4%, so unrelated columns agree 38.6% of the time and the coin-flip
+baseline is not 50%. The correct reading is that agreement sits *exactly on*
+chance (κ = −0.016, p = 0.56) — a stronger result, and one that survives the
+obvious rebuttal ("then invert the flag"; inverted it is chance too). Any
+agreement rate between two rates that differ this much needs a chance baseline
+before it means anything. Now computed in `audit.label_source_agreement`.
 
 Counting the same concept a *fourth* way (accounts with an ended subscription)
 makes it worse, and it turns out to matter for the cohort rule as well as the

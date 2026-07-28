@@ -283,5 +283,5 @@ comparison.to_csv("../outputs/reports/feature_set_comparison.csv", index=False)
 # many positives, extra columns cost about as much in variance as they return in
 # signal — so the binding constraint is **data, not feature engineering**. The
 # usage logs have 19,128 of 24,979 rows predating their own subscription, and
-# `churn_flag` disagrees with the event log for 62% of accounts. No feature work
-# fixes either.
+# the three recorded churn signals are mutually unrelated, so the choice of
+# ground truth is an unverifiable assumption. No feature work fixes either.

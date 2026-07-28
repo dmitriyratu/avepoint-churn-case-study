@@ -76,8 +76,17 @@ Place the raw CSVs in `data/raw/` before running.
 ## Problem framing
 
 `accounts.churn_flag` is a static flag with no date attached — it cannot be
-placed relative to any cutoff, and it disagrees with the `churn_events` log for
-**312 of 500 accounts** (37.6% agreement). It is not a usable target.
+placed relative to any cutoff. It is also **unrelated to** the `churn_events`
+log rather than merely inconsistent with it: the two agree for 188 of 500
+accounts (37.6%) against **38.6% expected if they had nothing to do with each
+other**, κ = −0.016, χ² p = 0.56.
+
+The distinction matters, because raw agreement invites the wrong rebuttal. The
+flag fires for 22% of accounts and the event log for 70.4%; two unrelated
+columns with rates that far apart already agree ~39% of the time, so 37.6% is
+not "worse than chance" and inverting the flag does not recover a signal
+(62.4% observed vs 61.4% expected, κ = +0.025). It is not a usable target in
+either direction.
 
 The modelled target is the standard churn formulation instead:
 
@@ -330,22 +339,31 @@ elaborate negative results.
 
 Nearly doubling the cohort makes it *worse*. No alternative rescues the result.
 
-**The label is not coherent — this is the ceiling.** Three independent ways to
-say an account churned:
+**The label is not coherent — this is the ceiling.** Three separate ways to say
+an account churned, each compared against its own chance baseline rather than
+against 50% (`src.audit.label_source_agreement`):
 
-| | Agreement |
-|---|---:|
-| `churn_flag` vs `churn_events` | 37.6% |
-| `churn_flag` vs ended subscription | 44.4% |
-| `churn_events` vs ended subscription | 58.0% |
-| **All three agree** | **20.0%** |
+| | Agreement | Expected if unrelated | κ | p |
+|---|---:|---:|---:|---:|
+| `churn_flag` vs `churn_events` | 37.6% | 38.6% | −0.016 | 0.56 |
+| `churn_flag` vs ended subscription | 44.4% | 43.1% | +0.024 | 0.45 |
+| `churn_events` vs ended subscription | 58.0% | 55.1% | +0.065 | 0.14 |
+| **All three agree** | **20.0%** | | | |
 
-And churn dates do not coincide with subscriptions ending: **1.6% land on the
-day**, 12% within a week, **median gap 62 days**.
+Every pair lands on its own chance baseline. These are not three noisy views of
+one fact — they are three unrelated columns wearing the same name.
+
+The date check is the strongest form of the argument because it never touches
+`churn_flag`, so it survives anyone who simply declares the event log
+authoritative (`src.audit.churn_date_coherence`). Of the 386 churn events that
+can be compared to a subscription ending, **6 land on the same day (1.6%)**, 12%
+within a week, **median gap 62 days** — and the remaining 214 events belong to
+accounts with no ended subscription at all. Two systems recording the same
+departure should agree on the date. These do not agree even approximately.
 
 The accurate statement commits to neither reading: **if a weak relationship
-exists, this dataset cannot resolve it.** 54 positives, a label that contradicts
-itself, timestamps that do not order events correctly.
+exists, this dataset cannot resolve it.** 54 positives, three mutually unrelated
+recordings of the outcome, timestamps that do not order events correctly.
 
 ### Why 0.58 and not higher — diagnosed, not guessed
 
@@ -357,7 +375,7 @@ itself, timestamps that do not order events correctly.
 | Feature engineering | 21 added features moved AUC *down*; cutting to the top 3 costs 0.06 | not the constraint |
 | Overfitting | train 0.97–1.00 vs validation 0.54–0.58 | real, but a symptom |
 | **Sample size** | learning curve still rising: **+0.09 AUC per 100 rows** | **primary constraint** |
-| **Data quality** | label agrees with the event log 37.6% of the time | **major contributor** |
+| **Data quality** | the three recorded churn signals are mutually unrelated (all κ ≈ 0), so the choice of ground truth is unverifiable | **major contributor** |
 | **Irreducible** | nearest neighbours disagree at 0.410 vs 0.424 for random pairs | **large floor** |
 
 Three results worth singling out:
@@ -494,8 +512,10 @@ not of effect size.
 
 ## Key findings
 
-1. **The label had to be redefined.** `churn_flag` is undated and agrees with the
-   event log for only 37.6% of accounts. Found by counting, not modelling.
+1. **The label had to be redefined.** `churn_flag` is undated, and it is
+   statistically unrelated to the event log rather than just noisy — 37.6%
+   agreement against 38.6% expected by chance, κ = −0.016. Found by counting,
+   not modelling.
 2. **Selection is worth more than the model.** Choosing the best of ten rungs
    costs 0.049 AUC, most of the apparent signal, and eight of ten rungs win at
    least once across 25 outer folds.
