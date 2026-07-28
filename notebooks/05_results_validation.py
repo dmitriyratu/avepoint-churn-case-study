@@ -301,8 +301,13 @@ print(f"best engagement single-feature AUC: "
 # judgement lives:
 #
 # 1. **Start with the label, not the model.** The first version of this project
-#    modelled an undated flag that disagreed with the event log for 62% of
-#    accounts. No algorithm recovers from that. "Check your n's" found it.
+#    modelled an undated flag that turns out to be statistically unrelated to
+#    the event log. No algorithm recovers from that. "Check your n's" found it.
+#    Then check the check: I first called 37.6% agreement "worse than a coin
+#    flip", which is wrong — with rates of 22% and 70.4%, chance agreement is
+#    38.6%, not 50%. Getting the baseline right made the finding stronger, and
+#    it is the difference between a claim that survives challenge and one that
+#    does not.
 # 2. **Ask of every column: would I have this at prediction time?** Then write
 #    the check down so it runs automatically. Reasoning caught the obvious leak;
 #    the automated gate caught the one reasoning missed.
