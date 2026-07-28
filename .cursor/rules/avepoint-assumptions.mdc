@@ -1,0 +1,30 @@
+---
+description: AvePoint churn case study shared definitions and data assumptions
+alwaysApply: true
+---
+
+# AvePoint assumptions
+
+Before analyzing or changing this case study, read
+**[docs/ASSUMPTIONS.md](../../docs/ASSUMPTIONS.md)** for the cutoff, horizon,
+cohort rule, and — most importantly — the load-bearing choice of `churn_events`
+as ground truth over `churn_flag`.
+
+Column-level provenance and point-in-time safety:
+**[docs/DATA_DICTIONARY.md](../../docs/DATA_DICTIONARY.md)**.
+
+## The one thing to know before touching the target
+
+The three recorded churn signals — `accounts.churn_flag`, a row in
+`churn_events`, and a subscription with an `end_date` — are **mutually
+unrelated**, not merely inconsistent. Every pair sits on its own chance baseline
+(κ = −0.016, +0.024, +0.065; p = 0.56, 0.45, 0.14).
+
+Raw agreement is the wrong instrument here and invites a wrong conclusion: the
+sources fire at 22%, 70.4% and 61.4%, so unrelated columns already agree ~39% of
+the time. "37.6% agreement" is chance, not "worse than a coin flip", and
+inverting `churn_flag` does not recover a signal either.
+
+Computed by `src.audit.label_source_agreement` and
+`src.audit.churn_date_coherence`; pinned by tests in `tests/test_analyses.py`.
+Do not restate the agreement figures without their chance baselines.
