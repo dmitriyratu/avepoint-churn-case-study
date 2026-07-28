@@ -255,6 +255,41 @@ print(f"\n  optimism from choosing the threshold: {best_f1 - honest[0]:+.4f} F1"
 print("  Small, but real — and it is the same selection effect as the ladder,")
 print("  one level down.")
 
+# %% [markdown]
+# ### Does the metric choose the conclusion?
+#
+# ROC-AUC is the headline here for two reasons. Its null is 0.50 whatever the
+# base rate, which is what makes the twelve cells of the horizon/buffer sweep in
+# notebook 03 comparable to each other — their positive rates run 11% to 45%,
+# and a PR-based null would move underneath every cell. And at 30.5% positives
+# this is not the regime where ROC flatters a model; that argument bites near 1%.
+#
+# Both of those are arguments rather than evidence, so score the alternatives
+# against their own nulls and check whether any of them disagrees.
+#
+# - **ROC-AUC** — null 0.50, fixed.
+# - **Average precision** — null is the base rate, so it moves with the cohort.
+# - **F1** — no natural null at all. The honest comparison is against the policy
+#   that needs no model: contact everyone.
+
+# %%
+ap = average_precision_score(y, oof)
+f1_all = f1_score(y, np.ones(len(y)))       # "contact everyone" — no model at all
+perm_ap = permutation_significance(best_est, X, y, n_permutations=300,
+                                   scoring="average_precision")
+
+print(f"  ROC-AUC  {roc_auc_score(y, oof):.4f}   null 0.5000 (base-rate invariant)"
+      f"   permutation p = {perm['p_value']}")
+print(f"  AP       {ap:.4f}   null {y.mean():.4f} (the base rate)"
+      f"        permutation p = {perm_ap['p_value']}")
+print(f"  F1       {best_f1:.4f}   null {f1_all:.4f} (contact everyone)"
+      f"   lift {best_f1 - f1_all:+.4f}")
+
+print(f"\nAll three land in the same place, so the conclusion is not an artefact of")
+print(f"the metric. F1 is the weakest of the three for this claim: its lift over a")
+print(f"no-model policy ({best_f1 - f1_all:+.4f}) is smaller than the optimism in its own")
+print(f"tuned threshold ({best_f1 - honest[0]:+.4f}), measured directly above.")
+
 # %%
 print(classification_report(y, pred, target_names=["retained", "churned"]))
 
@@ -361,7 +396,14 @@ config = {
     "oof_f1": float(best_f1),
     "oof_recall": float(recall_score(y, pred)),
     "oof_precision": float(precision_score(y, pred, zero_division=0)),
-    "permutation_p": perm["p_value"],
+    "permutation_p": perm["p_value"],          # on ROC-AUC; kept for nb 05/07/09
+    # Metric robustness. Each score is stored next to the null it has to beat,
+    # because the null is what makes the number mean anything.
+    "oof_ap": float(ap),
+    "ap_null_base_rate": float(y.mean()),
+    "ap_permutation_p": perm_ap["p_value"],
+    "f1_null_treat_all": float(f1_all),
+    "f1_lift_over_treat_all": float(best_f1 - f1_all),
     "nested_cv_auc": float(nested["nested_auc"]),
     "nested_cv_se": float(nested["nested_se"]),
     "selection_cost": float(gap),

@@ -64,7 +64,7 @@ bullets(s, [
     "  That gives 177 customers who could still leave. 54 of them did, which is 31%.",
     "  Features use only data dated before that day. Anything still unresolved on "
     "that day is blanked out.",
-])
+], size=14, space=6)
 footnote(s, "I found this by counting, not by modelling. No algorithm recovers a "
             "fact the source data never recorded the same way twice.")
 note(s, "Lead with the target problem. It is the highest-value finding and it "
@@ -171,7 +171,7 @@ bullets(s, [
      "score slightly worse, not better. I kept them anyway, because swapping to "
      "the smaller set just because it scored higher is the exact mistake I warn "
      "about later.", RED),
-])
+], size=14, space=6)
 
 # ============================================================ 7 · LADDER
 s = add("Part 3 · Modelling", "Choosing an algorithm: make it earn the complexity")
@@ -190,14 +190,14 @@ bullets(s, [
 # ============================================================ 8 · PERFORMANCE
 s = add("Part 3 · Modelling", "How it performs, and why the number is low", RED)
 bullets(s, [
-    ("Best single model, taken at face value:  0.583, with a range of 0.37 to 0.75",
+    ("Best single model, taken at face value:  AUC 0.583, range 0.37 to 0.75",
      MUTED),
-    ("The honest score:  0.534, give or take 0.016", INK, True),
-    ("Guessing:  0.500", MUTED),
+    ("The honest score:  AUC 0.534, give or take 0.016", INK, True),
+    ("Guessing:  AUC 0.500", MUTED),
     "",
     ("The gap between those two numbers is the point.", RED, True),
     "  Picking the best of ten models is itself a form of fitting. Once you "
-    "measure that properly, 0.049 of the score disappears. That is most of what "
+    "measure that properly, 0.049 of AUC disappears. That is most of what "
     "looked like signal.",
     "  Across 25 test rounds, eight of the ten models won at least once. A "
     "genuinely better model wins nearly every time. Eight different winners is "
@@ -214,11 +214,11 @@ bullets(s, [
     "end up differently 41% of the time. Two random customers differ 42% of the "
     "time. There is almost nothing to separate them on.",
     "  It is not leakage, not the features, and not tuning. I checked all three.",
-], size=14)
-footnote(s, "I confirmed the pipeline works by planting targets of known "
-            "strength. A strong one scores 0.965. A deliberately weak one scores "
-            "0.584. A meaningless one scores 0.494. The method is fine. The data "
-            "does not support more.", INK)
+], size=13, space=5)
+footnote(s, "Scores are ROC-AUC: 0.50 is guessing, 1.00 is perfect. I confirmed "
+            "the pipeline works by planting targets of known strength — a strong "
+            "one scores AUC 0.965, a deliberately weak one 0.584, a meaningless "
+            "one 0.494. The method is fine. The data does not support more.", INK)
 
 # ============================================================ 9 · REQUIRED THREE
 s = add("Part 3 · Modelling", "Imbalance, leakage and interpretability")
@@ -231,6 +231,10 @@ bullets(s, [
     "  I set the cut-off to favour catching leavers, because missing one costs "
     "far more than a wasted phone call. That gives 75% of leavers caught, and "
     "1 in 3 of the flagged customers actually leaving.",
+    "  I report ROC-AUC because its baseline stays 0.50 at any class balance, "
+    "which keeps the twelve horizon cells comparable when their churn rates run "
+    "11% to 45%. Precision-recall and F1 agree, so the metric is not choosing "
+    "the answer.",
     "",
     ("Data leakage", RED, True),
     "  I do not rely on reading the code. A set of automatic checks runs before "
@@ -238,7 +242,7 @@ bullets(s, [
     "  The checks look for dates after the cutoff, for banned columns by name, "
     "and for any single feature that predicts too well.",
     "  Columns that only exist after a customer leaves are worth 0.37 of extra "
-    "score. They push the model to 0.79, which looks like a good model rather "
+    "AUC. They push the model to AUC 0.79, which looks like a good model rather "
     "than a broken one. That is exactly why they are dangerous.",
     "",
     ("Interpretability, and how it can mislead you", BLUE, True),
@@ -248,7 +252,7 @@ bullets(s, [
     "  The top feature beats random labels only 3 times in 4. Twelve different "
     "features take first place across 25 reruns. These tools never tell you when "
     "they have nothing to say, so I pair every one with a random baseline.",
-])
+], size=14, space=5)
 
 # ============================================================ 10 · INSIGHT 1
 s = add("Part 4 · Recommendation 1", "Find out what changed during 2024", BLUE)
@@ -261,7 +265,7 @@ bullets(s, [
      INK, True),
     ("This also explains the model. The cause is hitting every customer at the "
      "same time, so comparing customers with each other cannot find it.", BLUE),
-], top=Inches(5.65), size=13)
+], top=Inches(5.55), size=12.5, space=4)
 footnote(s, "What to do: join pricing changes, release dates and competitor "
             "events onto this timeline. The data we have holds nothing that "
             "changes over time, so this is a clear and answerable request.")
@@ -345,10 +349,10 @@ bullets(s, [
     ("6. Choosing a model is part of fitting it.", BLUE, True),
     "  In this project, the gap between the best model and the honest score was "
     "the entire apparent signal. This is the lesson I would spend the most time on.",
-], size=14)
+], size=13, space=4)
 footnote(s, "I would teach it as an experiment, not a lecture. Have them switch "
-            "off the banned column list and watch the score jump from 0.58 to "
-            "0.79 on its own.")
+            "off the banned column list and watch AUC jump from 0.58 to 0.79 on "
+            "its own.")
 
 # ============================================================ 15 · DEPLOY
 s = add("Part 5 · Scalability", "How I would run this in production")

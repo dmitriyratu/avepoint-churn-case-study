@@ -241,12 +241,20 @@ def tune_lightgbm(X, y, cv=INNER_CV):
     return GridSearchCV(base, grid, scoring="roc_auc", cv=cv, n_jobs=N_JOBS).fit(X, y)
 
 
-def permutation_significance(estimator, X, y, n_permutations=300, cv=INNER_CV):
-    """Observed score against a shuffled-label null."""
+def permutation_significance(estimator, X, y, n_permutations=300, cv=INNER_CV,
+                             scoring="roc_auc"):
+    """Observed score against a shuffled-label null, on any scoring scale.
+
+    The metric name travels with the numbers. A bare 0.58 is not a result until
+    the reader knows which scale it sits on and where that scale's null falls —
+    0.50 for ROC-AUC whatever the base rate, but the base rate itself for
+    average precision.
+    """
     score, null, p = permutation_test_score(
-        estimator, X, y, cv=cv, scoring="roc_auc",
+        estimator, X, y, cv=cv, scoring=scoring,
         n_permutations=n_permutations, random_state=SEED, n_jobs=N_JOBS)
-    return {"observed_auc": round(score, 4), "null_mean": round(null.mean(), 4),
+    return {"metric": scoring, "observed": round(score, 4),
+            "null_mean": round(null.mean(), 4),
             "null_sd": round(null.std(), 4), "null_p95": round(np.percentile(null, 95), 4),
             "p_value": round(p, 4)}
 
