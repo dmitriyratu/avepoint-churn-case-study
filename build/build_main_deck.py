@@ -1,4 +1,4 @@
-"""Build the 15-slide case-study deck, following the assignment brief.
+"""Build the 16-slide case-study deck, following the assignment brief.
 
 Structure follows the five parts the brief asks for:
   1 Problem framing   2 EDA + feature engineering   3 Modelling
@@ -13,7 +13,8 @@ from deck_style import (BLUE, GREEN, H, INK, M, MUTED, RED, W, blank, bullets,
                         footnote, header, new_deck, note, picture, run, tb)
 from pptx.util import Inches, Pt
 
-OUT = Path(__file__).with_name("AvePoint_Case_Study.pptx")
+OUT = Path(__file__).resolve().parents[1] / "outputs" / "decks" / "AvePoint_Case_Study.pptx"
+OUT.parent.mkdir(parents=True, exist_ok=True)
 
 prs = new_deck()
 _tb, _run = tb, run
@@ -42,7 +43,7 @@ note(s, "Thirty to forty minutes, five parts, following the brief. I say the "
         "The second clause is the part to sit on if there is only time for one "
         "thing. The strongest result I had — churn accelerating through 2024, "
         "p = 2e-16 — is reproduced exactly by a simulation containing nothing "
-        "but a random number generator. Slide 10 is that test. Finding it is "
+        "but a random number generator. Slide 11 is that test. Finding it is "
         "the piece of work I would most want to be judged on.")
 
 # ============================================================ 2 · PROBLEM
@@ -73,7 +74,7 @@ bullets(s, [
 ], size=14, space=6)
 footnote(s, "I found this by counting, not by modelling. No algorithm recovers a "
             "fact the source data never recorded the same way twice.")
-note(s, "Lead with the target problem. Along with slide 10 it is the most "
+note(s, "Lead with the target problem. Along with slide 11 it is the most "
         "valuable thing here, and it shows the instinct to check the label "
         "before fitting anything.\n\n"
         "If challenged on the 188: the point is not that agreement is low, it is "
@@ -147,7 +148,7 @@ bullets(s, [
     "  Customers still active when the data ends are treated as unknown, not as "
     "successes.",
     "  This is a generated dataset, so every finding is tested against a null "
-    "that imitates the generator — including the findings I liked. Slide 10 is "
+    "that imitates the generator — including the findings I liked. Slide 11 is "
     "that test, and it is the one that changed the answer.",
 ], size=14, space=5)
 
@@ -203,74 +204,85 @@ bullets(s, [
 
 # ============================================================ 8 · PERFORMANCE
 s = add("Part 3 · Modelling", "How it performs, and why the number is low", RED)
+picture(s, "09_selection_null.png", height=Inches(2.55), top=Inches(1.95),
+        left=Inches(7.45))
 bullets(s, [
-    ("Best single model, taken at face value:  AUC 0.583, range 0.37 to 0.75",
-     MUTED),
+    ("Best single model, taken at face value:  AUC 0.583", MUTED),
     ("The honest score:  AUC 0.534, give or take 0.016", INK, True),
     ("Guessing:  AUC 0.500", MUTED),
     "",
-    ("The gap between those two numbers is the point.", RED, True),
-    "  Picking the best of ten models is itself a form of fitting. Once you "
-    "measure that properly, 0.049 of AUC disappears. That is most of what "
-    "looked like signal.",
-    "  Across 25 test rounds, eight of the ten models won at least once. A "
-    "genuinely better model wins nearly every time. Eight different winners is "
-    "what noise looks like.",
-    "",
+    ("Picking the best of ten models is itself a form of fitting.", RED, True),
+    "  Measure that properly and 0.049 of AUC disappears — most of what looked "
+    "like signal. The chart is why: run the same ten-model search against "
+    "shuffled labels and the whole distribution slides right, past our result.",
+    "  Across 25 rounds, eight of the ten models won at least once. A genuinely "
+    "better model wins nearly every time.",
+], top=Inches(1.95), width=Inches(6.3), size=13, space=5)
+bullets(s, [
     ("Why the score is low. Each cause is measured, not guessed at.", INK, True),
     "  The inputs hold nothing. Usage and ticket dates are scattered at random "
     "across the two years and match their own customer's signup date at r = 0.002 "
     "and r = 0.014. Inside those tables, priority does not predict how fast we "
     "answered and plan does not predict how much people used.",
-    "  The target is a random date. Every churn date is a coin toss between the "
-    "day the customer joined and the last day of the file. Slide 10 is that test.",
-    "  Subscriptions is the one table with real rules, and none of it relates to "
-    "churn.",
-    "  Sample size is real but secondary: 54 churners against 73 features.",
-    "  It is not leakage, not the feature build, and not tuning. I checked all "
-    "three.",
-], size=13.5, space=6)
+    "  The target is a random date — a coin toss between the day the customer "
+    "joined and the last day of the file. Slide 11 is that test. Subscriptions is "
+    "the one table with real rules, and none of it relates to churn.",
+    "  Sample size is real but secondary: 54 churners against 73 features. It is "
+    "not leakage, not the feature build, and not tuning. I checked all three.",
+], top=Inches(4.72), size=13, space=5)
 footnote(s, "Scores are ROC-AUC: 0.50 is guessing, 1.00 is perfect. I confirmed "
             "the pipeline works by planting targets of known strength — a strong "
             "one scores AUC 0.965, a deliberately weak one 0.584, a meaningless "
             "one 0.494. The method works. AUC 0.534 is the right answer to the "
             "question this data can be asked.", INK)
 
-# ============================================================ 9 · REQUIRED THREE
-s = add("Part 3 · Modelling", "Imbalance, leakage and interpretability")
+# ============================================================ 9 · IMBALANCE + LEAKAGE
+s = add("Part 3 · Modelling", "Class imbalance, and what leakage is worth")
+picture(s, "06_leakage_effect.png", height=Inches(3.35), top=Inches(1.90),
+        left=Inches(7.05))
 bullets(s, [
     ("Class imbalance", INK, True),
     "  31% of customers left, so the classes are uneven but not badly so. I "
-    "weight the rare class rather than inventing synthetic customers. With only "
-    "54 real examples, synthetic ones are copies of copies and they flatter the "
+    "weight the rare class rather than inventing synthetic customers: with 54 "
+    "real examples, synthetic ones are copies of copies and they flatter the "
     "score.",
     "  I set the cut-off to favour catching leavers, because missing one costs "
     "far more than a wasted phone call. That gives 75% of leavers caught, and "
     "1 in 3 of the flagged customers actually leaving.",
     "  I report ROC-AUC because its baseline stays 0.50 at any class balance, "
     "which keeps the twelve horizon cells comparable when their churn rates run "
-    "11% to 45%. Precision-recall and F1 agree, so the metric is not choosing "
-    "the answer.",
+    "11% to 45%. Precision-recall and F1 agree.",
     "",
-    ("Data leakage", RED, True),
-    "  I do not rely on reading the code. A set of automatic checks runs before "
-    "any result is reported, and it blocks the result if anything fails.",
-    "  The checks look for dates after the cutoff, for banned columns by name, "
-    "and for any single feature that predicts too well.",
-    "  Columns that only exist after a customer leaves are worth 0.37 of extra "
-    "AUC. They push the model to AUC 0.79, which looks like a good model rather "
-    "than a broken one. That is exactly why they are dangerous.",
-    "",
-    ("Interpretability, and how it can mislead you", BLUE, True),
-    "  SHAP gives a clean, confident chart of what drives the prediction. I "
-    "checked it against shuffled data, where by definition there is nothing to "
-    "find. The chart looked just as convincing.",
-    "  The top feature beats random labels only 3 times in 4. Twelve different "
-    "features take first place across 25 reruns. These tools never tell you when "
-    "they have nothing to say, so I pair every one with a random baseline.",
-], size=14, space=5)
+    ("I do not rely on reading the code to catch leakage.", RED, True),
+    "  Automatic checks run before any result is reported and block it if "
+    "anything fails. They look for dates after the cutoff, banned columns by "
+    "name, and any single feature that predicts too well.",
+], top=Inches(1.90), width=Inches(6.0), size=13.5, space=6)
+footnote(s, "The chart is why those checks earn their place. Columns that only "
+            "exist after a customer leaves are worth 0.37 of extra AUC — they "
+            "push the model to 0.79, which looks like a good model rather than a "
+            "broken one. A pipeline that lets the future in scores 0.42, below "
+            "guessing. Both failures are invisible in the score alone.", INK)
 
-# ============================================================ 10 · INSIGHT 1
+# ============================================================ 10 · INTERPRETABILITY
+s = add("Part 3 · Modelling", "Interpretability, and how it can mislead you", BLUE)
+picture(s, "13_shap_real_vs_shuffled.png", height=Inches(2.75), top=Inches(1.72))
+bullets(s, [
+    ("These are the same chart. The right-hand one is built from labels I "
+     "shuffled at random — and it is more confident about its winner than the "
+     "real one is.", RED, True),
+    ("SHAP will always return a clean, ordered, plausible ranking. It has no way "
+     "to tell you it has nothing to say, which is why every attribution method "
+     "here is paired with a random baseline before it is believed.", INK, True),
+    ("The numbers underneath: the top feature beats random labels only 3 times in "
+     "4 (p = 0.24). Twelve different features take first place across 25 reruns. "
+     "Permutation importance on held-out data is beaten by noise outright.", INK),
+], top=Inches(4.72), size=12.5, space=4)
+footnote(s, "Read without the right-hand panel, the left one says support load "
+            "per seat drives churn, then contract size, then tenure. All three "
+            "are plausible. That is exactly what makes it dangerous.")
+
+# ============================================================ 11 · INSIGHT 1
 s = add("Part 4 · Recommendation 1",
         "Do not go looking for what changed in 2024", RED)
 picture(s, "16_generator_artefact.png", height=Inches(3.05), top=Inches(1.70))
@@ -313,7 +325,7 @@ note(s, "This is the slide I would want to be asked about.\n\n"
         "extract, simulate the file before trusting a time trend in it.\n\n"
         "src/generator.py, notebook 16.")
 
-# ============================================================ 11 · INSIGHT 2
+# ============================================================ 12 · INSIGHT 2
 s = add("Part 4 · Recommendation 2", "Do not build the onboarding programme", RED)
 picture(s, "12_cohort_gradient.png", height=Inches(3.0), top=Inches(1.78))
 bullets(s, [
@@ -331,10 +343,10 @@ bullets(s, [
      "a day-300 customer leaves as often as a day-10 one.", INK, True),
 ], top=Inches(4.95), size=12.5, space=4)
 footnote(s, "The recommendation does not change; the reason for it gets one "
-            "layer deeper. This is the same finding as slide 10, applied to a "
+            "layer deeper. This is the same finding as slide 11, applied to a "
             "spending decision instead of an investigation.")
 
-# ============================================================ 12 · INSIGHT 3
+# ============================================================ 13 · INSIGHT 3
 s = add("Part 4 · Recommendation 3", "Call every at-risk customer, do not rank them", GREEN)
 picture(s, "15_breakeven_grid.png", height=Inches(3.3), top=Inches(1.8))
 bullets(s, [
@@ -349,7 +361,7 @@ footnote(s, "This is one division. Had I run it first, it would have shown that 
             "a working model was never the thing standing between us and the "
             "decision.")
 
-# ============================================================ 13 · TESTING
+# ============================================================ 14 · TESTING
 s = add("Part 4 · Testing approach", "How I would test this, and what is worth testing")
 picture(s, "15_experiment_power.png", height=Inches(3.2), top=Inches(1.9), left=Inches(7.1))
 bullets(s, [
@@ -377,7 +389,7 @@ footnote(s, "Two separate methods agree on this. A standard power calculation "
             "and a simulation both say we cannot detect anything smaller than "
             "about a 15 point change.")
 
-# ============================================================ 14 · MENTORSHIP
+# ============================================================ 15 · MENTORSHIP
 s = add("Part 5 · Mentorship", "What I would teach a junior engineer")
 bullets(s, [
     ("I would hand them my own worst mistake on this project, because that is "
@@ -412,7 +424,7 @@ footnote(s, "I would teach all of it as experiments rather than lectures. Switch
             "Then simulate a dataset with nothing in it and watch it produce a "
             "publishable-looking trend.")
 
-# ============================================================ 15 · DEPLOY
+# ============================================================ 16 · DEPLOY
 s = add("Part 5 · Scalability", "How I would run this in production")
 tf = _tb(s, M, Inches(1.88), Inches(6.1), Inches(4.6))
 for line in [

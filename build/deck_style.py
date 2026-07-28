@@ -10,7 +10,7 @@ from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.util import Emu, Inches, Pt
 
-FIG = Path(__file__).with_name("figures")
+FIG = Path(__file__).resolve().parents[1] / "outputs" / "figures"
 
 INK = RGBColor(0x1A, 0x1A, 0x1A)
 MUTED = RGBColor(0x5A, 0x62, 0x70)

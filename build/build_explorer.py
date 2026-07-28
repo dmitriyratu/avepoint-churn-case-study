@@ -1,10 +1,10 @@
-"""Build outputs/data_explorer.html — an orientation page for the raw dataset.
+"""Build outputs/explorer/data_explorer.html — an orientation page for the raw dataset.
 
 Profiles the five raw CSVs, joins the profile to the field-level verdicts in
 docs/DATA_DICTIONARY.md, and writes a single self-contained HTML file: schema
 map, grain, timeline, cohort funnel, column atlas and the measured traps.
 
-Run:  python outputs/build_explorer.py
+Run:  python build/build_explorer.py
 """
 import json
 import sys
@@ -21,7 +21,8 @@ from src.config import CUTOFF_DATE, HORIZON_DAYS                   # noqa: E402
 from src.labeling import at_risk_accounts, build_cohort            # noqa: E402
 from src.load_data import RAW_DIR, load_all                        # noqa: E402
 
-OUT = Path(__file__).parent / "data_explorer.html"
+OUT = Path(__file__).resolve().parents[1] / "outputs" / "explorer" / "data_explorer.html"
+OUT.parent.mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------- metadata --
 # Verdicts mirror docs/DATA_DICTIONARY.md. Kept here as literals rather than

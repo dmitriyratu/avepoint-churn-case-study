@@ -15,6 +15,7 @@
 import sys
 sys.path.insert(0, "..")
 
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -124,6 +125,126 @@ ax.set_title("Does the ranking separate at the top?")
 ax.legend(); plt.tight_layout()
 plt.savefig("../outputs/figures/05_decile_lift.png", bbox_inches="tight")
 plt.show()
+
+# %% [markdown]
+# ### Every framing of the question, on one axis
+#
+# The prediction negative is spread across four notebooks and three estimators,
+# which makes it easy to wave away one result at a time. Put on a single axis it
+# is harder to argue with, and it is the version an executive audience can read.
+#
+# Values are taken from the recorded reports rather than retyped, so this cannot
+# drift away from what the notebooks actually produced.
+
+# %%
+metrics = pd.read_csv("../outputs/reports/final_metrics.csv").iloc[0]
+sweep = pd.read_csv("../outputs/reports/horizon_buffer_sweep.csv")
+buffered = sweep[(sweep["horizon"] == 90) & (sweep["buffer"] == 30)].iloc[0]
+
+# All four bars have to be the same quantity or their lengths are not
+# comparable, and comparing them is the whole point of the figure. Every row
+# is therefore the 2.5th-97.5th percentile of the per-fold scores.
+#
+# The nested row is the one that has to be rebuilt from its folds: the stored
+# `nested_cv_se` is the SE of the five repeat *means*, which is the precision
+# of the average, not the spread of the estimate. Plotting it alongside three
+# fold-spread bars made the nested row look six times better pinned down than
+# the others when it is only differently defined — and put its lower bound at
+# 0.502, just clear of chance, which is an artefact of the construction rather
+# than a finding.
+nested_folds = pd.read_csv("../outputs/reports/nested_cv_folds.csv")["outer_auc"]
+nested_lo, nested_hi = np.percentile(nested_folds, [2.5, 97.5])
+
+# The time-to-event framing is notebook 12's territory, but this figure has to
+# stand on its own: 05 runs before 12, so reading 12's report would break a clean
+# first pass through the notebooks. Recomputed here instead — same function, same
+# cohort, a couple of seconds.
+from src import survival
+
+cohort_surv = survival.cohort_survival_frame(data.cohort, data.tables, CUTOFF_DATE)
+cohort_surv = cohort_surv.loc[data.cohort["account_id"].values]
+cox_scores = survival.cv_concordance(
+    X.set_axis(data.cohort["account_id"].values),
+    cohort_surv["duration"], cohort_surv["event"])
+cox_point = cox_scores["concordance"]
+# Percentile of the folds here too, rather than the returned sd, so this row is
+# built the same way as the other three. Only 5 folds, so it is close to the
+# fold range; the classifier rows have 50 and the nested row 25.
+cox_lo, cox_hi = np.percentile(cox_scores["folds"], [2.5, 97.5])
+
+rows = [
+    ("Classifier, best of ten models", *json.loads(metrics["cv_auc_ci"]),
+     metrics["cv_auc"]),
+    ("...the same, priced for picking the winner", nested_lo, nested_hi,
+     metrics["nested_cv_auc"]),
+    ("Time-to-event model, all 352 departures", cox_lo, cox_hi, cox_point),
+    ("Classifier, asked for 30 days of warning",
+     buffered["ci_lo"], buffered["ci_hi"], buffered["cv_auc"]),
+]
+
+# Taller than the four rows need: the axis label and the caption under it are a
+# fixed number of points, so on a slide sized to a fixed height they eat a
+# smaller share of a taller figure, leaving the rows legible.
+fig, ax = plt.subplots(figsize=(11, 4.2))
+ax.axvline(0.5, color="#B02E2E", lw=2, zorder=1)
+# The axis has to run to 1.00. Cropping it at the widest interval puts 0.75 at
+# the right-hand edge, which reads as "nearly the top of the scale" — the
+# opposite of the point, and the one thing an executive eye takes from a
+# dot-and-line chart before reading a single number.
+ax.axvline(1.0, color="#B9BEC4", lw=1.5, ls=(0, (4, 3)), zorder=1)
+# Below the last row, so they cannot collide with the title.
+ax.text(0.5, -0.62, "  a coin flip", color="#B02E2E", fontsize=11.5,
+        fontweight="bold", va="center")
+ax.text(1.0, -0.62, "perfect  ", color="#6B7280", fontsize=11.5,
+        fontweight="bold", va="center", ha="right")
+for i, (label, lo, hi, point) in enumerate(rows):
+    ypos = len(rows) - 1 - i
+    ax.plot([lo, hi], [ypos, ypos], color="#cbd8ea", lw=3, solid_capstyle="round",
+            zorder=2)
+    ax.plot([point], [ypos], "o", ms=11, color="#2a78d6",
+            markeredgecolor="white", markeredgewidth=2, zorder=3)
+    ax.text(hi + 0.012, ypos, f"{point:.2f}", va="center", fontsize=11.5,
+            color="#1A1A1A", fontweight="bold")
+ax.set_yticks(range(len(rows)))
+ax.set_yticklabels([r[0] for r in reversed(rows)], fontsize=11.5)
+ax.set_xlim(0.20, 1.03)
+ax.set_xticks([round(0.2 + 0.1 * i, 1) for i in range(9)])
+ax.set_ylim(-0.95, len(rows) - 0.4)
+ax.set_xlabel("chance the model ranks a customer who left above one who stayed",
+              fontsize=11)
+# Says what the bar is. Without it a reader takes the wide top bar as "it could
+# be 0.75", when it is the spread of single folds of ~35 accounts.
+ax.annotate("bars span the 2.5th–97.5th percentile across cross-validation folds",
+            xy=(0.5, -0.37), xycoords="axes fraction", ha="center",
+            fontsize=9.5, color="#6B7280")
+ax.tick_params(axis="x", labelsize=10.5)
+ax.grid(False)
+for side in ("top", "right", "left"):
+    ax.spines[side].set_visible(False)
+ax.spines["bottom"].set_color("#D8DCE0")
+ax.set_title("Every way we asked the question lands on the coin flip",
+             loc="left", fontsize=13.5, fontweight="bold", pad=12)
+plt.tight_layout()
+plt.savefig("../outputs/figures/05_all_framings.png", bbox_inches="tight", dpi=150)
+plt.show()
+
+for label, lo, hi, point in rows:
+    print(f"  {label:44s} {point:.3f}   [{lo:.3f}, {hi:.3f}]"
+          f"{'' if lo < 0.5 < hi else '   <- does not cross chance'}")
+
+# %% [markdown]
+# Every bar crosses 0.50. The top row is the number a less careful write-up would
+# report; the second is the same search once choosing the winner is paid for. The
+# third changes estimator entirely and uses 6.5x the events. The fourth asks for
+# enough warning to act on, and lands *below* chance.
+#
+# The bars are wide, and their width is the second finding rather than a hedge on
+# the first. Each fold tests ~35 accounts holding ~11 churners, so a single fold's
+# AUC swings hard: the nested run's 25 folds range 0.328 to 0.756. The top of a
+# bar is therefore a lucky fold, not a claim that the model might be that good —
+# 9 of those 25 folds land below chance. A ranker this unstable cannot be
+# distinguished from a coin flip at this sample size, which is the same
+# conclusion the permutation test reaches (p = 0.076) from the other direction.
 
 # %% [markdown]
 # ## Part 4 — Strategic recommendations

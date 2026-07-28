@@ -29,7 +29,8 @@ from deck_style import (BLUE, GREEN, H, INK, M, MUTED, RED, W, blank, bullets,
                         footnote, header, new_deck, note, picture, run, stat, tb)
 from pptx.util import Inches, Pt
 
-OUT = Path(__file__).with_name("AvePoint_Executive_Summary.pptx")
+OUT = Path(__file__).resolve().parents[1] / "outputs" / "decks" / "AvePoint_Executive_Summary.pptx"
+OUT.parent.mkdir(parents=True, exist_ok=True)
 
 prs = new_deck()
 
@@ -131,40 +132,33 @@ note(s, "Expect: 'you showed us a rising chart last time — what changed?'\n\n"
 s = add("Question 2", "Can we predict churn before it happens?")
 verdict(s, "Not from this data as it stands, and a better algorithm is not the "
            "missing piece.", RED)
+picture(s, "05_all_framings.png", height=Inches(1.92), top=Inches(2.30))
 bullets(s, [
-    ("We tried three genuinely different approaches. None beat chance once we "
-     "account for having tried many.", INK, True),
-    "  Best model: AUC 0.58, on a scale where 0.50 is a coin flip and 1.00 is "
-    "perfect. Its uncertainty spans AUC 0.37 to 0.75, the same search on "
-    "deliberately scrambled data reached AUC 0.58 or better in 7 of 20 "
-    "attempts, and priced for the fact that we picked the winner it is AUC 0.53.",
-    "",
     ("The reason is the data, and it is now specific.", INK, True),
     "  Product usage and support tickets are not tied to the customers they "
     "describe. Their dates are scattered at random across the whole two years, "
     "which is why three-quarters of usage rows are dated before the subscription "
     "they belong to and half the tickets before the customer existed.",
-    "  The thing we are predicting is a random date too, as slide 2 shows.",
-    "  Three sources disagree on who churned: they agree on about one account "
-    "in five, which is what two unrelated columns would do.",
+    "  The thing we are predicting is a random date too, as slide 2 shows. And "
+    "three sources disagree on who churned: they agree on about one account in "
+    "five, which is what two unrelated columns would do.",
     "",
     ("How firm is this? Firmer for some parts than others.", INK, True),
-    "  For usage and support we can say there is nothing there, because those "
-    "records were never linked to the customer in the first place.",
-    "  For customer characteristics — industry, plan, size — the honest claim is "
-    "that we could not detect anything with 54 churners, not that nothing "
-    "exists.",
-    "",
-    ("The warning time we would need makes it harder, not easier.", INK, True),
-    "  Asking for 30 days of notice, so somebody could act, moves every horizon "
-    "into the AUC 0.42 to 0.52 band. A prediction that arrives too late to use "
-    "is not useful.",
+    "  For usage and support we can say there is nothing there: those records "
+    "were never linked to the customer in the first place. For customer "
+    "characteristics — industry, plan, size — the honest claim is that we could "
+    "not detect anything with 54 churners, not that nothing exists.",
     "",
     ("Practically: do not buy or build churn scoring on this. It needs a "
      "different export, not a better model — see slide 6.", BLUE, True),
-], top=BODY_TOP, size=13.5, space=3)
-footnote(s, "AUC is ranking accuracy: 0.50 is a coin flip, 1.00 is perfect. The "
-            "metric is not doing the work — precision-recall and F1 agree, and "
+], top=Inches(4.34), size=12.5, space=3)
+footnote(s, "The scale: pick one customer who left and one who stayed — the "
+            "number is the chance the model scored the leaver as riskier. 0.50 "
+            "is a coin toss, 1.00 is always right. The faint bars are how far "
+            "the score moves between test splits. The bottom row is the one "
+            "that matters operationally: ask for 30 days of warning, so "
+            "somebody can act, and it lands below a coin toss. "
+            "Precision-recall and F1 agree, and "
             "on F1 the model beats a no-model policy by less than the optimism "
             "in its own tuned threshold. Ladder and null tests in the technical "
             "deck.")
