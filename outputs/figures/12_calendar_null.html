@@ -17,15 +17,21 @@
   .key .ln { display: inline-block; width: 26px; border-top: 2.5px solid #1A1A1A;
               margin-right: 8px; vertical-align: 4px; }
 
-  .chart { position: relative; padding: 0 0 0 44px; }
+  .chart { position: relative; padding: 0 0 0 92px; }
   .chart svg { width: 100%; height: 300px; display: block;
-                border-bottom: 1px solid #C9CFD6; }
-  .yaxis { position: absolute; left: 0; top: 0; bottom: 0; width: 40px; }
+                border-left: 1px solid #C9CFD6; border-bottom: 1px solid #C9CFD6; }
+  .yaxis { position: absolute; left: 48px; top: 0; bottom: 0; width: 40px; }
   .yaxis span { position: absolute; right: 8px; transform: translateY(50%);
                  font-size: 11.5px; color: #5A6270; }
-  .xaxis { position: relative; height: 18px; margin: 6px 0 0 44px; }
+  .ytitle { position: absolute; left: 6px; top: 50%; white-space: nowrap;
+             font-size: 12px; color: #1A1A1A; font-weight: 700;
+             transform: rotate(-90deg) translate(-50%, -50%);
+             transform-origin: left top; }
+  .xaxis { position: relative; height: 18px; margin: 6px 0 0 92px; }
   .xaxis span { position: absolute; transform: translateX(-50%); font-size: 11.5px;
                  color: #5A6270; }
+  .xtitle { margin: 4px 0 0 92px; font-size: 12px; font-weight: 700;
+             text-align: center; }
 
   .fill { fill: #B02E2E; opacity: .13; }
   .nullline { fill: none; stroke: #B02E2E; stroke-width: 2;
@@ -45,13 +51,14 @@
   .stripnote { flex: 0 0 340px; font-size: 12.5px; color: #5A6270; line-height: 1.5; }
   .stripnote b { color: #1A1A1A; font-size: 13px; display: block;
                   margin-bottom: 3px; }
-  .hist { flex: 1 1 auto; display: flex; align-items: flex-end; gap: 4px;
-           height: 74px; }
+  .histwrap { flex: 1 1 auto; min-width: 0; }
+  .hist { display: flex; align-items: flex-end; gap: 5px; height: 74px; }
   .hist i { flex: 1 1 0; background: #2a78d6; position: relative; border-radius: 2px; }
   .hist i b { position: absolute; top: -17px; left: 0; right: 0; text-align: center;
                font-size: 11px; font-weight: 400; color: #5A6270; }
   .histax { display: flex; justify-content: space-between; font-size: 12px;
              color: #5A6270; margin-top: 5px; }
+  .histtitle { font-size: 11.5px; color: #5A6270; margin-bottom: 20px; }
 </style>
 <div class="page">
   <div class="key">
@@ -59,10 +66,10 @@
     <span><span class="sw" style="background:#B02E2E;opacity:.2"></span>
       what a file with <b>random churn dates</b> produces &mdash; 200 rebuilds,
       95% range</span>
-    <span class="muted">share of at-risk customers leaving that month</span>
   </div>
 
   <div class="chart">
+    <div class="ytitle">share of at-risk customers who left that month</div>
     <div class="yaxis"><span style="bottom:0.0%">0%</span><span style="bottom:17.1%">5%</span><span style="bottom:34.2%">10%</span><span style="bottom:51.3%">15%</span><span style="bottom:68.4%">20%</span><span style="bottom:85.4%">25%</span></div>
     <svg viewBox="0 0 900 300" preserveAspectRatio="none">
       <polygon class="fill" points="0.00,179.41 39.13,209.56 78.26,205.05 117.39,206.79 156.52,206.69 195.65,207.72 234.78,203.31 273.91,202.79 313.04,199.61 352.17,182.90 391.30,197.46 430.43,185.46 469.57,192.23 508.70,194.08 547.83,183.62 586.96,174.90 626.09,169.98 665.22,162.19 704.35,150.70 743.48,143.63 782.61,127.53 821.74,105.79 860.87,68.16 900.00,22.22 900.00,90.51 860.87,150.81 821.74,191.51 782.61,212.94 743.48,222.28 704.35,231.09 665.22,238.17 626.09,248.42 586.96,251.19 547.83,254.68 508.70,264.21 469.57,264.21 430.43,259.70 391.30,269.14 352.17,278.47 313.04,284.21 273.91,282.67 234.78,290.26 195.65,289.34 156.52,289.13 117.39,300.00 78.26,300.00 39.13,300.00 0.00,300.00"/>
@@ -71,6 +78,7 @@
     </svg>
   </div>
   <div class="xaxis"><span style="left:0.00%">Jan 23</span><span style="left:13.04%">Apr 23</span><span style="left:26.09%">Jul 23</span><span style="left:39.13%">Oct 23</span><span style="left:52.17%">Jan 24</span><span style="left:65.22%">Apr 24</span><span style="left:78.26%">Jul 24</span><span style="left:91.30%">Oct 24</span></div>
+  <div class="xtitle">month</div>
 
   <div class="verdict">
     <div class="v"><b>&times;2.79 a year</b>
@@ -91,7 +99,8 @@
       and the last day of the file. Real churn would cluster somewhere. This is
       flat &mdash; indistinguishable from a random draw, KS p = 0.92.
     </div>
-    <div>
+    <div class="histwrap">
+      <div class="histtitle">share of all churn events</div>
       <div class="hist"><i style="height:86.6%"><b>10%</b></i><i style="height:92.5%"><b>10%</b></i><i style="height:89.6%"><b>10%</b></i><i style="height:88.1%"><b>10%</b></i><i style="height:92.5%"><b>10%</b></i><i style="height:91.0%"><b>10%</b></i><i style="height:76.1%"><b>8%</b></i><i style="height:89.6%"><b>10%</b></i><i style="height:100.0%"><b>11%</b></i><i style="height:89.6%"><b>10%</b></i></div>
       <div class="histax"><span>their signup day</span>
         <span>the last day of the file</span></div>

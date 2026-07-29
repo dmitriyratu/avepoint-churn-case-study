@@ -84,15 +84,21 @@ HTML = f"""<meta charset="utf-8">
   .key .ln {{ display: inline-block; width: 26px; border-top: 2.5px solid #1A1A1A;
               margin-right: 8px; vertical-align: 4px; }}
 
-  .chart {{ position: relative; padding: 0 0 0 44px; }}
+  .chart {{ position: relative; padding: 0 0 0 92px; }}
   .chart svg {{ width: 100%; height: 300px; display: block;
-                border-bottom: 1px solid #C9CFD6; }}
-  .yaxis {{ position: absolute; left: 0; top: 0; bottom: 0; width: 40px; }}
+                border-left: 1px solid #C9CFD6; border-bottom: 1px solid #C9CFD6; }}
+  .yaxis {{ position: absolute; left: 48px; top: 0; bottom: 0; width: 40px; }}
   .yaxis span {{ position: absolute; right: 8px; transform: translateY(50%);
                  font-size: 11.5px; color: #5A6270; }}
-  .xaxis {{ position: relative; height: 18px; margin: 6px 0 0 44px; }}
+  .ytitle {{ position: absolute; left: 6px; top: 50%; white-space: nowrap;
+             font-size: 12px; color: #1A1A1A; font-weight: 700;
+             transform: rotate(-90deg) translate(-50%, -50%);
+             transform-origin: left top; }}
+  .xaxis {{ position: relative; height: 18px; margin: 6px 0 0 92px; }}
   .xaxis span {{ position: absolute; transform: translateX(-50%); font-size: 11.5px;
                  color: #5A6270; }}
+  .xtitle {{ margin: 4px 0 0 92px; font-size: 12px; font-weight: 700;
+             text-align: center; }}
 
   .fill {{ fill: #B02E2E; opacity: .13; }}
   .nullline {{ fill: none; stroke: #B02E2E; stroke-width: 2;
@@ -112,13 +118,14 @@ HTML = f"""<meta charset="utf-8">
   .stripnote {{ flex: 0 0 340px; font-size: 12.5px; color: #5A6270; line-height: 1.5; }}
   .stripnote b {{ color: #1A1A1A; font-size: 13px; display: block;
                   margin-bottom: 3px; }}
-  .hist {{ flex: 1 1 auto; display: flex; align-items: flex-end; gap: 4px;
-           height: 74px; }}
+  .histwrap {{ flex: 1 1 auto; min-width: 0; }}
+  .hist {{ display: flex; align-items: flex-end; gap: 5px; height: 74px; }}
   .hist i {{ flex: 1 1 0; background: #2a78d6; position: relative; border-radius: 2px; }}
   .hist i b {{ position: absolute; top: -17px; left: 0; right: 0; text-align: center;
                font-size: 11px; font-weight: 400; color: #5A6270; }}
   .histax {{ display: flex; justify-content: space-between; font-size: 12px;
              color: #5A6270; margin-top: 5px; }}
+  .histtitle {{ font-size: 11.5px; color: #5A6270; margin-bottom: 20px; }}
 </style>
 <div class="page">
   <div class="key">
@@ -126,10 +133,10 @@ HTML = f"""<meta charset="utf-8">
     <span><span class="sw" style="background:#B02E2E;opacity:.2"></span>
       what a file with <b>random churn dates</b> produces &mdash; {N_SIMS} rebuilds,
       95% range</span>
-    <span class="muted">share of at-risk customers leaving that month</span>
   </div>
 
   <div class="chart">
+    <div class="ytitle">share of at-risk customers who left that month</div>
     <div class="yaxis">{yticks}</div>
     <svg viewBox="0 0 {W} {H}" preserveAspectRatio="none">
       <polygon class="fill" points="{band_area}"/>
@@ -138,6 +145,7 @@ HTML = f"""<meta charset="utf-8">
     </svg>
   </div>
   <div class="xaxis">{xticks}</div>
+  <div class="xtitle">month</div>
 
   <div class="verdict">
     <div class="v"><b>&times;{summary['observed_annual']:.2f} a year</b>
@@ -158,7 +166,8 @@ HTML = f"""<meta charset="utf-8">
       and the last day of the file. Real churn would cluster somewhere. This is
       flat &mdash; indistinguishable from a random draw, KS p = {ks_p:.2f}.
     </div>
-    <div>
+    <div class="histwrap">
+      <div class="histtitle">share of all churn events</div>
       <div class="hist">{bars}</div>
       <div class="histax"><span>their signup day</span>
         <span>the last day of the file</span></div>

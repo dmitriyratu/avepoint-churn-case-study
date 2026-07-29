@@ -1,0 +1,145 @@
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1160px; background: #fff; color: #1A1A1A;
+    font-family: Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { display: flex; gap: 40px; padding: 18px 24px 20px; }
+  .panel { flex: 1 1 0; }
+  .panel.right { flex: 0.92 1 0; }
+  h2 { font-size: 14.5px; font-weight: 700; }
+  h2 em { display: block; font-style: normal; font-weight: 400; font-size: 12px;
+           color: #5A6270; margin-top: 3px; line-height: 1.4; }
+
+  .row { display: flex; align-items: center; height: 30px; }
+  .lab { flex: 0 0 128px; text-align: right; padding-right: 14px; font-size: 13px; }
+  .lab em { font-style: normal; color: #5A6270; font-size: 11.5px; }
+  .track { flex: 1 1 auto; min-width: 0; position: relative; height: 30px; }
+  .track i { position: absolute; display: block; }
+  .one { top: 0; bottom: 0; width: 2px; background: #1A1A1A;
+          transform: translateX(-1px); }
+  .ci { top: 50%; height: 3px; margin-top: -1.5px; background: #B02E2E;
+         opacity: .45; border-radius: 2px; }
+  .dot { top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px;
+          border-radius: 50%; background: #2a78d6; }
+  .dot.hot { background: #B02E2E; }
+  .val { flex: 0 0 40px; padding-left: 14px; font-size: 13px; font-weight: 700; }
+  .p { flex: 0 0 62px; font-size: 12px; color: #5A6270; }
+  .hot { color: #B02E2E; }
+  .split { display: flex; align-items: center; margin: 9px 0 9px 128px;
+            font-size: 12px; color: #5A6270; }
+  .split span { padding-right: 12px; white-space: nowrap; }
+  .split::after { content: ""; flex: 1 1 auto; border-top: 1px solid #E4E7EB; }
+
+  .rhoaxis { position: relative; height: 18px; margin: 4px 102px 0 128px; }
+  .rhoaxis span { position: absolute; transform: translateX(-50%); font-size: 11.5px;
+                   color: #5A6270; }
+  .rhocap { margin: 4px 102px 0 128px; font-size: 12px; color: #5A6270;
+             text-align: center; }
+  .rhocap b { color: #1A1A1A; }
+
+  .chart { position: relative; padding-left: 40px; margin-top: 14px; }
+  .chart svg { width: 100%; height: 250px; display: block;
+                border-left: 1px solid #C9CFD6; border-bottom: 1px solid #C9CFD6; }
+  .ln { fill: none; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+  .yax { position: absolute; left: 0; top: 0; bottom: 0; width: 36px; }
+  .yax span { position: absolute; right: 7px; transform: translateY(50%);
+               font-size: 11.5px; color: #5A6270; }
+  .xax { position: relative; height: 32px; margin: 6px 0 0 40px; }
+  .xax span { position: absolute; transform: translateX(-50%); font-size: 11px;
+               color: #5A6270; text-align: center; }
+  .xax em { display: block; font-style: normal; font-size: 10.5px; color: #9AA3AF; }
+  .leg { display: flex; gap: 18px; margin: 8px 0 0 40px; font-size: 12px;
+          color: #5A6270; }
+  .leg i { display: inline-block; width: 11px; height: 11px; border-radius: 50%;
+            margin-right: 6px; vertical-align: -1px; }
+  .foot { margin: 10px 0 0 40px; font-size: 12px; color: #5A6270; line-height: 1.45; }
+</style>
+<div class="page">
+
+  <div class="panel">
+    <h2>Does churn risk fall as customers settle in?
+      <em>Weibull shape. Below 1 means risk falls with tenure &mdash; the shape an
+        onboarding problem makes. 1 means tenure tells you nothing.</em></h2>
+    <div style="margin-top:14px">
+  <div class="row pooled">
+    <span class="lab">everyone pooled</span>
+    <span class="track">
+      <i class="one" style="left:47.06%"></i>
+      <i class="ci hot" style="left:8.55%;
+         width:15.09%"></i>
+      <i class="dot hot" style="left:16.11%"></i>
+    </span>
+    <span class="val hot">0.74</span>
+    <span class="p hot">p = 2e-13</span>
+  </div>
+  <div class="split"><span>refit inside each signup cohort</span></div>
+  <div class="row">
+    <span class="lab">2023Q1 &nbsp;<em>n = 55</em></span>
+    <span class="track">
+      <i class="one" style="left:47.06%"></i>
+      <i class="dot" style="left:32.24%"></i>
+    </span>
+    <span class="val">0.87</span>
+    <span class="p">p = 0.31</span>
+  </div>
+  <div class="row">
+    <span class="lab">2023Q2 &nbsp;<em>n = 54</em></span>
+    <span class="track">
+      <i class="one" style="left:47.06%"></i>
+      <i class="dot" style="left:76.47%"></i>
+    </span>
+    <span class="val">1.25</span>
+    <span class="p">p = 0.20</span>
+  </div>
+  <div class="row">
+    <span class="lab">2023Q3 &nbsp;<em>n = 53</em></span>
+    <span class="track">
+      <i class="one" style="left:47.06%"></i>
+      <i class="dot" style="left:67.06%"></i>
+    </span>
+    <span class="val">1.17</span>
+    <span class="p">p = 0.27</span>
+  </div>
+  <div class="row">
+    <span class="lab">2023Q4 &nbsp;<em>n = 65</em></span>
+    <span class="track">
+      <i class="one" style="left:47.06%"></i>
+      <i class="dot" style="left:53.88%"></i>
+    </span>
+    <span class="val">1.06</span>
+    <span class="p">p = 0.64</span>
+  </div>
+  <div class="row">
+    <span class="lab">2024Q1 &nbsp;<em>n = 56</em></span>
+    <span class="track">
+      <i class="one" style="left:47.06%"></i>
+      <i class="dot" style="left:33.06%"></i>
+    </span>
+    <span class="val">0.88</span>
+    <span class="p">p = 0.36</span>
+  </div></div>
+    <div class="rhoaxis"><span style="left:0.00%">0.6</span><span style="left:23.53%">0.8</span><span style="left:47.06%">1.0</span><span style="left:70.59%">1.2</span><span style="left:94.12%">1.4</span></div>
+    <div class="rhocap">Weibull shape &nbsp;&middot;&nbsp;
+      <b>the black line at 1.0 is "tenure tells you nothing"</b></div>
+  </div>
+
+  <div class="panel right">
+    <h2>The same thing seen a second way
+      <em>Each cohort measured at the same age, so unequal follow-up cannot
+        produce the gap. These are eight separate groups, not a timeline.</em></h2>
+    <div class="chart">
+      <div class="yax"><span style="bottom:0.0%">20%</span><span style="bottom:23.5%">40%</span><span style="bottom:47.1%">60%</span><span style="bottom:70.6%">80%</span><span style="bottom:94.1%">100%</span></div>
+      <svg viewBox="0 0 420 250" preserveAspectRatio="none"><polyline class="ln" style="stroke:#2a78d6" points="0.00,41.47 60.00,20.29 120.00,36.76 180.00,50.88 240.00,56.76 300.00,69.12 360.00,100.59 420.00,136.18"/><circle r="4" fill="#2a78d6" cx="0.00" cy="41.47"/><circle r="4" fill="#2a78d6" cx="60.00" cy="20.29"/><circle r="4" fill="#2a78d6" cx="120.00" cy="36.76"/><circle r="4" fill="#2a78d6" cx="180.00" cy="50.88"/><circle r="4" fill="#2a78d6" cx="240.00" cy="56.76"/><circle r="4" fill="#2a78d6" cx="300.00" cy="69.12"/><circle r="4" fill="#2a78d6" cx="360.00" cy="100.59"/><circle r="4" fill="#2a78d6" cx="420.00" cy="136.18"/><polyline class="ln" style="stroke:#eb6834" points="0.00,46.76 60.00,31.18 120.00,47.94 180.00,73.53 240.00,88.24 300.00,123.24 360.00,141.47 420.00,232.06"/><circle r="4" fill="#eb6834" cx="0.00" cy="46.76"/><circle r="4" fill="#eb6834" cx="60.00" cy="31.18"/><circle r="4" fill="#eb6834" cx="120.00" cy="47.94"/><circle r="4" fill="#eb6834" cx="180.00" cy="73.53"/><circle r="4" fill="#eb6834" cx="240.00" cy="88.24"/><circle r="4" fill="#eb6834" cx="300.00" cy="123.24"/><circle r="4" fill="#eb6834" cx="360.00" cy="141.47"/><circle r="4" fill="#eb6834" cx="420.00" cy="232.06"/><polyline class="ln" style="stroke:#1e7a4b" points="0.00,68.24 60.00,52.94 120.00,64.71 180.00,96.18 240.00,104.12 300.00,150.59 360.00,190.29"/><circle r="4" fill="#1e7a4b" cx="0.00" cy="68.24"/><circle r="4" fill="#1e7a4b" cx="60.00" cy="52.94"/><circle r="4" fill="#1e7a4b" cx="120.00" cy="64.71"/><circle r="4" fill="#1e7a4b" cx="180.00" cy="96.18"/><circle r="4" fill="#1e7a4b" cx="240.00" cy="104.12"/><circle r="4" fill="#1e7a4b" cx="300.00" cy="150.59"/><circle r="4" fill="#1e7a4b" cx="360.00" cy="190.29"/></svg>
+    </div>
+    <div class="xax"><span style="left:0.00%">2023Q1<em>55</em></span><span style="left:14.29%">2023Q2<em>54</em></span><span style="left:28.57%">2023Q3<em>53</em></span><span style="left:42.86%">2023Q4<em>65</em></span><span style="left:57.14%">2024Q1<em>56</em></span><span style="left:71.43%">2024Q2<em>65</em></span><span style="left:85.71%">2024Q3<em>72</em></span><span style="left:100.00%">2024Q4<em>80</em></span></div>
+    <div class="leg"><span><i style="background:#2a78d6"></i>30 days</span><span><i style="background:#eb6834"></i>60 days</span><span><i style="background:#1e7a4b"></i>90 days</span>
+      <span style="color:#9AA3AF">small number = customers in that cohort</span></div>
+    <div class="foot">Later cohorts look worse at every age. They are not worse:
+      a customer who joined recently has a shorter window for a random churn date
+      to land in, so more of their draws fall inside any 30 or 90-day question.</div>
+  </div>
+
+</div>

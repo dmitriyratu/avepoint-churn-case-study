@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from deck_style import INK, RED, blank, bullets, footnote, header, new_deck, note, picture  # noqa: E402
+from deck_style import GREEN, INK, RED, blank, bullets, footnote, header, new_deck, note, picture  # noqa: E402
 from pptx.util import Inches  # noqa: E402
 
 OUT = Path.home() / "Downloads" / "AvePoint_New_Slides.pptx"
@@ -376,9 +376,8 @@ note(s, "Replaces the SHAP slide, which answered a question nobody asked. The "
         "outputs/reports/coef_null.csv and coef_stability.csv.")
 
 # ========================================== H · CHURN IS NOT ACCELERATING
-s = add("Part 4 · Recommendation 1", "Do not go looking for what changed in 2024",
-        RED)
-picture(s, "12_calendar_null.png", top=Inches(1.66), height=Inches(4.30))
+s = add("Part 4 · Recommendation 1", "Nothing changed in 2024", RED)
+picture(s, "12_calendar_null.png", top=Inches(1.62), height=Inches(3.62))
 bullets(s, [
     ("Churn looks like it is accelerating. About 5 customers in every 100 left "
      "each month in 2023, rising to 22 in 100 by December 2024. A 2.8x rise per "
@@ -391,7 +390,7 @@ bullets(s, [
     "range those rebuilds produce, and our result lands at the 58th percentile "
     "of pure noise. So there is nothing here to investigate, and that is the "
     "recommendation.",
-], top=Inches(6.10), size=13, space=4)
+], top=Inches(5.36), size=12.5, space=3)
 footnote(s, "A small p-value only rejects one null. Here it rejected “the rate "
             "is flat”, which was never the question.")
 note(s, "Say it in three sentences and stop. Churn looks like it is "
@@ -414,6 +413,112 @@ note(s, "Say it in three sentences and stop. Churn looks like it is "
         "From generator.simulate_churn_dates and generator.calendar_hazard_null, "
         "200 rebuilds, seed 0, shown in notebook 16. Figure built by "
         "build/fig_calendar_null_html.py.")
+
+# ========================================== I · TENURE CARRIES NO INFORMATION
+s = add("Part 4 · Recommendation 2", "Tenure tells you nothing", RED)
+picture(s, "12_tenure_null.png", top=Inches(1.62), height=Inches(3.30))
+bullets(s, [
+    ("New customers look fragile and risk looks like it falls with age, which "
+     "is the usual case for funding onboarding. Pooled across everybody the "
+     "Weibull shape is 0.74, p = 2e-13 — emphatic.", INK, True),
+    "",
+    ("Refit inside a single signup cohort and the shape returns to 1 every "
+     "time.", RED, True),
+    "  0.87, 1.25, 1.17, 1.06, 0.88. Two of the five point the other way and "
+     "none is distinguishable from flat. Within a cohort, a day-300 customer "
+     "leaves as often as a day-10 one.",
+    "  The pooled figure was composition, not onboarding. Recent cohorts supply "
+     "the short-tenure observations and they look worse at every age, so the "
+     "pooled curve falls without any customer ever becoming safer.",
+    "",
+    "Simulated data containing no tenure effect at all clears the significance "
+    "bar in 93% of runs, and does so more strongly than the real data does: "
+    "p = 0.002 against 0.006.",
+], top=Inches(5.02), size=12.5, space=3)
+footnote(s, "Same artefact as recommendation 1, applied to a spending decision "
+            "instead of an investigation.")
+note(s, "Say the argument in two sentences. Pooled, churn risk falls sharply "
+        "with tenure, which is the onboarding case. Refit inside each signup "
+        "cohort and it vanishes, so the pooled shape was composition.\n\n"
+        "The left panel is the argument and the right panel confirms it. The "
+        "old version of this slide led with the right panel, which is a "
+        "weaker place to start and reads left-to-right as a timeline when the "
+        "x-axis is eight separate groups.\n\n"
+        "WHY WITHIN-COHORT IS THE TEST. A composition effect cannot operate "
+        "inside a single cohort, because everybody joined at the same time. If "
+        "the falling shape were real it would survive there. It does not.\n\n"
+        "IF ASKED ABOUT THE WOBBLE FROM 2023Q1 TO 2023Q2 in the right panel: "
+        "that is four customers out of about 55. The cohorts are 53 to 80 "
+        "customers each, which is why n is printed under every point.\n\n"
+        "IF ASKED WHETHER SIGNUPS ARE FALLING: no, they rise — 55, 54, 53, 65, "
+        "56, 65, 72, 80. The y-axis is a share, not a headcount.\n\n"
+        "Only five cohorts appear on the left because the fit needs a full year "
+        "of follow-up. From survival.hazard_shape and "
+        "survival.shape_within_cohorts, shown in notebook 12. Figure built by "
+        "build/fig_tenure_null_html.py.")
+
+# ============================================ J · WHAT TO DO ABOUT CHURN
+s = add("Part 4 · Recommendations", "What to do about churn")
+picture(s, "15_what_to_do.png", top=Inches(1.78), height=Inches(3.55))
+bullets(s, [
+    ("Three things follow from this work, and none of them needs a model.",
+     INK, True),
+    "  Call everybody at risk, because at a 31% churn rate the decision is "
+    "already right for every customer. Do not spend on the two things the data "
+    "appears to recommend, because both come from the same artefact. Fix three "
+    "things in the export and the question becomes answerable.",
+], top=Inches(5.62), size=13.5, space=4)
+footnote(s, "Every number here is a count from the tables. Nothing is modelled "
+            "and nothing is assumed.")
+note(s, "The slide to present if there is only time for one. Everything else "
+        "in Part 4 is the working behind a column of this."
+        + "\n\n" +
+        "The three columns are deliberately in that order. A hiring panel wants "
+        "to hear an action before it hears a caveat, and the data request lands "
+        "better once they have seen why the obvious moves are wrong."
+        + "\n\n" +
+        "No currency appears. The repo carries an illustrative call cost and "
+        "success rate, neither of which is in the data, so the break-even is "
+        "stated as a ratio instead."
+        + "\n\n" +
+        "Built by build/fig_what_to_do_html.py.")
+
+# ============================================ G · THE RANKING IS WORTH NOTHING
+s = add("Part 4 · Recommendation 3", "Call every at-risk customer, do not rank them")
+picture(s, "15_breakeven_simple.png", top=Inches(1.70), height=Inches(3.55))
+bullets(s, [
+    ("A call costs about $150. A customer is worth about $7,300. If one call in "
+     "five saves the customer, the call pays for itself on anyone with more "
+     "than a 10.3% chance of leaving.", INK, True),
+    "",
+    "Everyone in this cohort is at 30.5%, three times over that bar. So the "
+    "right action for every customer is the same one, and no ordering can "
+    "improve on a decision that is already correct for all of them.",
+    "",
+    "Ranking would only start to matter if a call cost $446 rather than $150, "
+    "or a customer were worth $2,459 rather than $7,310. Both are a factor of "
+    "three away.",
+    "",
+    ("Using the model adds $600 on top of $52,400. A 1% gain, and generous at "
+     "that, because the threshold it uses was chosen with hindsight on the same "
+     "customers.", GREEN, True),
+], top=Inches(5.42), size=13.5, space=4)
+footnote(s, "One division. Run first, it would have shown that a working model "
+            "was never the thing standing between us and the decision.")
+note(s, "Replaces the break-even heatmap, which swept call cost against "
+        "customer value across sixteen cells. The sweep asked the reader to "
+        "find their cell, compare it against a base rate printed in the title, "
+        "and infer the conclusion themselves.\n\n"
+        "Only two cells of that grid ever mattered, and they are now stated as "
+        "the two points where the decision flips: $446 a call, or $2,459 a "
+        "customer.\n\n"
+        "Both inputs are assumptions, not measurements. "
+        "DEFAULT_INTERVENTION_COST = 150 and DEFAULT_EFFECTIVENESS = 0.20 in "
+        "src/economics.py; nothing in the data supports either. Say so before "
+        "being asked. The conclusion survives a wide range of both, which is "
+        "what the two flip points are there to show.\n\n"
+        "Numbers from outputs/reports/retention_economics.csv. The figure is "
+        "built by build/fig_breakeven_html.py.")
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 prs.save(OUT)
