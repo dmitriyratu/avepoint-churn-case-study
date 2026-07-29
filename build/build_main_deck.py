@@ -92,22 +92,6 @@ note(s, "Lead with the target problem. Along with slide 11 it is the most "
         "Computed in src/audit.py by label_source_agreement and "
         "churn_date_coherence, and shown in notebooks 01 and 10.")
 
-# ======================================================== 2b · ROLLING ORIGIN
-s = add("Part 1 · Problem framing", "The same question, asked from four dates")
-picture(s, "02_rolling_origin.png", top=Inches(2.05), height=Inches(3.55))
-footnote(s, "One date states the question. Four measure it: 648 rows and 159 "
-            "leavers across 281 customers, with no record invented.")
-note(s, "The picture carries three facts at once. Features never cross the red "
-        "line. The answer window always closes inside the extract, which is why "
-        "the last cutoff is September and not December. And this is one question "
-        "repeated, not four different questions.\n\n"
-        "Rows are split by customer, never at random — the same customer appears "
-        "at up to four dates and those rows are not independent. Forgetting that "
-        "flatters the score by 0.016.\n\n"
-        "Pooling cut measurement noise by 65% and did not move the answer: "
-        "grouped AUC 0.560, sd 0.034. Built by robustness.rolling_origin_cutoffs "
-        "and robustness.pooled_cv, shown in notebook 08.")
-
 # ============================================================ 3 · METRICS
 s = add("Part 1 · Problem framing", "How we would judge success")
 bullets(s, [
