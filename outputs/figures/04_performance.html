@@ -1,0 +1,146 @@
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1180px; background: #fff; color: #1A1A1A;
+    font-family: Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { padding: 18px 24px 22px; }
+  .head { display: flex; gap: 26px; align-items: baseline; padding-bottom: 10px;
+           border-bottom: 1px solid #D8DCE0; }
+  .head b { font-size: 14.5px; }
+  .head span { font-size: 12.5px; color: #5A6270; }
+  .head span i { font-style: normal; color: #1A1A1A; font-weight: 700; }
+  .stats { display: flex; gap: 0; padding: 12px 0 12px; border-bottom: 1px solid #D8DCE0; }
+  .stat { flex: 1 1 0; padding: 0 16px; border-left: 1px solid #E4E7EB; }
+  .stat:first-child { border-left: 0; padding-left: 0; }
+  .stat b { display: block; font-size: 17px; }
+  .stat span { display: block; font-size: 11.5px; color: #5A6270; margin-top: 3px;
+                line-height: 1.35; }
+  .wrap { display: flex; gap: 34px; padding: 14px 0 0; align-items: stretch; }
+  .panel { flex: 1 1 0; }
+  h2 { font-size: 14px; font-weight: 700; }
+  h2 em { display: block; font-style: normal; font-weight: 400; font-size: 12px;
+           color: #5A6270; margin-top: 2px; }
+  .muted { color: #5A6270; }
+
+  .cm { display: grid; grid-template-columns: 62px 1fr 1fr; gap: 4px;
+         margin-top: 14px; }
+  .cm .hd { font-size: 11.5px; color: #5A6270; display: flex; align-items: center;
+             justify-content: center; text-align: center; height: 24px; }
+  .cm .rh { font-size: 11.5px; color: #5A6270; display: flex; align-items: center;
+             justify-content: flex-end; text-align: right; padding-right: 8px; }
+  .cell { height: 62px; border-radius: 2px; padding: 7px 9px; color: #fff; }
+  .cell em { float: right; font-style: normal; font-size: 11.5px; font-weight: 700;
+              opacity: .75; letter-spacing: .04em; }
+  .cell b { font-size: 22px; display: block; line-height: 1; }
+  .cell span { font-size: 11.5px; display: block; margin-top: 4px; opacity: .9; }
+  .good { background: #2a78d6; }
+  .bad { background: #B02E2E; }
+  .idle { background: #AEB6C2; }
+
+  .lines { margin-top: 11px; font-size: 12.5px; color: #5A6270; line-height: 1.55; }
+  .lines b { color: #1A1A1A; }
+
+  .rate { display: flex; align-items: center; height: 40px; gap: 10px; }
+  .rlab { flex: 0 0 108px; font-size: 12.5px; text-align: right; }
+  .rbar { height: 20px; border-radius: 2px; background: #AEB6C2; }
+  .rbar.hi { background: #2a78d6; }
+  .rbar.base { background: #B02E2E; }
+  .rval { font-size: 13.5px; font-weight: 700; }
+
+  .box { margin-top: 14px; padding: 10px 13px; background: #F4F6F9;
+          border-left: 3px solid #2a78d6; font-size: 12.5px; line-height: 1.5; }
+  .box.warn { background: #FAF3F3; border-left-color: #B02E2E; }
+  .box b { font-size: 13.5px; }
+</style>
+<div class="page">
+<div class="head">
+  <b>Logistic (L2, C=1)</b>
+  <span>one cutoff, <i>30 June 2024</i> &mdash; not pooled</span>
+  <span><i>177</i> customers, <i>54</i> left within
+    90 days</span>
+  <span>scores and threshold both out of fold</span>
+</div>
+<div class="stats">
+  <div class="stat"><b>0.583</b><span>ROC-AUC, cross-validated</span></div>
+  <div class="stat"><b>0.534 &plusmn; 0.016</b>
+    <span>nested CV &mdash; selection inside the outer folds</span></div>
+  <div class="stat"><b>0.500</b><span>chance</span></div>
+  <div class="stat"><b>0.245</b><span>threshold, maximising out-of-fold F1</span></div>
+  <div class="stat"><b>0.368 / 0.722 / 0.487</b>
+    <span>precision / recall / F1 at that threshold</span></div>
+</div>
+<div class="wrap">
+
+  <div class="panel">
+    <h2>Confusion matrix<em>at threshold 0.245</em></h2>
+    <div class="cm">
+      <div class="hd"></div><div class="hd">model says call</div>
+      <div class="hd">model says skip</div>
+      <div class="rh">actually<br>left</div>
+      <div class="cell good"><em>TP</em><b>39</b><span>caught</span></div>
+      <div class="cell bad"><em>FN</em><b>15</b><span>missed</span></div>
+      <div class="rh">actually<br>stayed</div>
+      <div class="cell idle"><em>FP</em><b>67</b><span>called anyway</span></div>
+      <div class="cell idle" style="background:#DCE1E8;color:#5A6270">
+        <em>TN</em><b>56</b><span>correctly skipped</span></div>
+    </div>
+    <div class="lines">
+      recall = TP/(TP+FN) = 39/54 = <b>0.722</b><br>
+      precision = TP/(TP+FP) = 39/106 = <b>0.368</b><br>
+      <b>106</b> names on the list, out of 177
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Who it separates<em>churn rate in each group it produces</em></h2>
+    <div style="margin-top:16px">
+      <div class="rate">
+        <span class="rlab">told to call</span>
+        <span class="rbar hi" style="width:250px"></span>
+        <span class="rval">36.8%</span>
+      </div>
+      <div class="rate">
+        <span class="rlab">everyone</span>
+        <span class="rbar base" style="width:207px"></span>
+        <span class="rval" style="color:#B02E2E">30.5%</span>
+      </div>
+      <div class="rate">
+        <span class="rlab">told to skip</span>
+        <span class="rbar" style="width:144px"></span>
+        <span class="rval muted">21.1%</span>
+      </div>
+    </div>
+    <div class="box warn">
+      <b>There is no safe group.</b><br>
+      The 71 customers it tells us to skip still churn at
+      21%. A flagged customer is only 1.21&times; more
+      likely to leave than one picked at random.
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>What this means for the decision<em>no cost figures &mdash; none exist in
+      the data</em></h2>
+    <div class="box" style="margin-top:16px">
+      A call is worth making when its cost is below the customer's churn risk,
+      measured as a share of what a save is worth.
+    </div>
+    <div class="lines" style="margin-top:14px;font-size:13px">
+      Calling <b>everyone</b> pays whenever a call costs less than
+      <b>30.5%</b> of a save.<br><br>
+      Calling only the <b>flagged</b> pays whenever a call costs less than
+      <b>36.8%</b> of a save.
+    </div>
+    <div class="box warn" style="margin-top:14px">
+      The model moves that bar by <b>6.3%</b>, and gives
+      up <b>15</b> of 54 leavers to do it. Unless a call costs
+      between 31% and 37% of a save, the list does not
+      change the decision.
+    </div>
+  </div>
+
+</div>
+</div>

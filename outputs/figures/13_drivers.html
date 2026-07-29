@@ -1,0 +1,206 @@
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1020px; background: #fff; color: #1A1A1A;
+    font-family: Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { padding: 20px 24px 22px; }
+
+  .head { display: flex; align-items: flex-end; margin-bottom: 10px; }
+  .head .name { flex: 0 0 268px; }
+  .head .odds { flex: 0 0 62px; padding-left: 18px; font-size: 12px;
+                 color: #5A6270; font-weight: 400; }
+  .head .p { flex: 0 0 82px; padding-left: 10px; font-size: 12px;
+              color: #5A6270; }
+  .head .track { flex: 1 1 auto; position: relative; height: 20px;
+                  font-size: 12.5px; color: #5A6270; }
+  .head .track b { position: absolute; font-weight: 400; }
+
+  .row { display: flex; align-items: center; height: 30px; }
+  .name { flex: 0 0 268px; text-align: right; padding-right: 18px;
+           font-size: 13.5px; }
+  .track { flex: 1 1 auto; min-width: 0; position: relative; height: 30px; }
+  .track i { position: absolute; display: block; }
+  .zero { top: 0; bottom: 0; width: 1px; background: #C9CFD6; }
+  .band { top: 0; bottom: 0; width: 0; border-left: 2px dashed #B02E2E; }
+  .bar { top: 50%; height: 13px; margin-top: -6.5px; border-radius: 2px; }
+  .bar.up { background: #eb6834; }
+  .bar.down { background: #2a78d6; }
+
+  .block { margin: 14px 144px 5px 268px; padding: 0 0 4px 18px; font-size: 12.5px;
+            font-weight: 700; color: #5A6270;
+            border-bottom: 1px solid #E4E7EB; }
+  .block:first-child { margin-top: 0; }
+  .odds { flex: 0 0 62px; padding-left: 18px; font-size: 13.5px;
+           font-weight: 700; }
+  .p { flex: 0 0 82px; padding-left: 10px; font-size: 12.5px; color: #9AA3AF; }
+  .p.small { color: #1A1A1A; }
+
+  .foot { margin: 12px 144px 0 268px; padding-left: 18px; font-size: 12.5px;
+           color: #5A6270; }
+  .foot b { color: #B02E2E; font-weight: 400; }
+  .foot span { display: block; margin-top: 3px; }
+</style>
+<div class="wrap">
+  <div class="head">
+    <span class="name"></span>
+    <span class="track">
+      <b style="right:52%">&#9664; makes leaving less likely</b>
+      <b style="left:52%">makes leaving more likely &#9654;</b>
+    </span>
+    <span class="odds">odds</span>
+    <span class="p">chance of<br>this by luck</span>
+  </div>
+  <div class="block">Being in a category, against the reference category</div>
+    <div class="row">
+      <span class="name">On the Pro plan, against Basic</span>
+      <span class="track">
+        <i class="zero" style="left:50.00%"></i>
+        <i class="band" style="left:5.36%"></i>
+        <i class="band" style="left:94.64%"></i>
+        <i class="bar down"
+           style="left:11.47%;width:38.53%"></i>
+      </span>
+      <span class="odds">&times;0.23</span>
+      <span class="p small">p = 0.006</span>
+    </div>
+    <div class="row">
+      <span class="name">Came through a partner, against ads</span>
+      <span class="track">
+        <i class="zero" style="left:50.00%"></i>
+        <i class="band" style="left:5.36%"></i>
+        <i class="band" style="left:94.64%"></i>
+        <i class="bar up"
+           style="left:50.00%;width:30.72%"></i>
+      </span>
+      <span class="odds">&times;3.18</span>
+      <span class="p small">p = 0.034</span>
+    </div>
+    <div class="row">
+      <span class="name">A DevTools company, against Cybersecurity</span>
+      <span class="track">
+        <i class="zero" style="left:50.00%"></i>
+        <i class="band" style="left:5.36%"></i>
+        <i class="band" style="left:94.64%"></i>
+        <i class="bar up"
+           style="left:50.00%;width:24.42%"></i>
+      </span>
+      <span class="odds">&times;2.51</span>
+      <span class="p">p = 0.090</span>
+    </div>
+    <div class="row">
+      <span class="name">Came through an event, against ads</span>
+      <span class="track">
+        <i class="zero" style="left:50.00%"></i>
+        <i class="band" style="left:5.36%"></i>
+        <i class="band" style="left:94.64%"></i>
+        <i class="bar down"
+           style="left:27.43%;width:22.57%"></i>
+      </span>
+      <span class="odds">&times;0.43</span>
+      <span class="p">p = 0.110</span>
+    </div>
+    <div class="row">
+      <span class="name">On the Enterprise plan, against Basic</span>
+      <span class="track">
+        <i class="zero" style="left:50.00%"></i>
+        <i class="band" style="left:5.36%"></i>
+        <i class="band" style="left:94.64%"></i>
+        <i class="bar up"
+           style="left:50.00%;width:20.37%"></i>
+      </span>
+      <span class="odds">&times;2.15</span>
+      <span class="p">p = 0.184</span>
+    </div>
+    <div class="row">
+      <span class="name">Found us organically, against ads</span>
+      <span class="track">
+        <i class="zero" style="left:50.00%"></i>
+        <i class="band" style="left:5.36%"></i>
+        <i class="band" style="left:94.64%"></i>
+        <i class="bar up"
+           style="left:50.00%;width:18.70%"></i>
+      </span>
+      <span class="odds">&times;2.02</span>
+      <span class="p">p = 0.200</span>
+    </div><div class="block">A one standard deviation move in a number</div>
+    <div class="row">
+      <span class="name">Number of subscriptions held</span>
+      <span class="track">
+        <i class="zero" style="left:50.00%"></i>
+        <i class="band" style="left:5.36%"></i>
+        <i class="band" style="left:94.64%"></i>
+        <i class="bar up"
+           style="left:50.00%;width:29.08%"></i>
+      </span>
+      <span class="odds">&times;2.99</span>
+      <span class="p small">p = 0.034</span>
+    </div>
+    <div class="row">
+      <span class="name">Spend varies month to month</span>
+      <span class="track">
+        <i class="zero" style="left:50.00%"></i>
+        <i class="band" style="left:5.36%"></i>
+        <i class="band" style="left:94.64%"></i>
+        <i class="bar down"
+           style="left:24.32%;width:25.68%"></i>
+      </span>
+      <span class="odds">&times;0.38</span>
+      <span class="p small">p = 0.042</span>
+    </div>
+    <div class="row">
+      <span class="name">Share of subscriptions already ended</span>
+      <span class="track">
+        <i class="zero" style="left:50.00%"></i>
+        <i class="band" style="left:5.36%"></i>
+        <i class="band" style="left:94.64%"></i>
+        <i class="bar up"
+           style="left:50.00%;width:23.55%"></i>
+      </span>
+      <span class="odds">&times;2.43</span>
+      <span class="p">p = 0.056</span>
+    </div>
+    <div class="row">
+      <span class="name">Usage speeding up, 30 days against 90</span>
+      <span class="track">
+        <i class="zero" style="left:50.00%"></i>
+        <i class="band" style="left:5.36%"></i>
+        <i class="band" style="left:94.64%"></i>
+        <i class="bar down"
+           style="left:27.91%;width:22.09%"></i>
+      </span>
+      <span class="odds">&times;0.44</span>
+      <span class="p">p = 0.050</span>
+    </div>
+    <div class="row">
+      <span class="name">Usage in the last 30 days</span>
+      <span class="track">
+        <i class="zero" style="left:50.00%"></i>
+        <i class="band" style="left:5.36%"></i>
+        <i class="band" style="left:94.64%"></i>
+        <i class="bar up"
+           style="left:50.00%;width:21.26%"></i>
+      </span>
+      <span class="odds">&times;2.23</span>
+      <span class="p">p = 0.082</span>
+    </div>
+    <div class="row">
+      <span class="name">Days since the last subscription began</span>
+      <span class="track">
+        <i class="zero" style="left:50.00%"></i>
+        <i class="band" style="left:5.36%"></i>
+        <i class="band" style="left:94.64%"></i>
+        <i class="bar down"
+           style="left:29.06%;width:20.94%"></i>
+      </span>
+      <span class="odds">&times;0.45</span>
+      <span class="p small">p = 0.030</span>
+    </div>
+  <div class="foot"><b>- - - 1.68</b> = the biggest coefficient chance
+    reaches, from 500 runs on shuffled labels. Nothing reaches it.
+    <span>p is per feature, from the same 500 runs. 7 of
+    86 features fall under 0.05, where chance alone delivers about
+    4. Asked once for the whole model, p = 0.22.</span></div>
+</div>

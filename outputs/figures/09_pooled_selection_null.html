@@ -1,0 +1,71 @@
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1000px; background: #fff; color: #1A1A1A;
+    font-family: Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { padding: 22px 26px 22px; }
+
+  .plot { position: relative; height: 190px; margin: 34px 20px 0 20px;
+           border-bottom: 1px solid #D8DCE0; }
+  .bars { position: absolute; inset: 0; display: flex; align-items: flex-end;
+           gap: 1px; }
+  .bars i { flex: 1 1 0; background: #C3D4EA; display: block; }
+  .mark { position: absolute; top: -6px; bottom: 0; width: 2px;
+           transform: translateX(-1px); }
+  .mark.obs { background: #B02E2E; }
+  .mark.cal { background: #eb6834; }
+  .mark.band { top: -6px; bottom: 0; width: auto; background: #B02E2E;
+                opacity: .10; transform: none; }
+  .tag { position: absolute; transform: translateX(-50%); white-space: nowrap;
+          font-size: 12.5px; font-weight: 700; }
+  .tag em { display: block; font-style: normal; font-weight: 400;
+             font-size: 11.5px; }
+  .tag.obs { top: -46px; color: #B02E2E; }
+  .tag.cal { top: -46px; color: #eb6834; }
+
+  .axis { position: relative; height: 20px; margin: 3px 20px 0; }
+  .axis span { position: absolute; transform: translateX(-50%); font-size: 12px;
+                color: #5A6270; }
+  .cap { text-align: center; margin: 2px 20px 0; font-size: 12.5px;
+          color: #5A6270; }
+
+  .facts { display: flex; gap: 0; margin-top: 20px; }
+  .fact { flex: 1 1 0; padding: 0 18px; border-left: 1px solid #E4E7EB; }
+  .fact:first-child { border-left: 0; padding-left: 0; }
+  .fact b { display: block; font-size: 20px; }
+  .fact span { display: block; font-size: 12.5px; color: #5A6270; margin-top: 3px;
+                line-height: 1.35; }
+  .fact.hot b { color: #B02E2E; }
+</style>
+<div class="wrap">
+  <div class="plot">
+    <span class="bars"><i style="height:0.0%"></i><i style="height:0.0%"></i><i style="height:0.0%"></i><i style="height:0.0%"></i><i style="height:0.0%"></i><i style="height:0.0%"></i><i style="height:0.0%"></i><i style="height:0.0%"></i><i style="height:23.5%"></i><i style="height:17.6%"></i><i style="height:23.5%"></i><i style="height:35.3%"></i><i style="height:35.3%"></i><i style="height:58.8%"></i><i style="height:47.1%"></i><i style="height:35.3%"></i><i style="height:76.5%"></i><i style="height:82.4%"></i><i style="height:70.6%"></i><i style="height:82.4%"></i><i style="height:70.6%"></i><i style="height:100.0%"></i><i style="height:64.7%"></i><i style="height:47.1%"></i><i style="height:58.8%"></i><i style="height:64.7%"></i><i style="height:58.8%"></i><i style="height:35.3%"></i><i style="height:29.4%"></i><i style="height:23.5%"></i><i style="height:11.8%"></i><i style="height:11.8%"></i><i style="height:0.0%"></i><i style="height:11.8%"></i><i style="height:0.0%"></i><i style="height:0.0%"></i><i style="height:0.0%"></i><i style="height:0.0%"></i><i style="height:0.0%"></i><i style="height:0.0%"></i><i style="height:0.0%"></i><i style="height:0.0%"></i><i style="height:0.0%"></i><i style="height:0.0%"></i></span>
+    <i class="mark band" style="left:60.95%;
+       width:11.86%"></i>
+    <i class="mark cal" style="left:59.00%"></i>
+    <i class="mark obs" style="left:67.32%"></i>
+    <span class="tag cal" style="left:59.00%">0.590
+      <em>calendar only</em></span>
+    <span class="tag obs" style="left:67.32%">0.608
+      <em>our best model</em></span>
+  </div>
+  <div class="axis"><span style="left:18.18%">0.50</span><span style="left:40.91%">0.55</span><span style="left:63.64%">0.60</span><span style="left:86.36%">0.65</span></div>
+  <div class="cap">pale bars = the best of ten models on 200 shuffles,
+    labels scrambled inside each cutoff so the calendar survives</div>
+
+  <div class="facts">
+    <div class="fact hot"><b>p = 0.045</b>
+      <span>9 of 200 shuffles reached what
+        we saw. The 95th percentile of the null is 0.604,
+        against our 0.608.</span></div>
+    <div class="fact"><b>+0.018 AUC</b>
+      <span>what every customer feature adds over knowing only which of the four
+        quarters a row came from.</span></div>
+    <div class="fact"><b>0.583 vs 0.594</b>
+      <span>on a single cutoff the same test fails outright: shuffled labels beat
+        the real ones.</span></div>
+  </div>
+</div>

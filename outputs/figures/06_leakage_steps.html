@@ -1,0 +1,87 @@
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1000px; background: #fff; color: #1A1A1A;
+    font-family: Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { padding: 22px 26px 24px; }
+
+  .step { display: flex; align-items: center; height: 62px; }
+  .label { flex: 0 0 330px; padding-right: 20px; }
+  .label b { display: block; font-size: 14.5px; }
+  .label em { display: block; font-style: normal; font-size: 12.5px;
+               color: #5A6270; margin-top: 2px; }
+
+  .track { flex: 1 1 auto; min-width: 0; position: relative; height: 62px; }
+  .track i, .track em { position: absolute; display: block; }
+  .chance { top: 6px; bottom: 6px; width: 0; border-left: 1px dashed #9AA3AF; }
+  .bar { top: 50%; height: 12px; margin-top: -6px; border-radius: 2px; }
+  .bar.ok { background: #2a78d6; opacity: .35; }
+  .bar.bad { background: #eb6834; opacity: .35; }
+  .dot { top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px;
+          border-radius: 50%; }
+  .dot.ok { background: #2a78d6; }
+  .dot.bad { background: #eb6834; }
+  .score { top: 9px; transform: translateX(-50%); font-size: 13.5px;
+            font-weight: 700; font-style: normal; }
+  .score.ok { color: #2a78d6; }
+  .score.bad { color: #eb6834; }
+
+  .move { flex: 0 0 62px; padding-left: 18px; font-size: 14px; font-weight: 700;
+           color: #5A6270; }
+
+  .axis { position: relative; height: 20px; margin: 2px 62px 0 330px; }
+  .axis span { position: absolute; transform: translateX(-50%); font-size: 12px;
+                color: #5A6270; }
+  .cap { margin: 6px 62px 0 330px; font-size: 12.5px; color: #5A6270; }
+</style>
+<div class="wrap">
+  
+    <div class="step">
+      <span class="label">
+        <b>Built properly</b>
+        <em>Only what we knew on 30 June</em>
+      </span>
+      <span class="track">
+        <i class="chance" style="left:30.00%"></i>
+        <i class="bar ok" style="left:30.00%;
+           width:16.58%"></i>
+        <i class="dot ok" style="left:46.58%"></i>
+        <em class="score ok" style="left:46.58%">0.58</em>
+      </span>
+      <span class="move"></span>
+    </div>
+    <div class="step">
+      <span class="label">
+        <b>Then we let in activity from after 30 June</b>
+        <em>Usage and tickets we would not have had yet</em>
+      </span>
+      <span class="track">
+        <i class="chance" style="left:30.00%"></i>
+        <i class="bar bad" style="left:14.32%;
+           width:15.68%"></i>
+        <i class="dot bad" style="left:14.32%"></i>
+        <em class="score bad" style="left:14.32%">0.42</em>
+      </span>
+      <span class="move">-0.16</span>
+    </div>
+    <div class="step">
+      <span class="label">
+        <b>Then we also let in the churn record</b>
+        <em>Refund amount and reason code, written the day they left</em>
+      </span>
+      <span class="track">
+        <i class="chance" style="left:30.00%"></i>
+        <i class="bar bad" style="left:30.00%;
+           width:57.46%"></i>
+        <i class="dot bad" style="left:87.46%"></i>
+        <em class="score bad" style="left:87.46%">0.79</em>
+      </span>
+      <span class="move">+0.37</span>
+    </div>
+  <div class="axis"><span style="left:10.00%">0.4</span><span style="left:30.00%">0.5</span><span style="left:50.00%">0.6</span><span style="left:70.00%">0.7</span><span style="left:90.00%">0.8</span></div>
+  <div class="cap">ROC-AUC &nbsp;·&nbsp; dashed line = 0.50, a coin flip
+    &nbsp;·&nbsp; each row keeps the mistake above it</div>
+</div>

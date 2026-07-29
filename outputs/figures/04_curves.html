@@ -1,0 +1,99 @@
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1080px; background: #fff; color: #1A1A1A;
+    font-family: Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { display: flex; gap: 40px; padding: 18px 24px 20px; }
+  .panel { flex: 1 1 0; }
+  h2 { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+  h2 em { display: block; font-style: normal; font-weight: 400; font-size: 12px;
+           color: #5A6270; margin-top: 2px; }
+
+  .chart { position: relative; padding-left: 34px; }
+  .chart svg { width: 100%; aspect-ratio: 1 / 1; height: auto; display: block;
+                border-left: 1px solid #D8DCE0; border-bottom: 1px solid #D8DCE0; }
+  .ylab { position: absolute; left: -2px; top: 50%; white-space: nowrap;
+           font-size: 11.5px; color: #5A6270;
+           transform: rotate(-90deg) translate(-50%, -50%);
+           transform-origin: left top; }
+  .ytop, .ybot { position: absolute; right: calc(100% - 30px); font-size: 11.5px;
+                  color: #5A6270; }
+  .ytop { top: -6px; }
+  .ybot { bottom: -6px; }
+  .curve { fill: none; stroke: #2a78d6; stroke-width: 2.2;
+            vector-effect: non-scaling-stroke; }
+  .ref { fill: none; stroke: #AEB6C2; stroke-width: 1.4; stroke-dasharray: 5 4;
+          vector-effect: non-scaling-stroke; }
+  .op { fill: #B02E2E; stroke: #fff; stroke-width: 2.5; }
+  .pt { fill: #2a78d6; }
+
+  .axis { display: flex; justify-content: space-between; margin: 5px 0 0 20px;
+           font-size: 11.5px; color: #5A6270; }
+  .key { display: flex; gap: 26px; align-items: center; margin: 14px 24px 0;
+          font-size: 12.5px; color: #5A6270; }
+  .key i { display: inline-block; width: 11px; height: 11px; border-radius: 50%;
+            background: #B02E2E; margin-right: 7px; vertical-align: -1px; }
+  .key u { display: inline-block; width: 22px; border-top: 1.4px dashed #AEB6C2;
+            margin-right: 7px; vertical-align: 4px; }
+</style>
+<div class="page">
+<div class="wrap">
+  
+    <div class="panel">
+      <h2>ROC<em>AUC = 0.589, out of fold</em></h2>
+      <div class="chart">
+        <span class="ytop">1</span>
+        <span class="ybot">0</span>
+        <span class="ylab">true positive rate</span>
+        <svg viewBox="0 0 252 252">
+          
+  <polyline class="ref" points="1.00,251.00 251.00,1.00"/>
+  <polyline class="curve" points="1.00,251.00 1.00,246.37 9.13,246.37 9.13,241.74 11.16,241.74 11.16,237.11 15.23,237.11 15.23,232.48 17.26,232.48 17.26,227.85 19.29,227.85 19.29,218.59 23.36,218.59 23.36,213.96 25.39,213.96 25.39,209.33 31.49,209.33 31.49,204.70 41.65,204.70 41.65,200.07 43.68,200.07 43.68,195.44 45.72,195.44 45.72,181.56 47.75,181.56 47.75,176.93 51.81,176.93 51.81,172.30 64.01,172.30 64.01,163.04 74.17,163.04 74.17,158.41 76.20,158.41 76.20,153.78 80.27,153.78 80.27,139.89 82.30,139.89 82.30,135.26 86.37,135.26 86.37,130.63 88.40,130.63 88.40,126.00 92.46,126.00 92.46,121.37 94.50,121.37 94.50,116.74 104.66,116.74 104.66,112.11 108.72,112.11 108.72,107.48 114.82,107.48 114.82,102.85 118.89,102.85 118.89,93.59 127.02,93.59 127.02,88.96 129.05,88.96 129.05,79.70 133.11,79.70 133.11,75.07 137.18,75.07 137.18,65.81 145.31,65.81 145.31,61.19 175.80,61.19 175.80,47.30 179.86,47.30 179.86,42.67 185.96,42.67 185.96,38.04 190.02,38.04 190.02,33.41 202.22,33.41 202.22,28.78 208.32,28.78 208.32,24.15 220.51,24.15 220.51,19.52 224.58,19.52 224.58,14.89 228.64,14.89 228.64,10.26 236.77,10.26 236.77,1.00 251.00,1.00"/>
+  <circle class="op" r="5" cx="137.18" cy="65.81"/>
+        </svg>
+      </div>
+      <div class="axis"><span>0</span><span>false positive rate</span><span>1</span></div>
+    </div>
+  
+    <div class="panel">
+      <h2>Precision-recall<em>AP = 0.378 against a 0.31 base rate</em></h2>
+      <div class="chart">
+        <span class="ytop">1</span>
+        <span class="ybot">0</span>
+        <span class="ylab">precision</span>
+        <svg viewBox="0 0 252 252">
+          
+  <polyline class="ref" points="1.00,174.73 251.00,174.73"/>
+  <polyline class="curve" points="251.00,174.73 251.00,174.30 251.00,173.86 251.00,173.41 251.00,172.97 251.00,172.51 251.00,172.05 251.00,171.59 246.37,172.60 241.74,173.62 241.74,173.16 241.74,172.69 241.74,172.21 241.74,171.73 237.11,172.78 237.11,172.30 237.11,171.81 232.48,172.88 232.48,172.38 232.48,171.89 227.85,172.97 227.85,172.47 227.85,171.97 227.85,171.45 227.85,170.93 227.85,170.41 227.85,169.87 223.22,171.00 223.22,170.46 223.22,169.92 223.22,169.37 218.59,170.52 218.59,169.97 218.59,169.40 218.59,168.83 218.59,168.25 218.59,167.67 218.59,167.07 213.96,168.27 213.96,167.67 213.96,167.06 209.33,168.28 209.33,167.67 209.33,167.04 209.33,166.41 204.70,167.67 204.70,167.03 204.70,166.38 200.07,167.67 195.44,168.97 190.81,170.29 190.81,169.65 190.81,169.00 190.81,168.34 190.81,167.67 190.81,166.98 190.81,166.29 190.81,165.58 190.81,164.87 190.81,164.14 190.81,163.39 190.81,162.64 190.81,161.87 190.81,161.09 190.81,160.29 190.81,159.48 186.19,160.91 186.19,160.09 186.19,159.26 186.19,158.41 186.19,157.54 181.56,159.02 176.93,160.52 176.93,159.65 176.93,158.77 172.30,160.31 172.30,159.42 172.30,158.50 167.67,160.09 163.04,161.71 163.04,160.79 158.41,162.46 158.41,161.53 158.41,160.57 158.41,159.60 158.41,158.61 153.78,160.34 149.15,162.11 149.15,161.11 149.15,160.09 144.52,161.92 144.52,160.88 144.52,159.82 144.52,158.74 139.89,160.64 139.89,159.54 139.89,158.41 135.26,160.38 135.26,159.23 135.26,158.05 135.26,156.84 135.26,155.61 135.26,154.33 130.63,156.41 130.63,155.11 126.00,157.25 126.00,155.93 126.00,154.57 121.37,156.80 121.37,155.41 116.74,157.72 116.74,156.30 116.74,154.85 112.11,157.25 112.11,155.76 107.48,158.26 102.85,160.84 98.22,163.50 98.22,162.02 98.22,160.48 93.59,163.28 93.59,161.71 88.96,164.64 88.96,163.04 88.96,161.38 88.96,159.65 88.96,157.86 88.96,156.00 84.33,159.16 79.70,162.46 79.70,160.57 79.70,158.61 79.70,156.56 79.70,154.41 79.70,152.16 79.70,149.81 75.07,153.44 75.07,151.00 75.07,148.44 70.44,152.32 70.44,149.65 65.81,153.78 61.19,158.14 56.56,162.76 56.56,160.09 51.93,165.06 51.93,162.29 47.30,167.67 47.30,164.79 47.30,161.71 47.30,158.41 47.30,154.85 47.30,151.00 42.67,157.25 42.67,153.17 42.67,148.73 42.67,143.86 38.04,151.00 38.04,145.74 33.41,153.78 33.41,148.06 33.41,141.62 28.78,151.00 24.15,161.71 24.15,154.85 19.52,167.67 19.52,160.09 14.89,176.00 14.89,167.67 14.89,157.25 10.26,179.57 10.26,167.67 5.63,201.00 5.63,188.50 5.63,167.67 5.63,126.00 5.63,1.00 1.00,1.00"/>
+  <circle class="op" r="5" cx="186.19" cy="157.54"/>
+        </svg>
+      </div>
+      <div class="axis"><span>0</span><span>recall</span><span>1</span></div>
+    </div>
+  
+    <div class="panel">
+      <h2>Calibration<em>5 quantile bins</em></h2>
+      <div class="chart">
+        <span class="ytop">1</span>
+        <span class="ybot">0</span>
+        <span class="ylab">observed churn rate</span>
+        <svg viewBox="0 0 252 252">
+          
+  <polyline class="ref" points="1.00,251.00 251.00,1.00"/>
+  <polyline class="curve" points="6.80,202.39 34.37,193.86 92.64,165.29 156.31,158.14 232.24,153.78"/>
+  <circle class="pt" r="4" cx="6.80" cy="202.39"/><circle class="pt" r="4" cx="34.37" cy="193.86"/><circle class="pt" r="4" cx="92.64" cy="165.29"/><circle class="pt" r="4" cx="156.31" cy="158.14"/><circle class="pt" r="4" cx="232.24" cy="153.78"/>
+        </svg>
+      </div>
+      <div class="axis"><span>0</span><span>mean predicted probability</span><span>1</span></div>
+    </div>
+</div>
+<div class="key">
+  <span><i></i>operating point &mdash; threshold 0.245</span>
+  <span><u></u>chance, or the base rate on the PR panel</span>
+  <span>ROC keeps a 0.50 floor at any class balance; PR does not, which is why
+    its floor is drawn at 0.31</span>
+</div>
+</div>

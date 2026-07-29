@@ -1,0 +1,100 @@
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1120px; background: #fff; color: #1A1A1A;
+    font-family: Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { padding: 18px 26px 20px; }
+  .muted { color: #5A6270; }
+
+  .key { display: flex; gap: 30px; align-items: center; font-size: 13px;
+          margin-bottom: 12px; }
+  .key b { font-weight: 700; }
+  .key .sw { display: inline-block; width: 26px; height: 11px; margin-right: 8px;
+              vertical-align: 0px; border-radius: 2px; }
+  .key .ln { display: inline-block; width: 26px; border-top: 2.5px solid #1A1A1A;
+              margin-right: 8px; vertical-align: 4px; }
+
+  .chart { position: relative; padding: 0 0 0 44px; }
+  .chart svg { width: 100%; height: 300px; display: block;
+                border-bottom: 1px solid #C9CFD6; }
+  .yaxis { position: absolute; left: 0; top: 0; bottom: 0; width: 40px; }
+  .yaxis span { position: absolute; right: 8px; transform: translateY(50%);
+                 font-size: 11.5px; color: #5A6270; }
+  .xaxis { position: relative; height: 18px; margin: 6px 0 0 44px; }
+  .xaxis span { position: absolute; transform: translateX(-50%); font-size: 11.5px;
+                 color: #5A6270; }
+
+  .fill { fill: #B02E2E; opacity: .13; }
+  .nullline { fill: none; stroke: #B02E2E; stroke-width: 2;
+               stroke-dasharray: 7 5; vector-effect: non-scaling-stroke; }
+  .obs { fill: none; stroke: #1A1A1A; stroke-width: 2.6;
+          vector-effect: non-scaling-stroke; }
+
+  .verdict { display: flex; gap: 0; margin-top: 16px; }
+  .v { flex: 1 1 0; padding: 0 18px; border-left: 1px solid #E4E7EB; }
+  .v:first-child { border-left: 0; padding-left: 0; }
+  .v b { display: block; font-size: 19px; }
+  .v span { display: block; font-size: 12.5px; color: #5A6270; margin-top: 3px;
+             line-height: 1.4; }
+
+  .strip { margin-top: 16px; padding-top: 14px; border-top: 1px solid #E4E7EB;
+            display: flex; gap: 20px; align-items: flex-end; }
+  .stripnote { flex: 0 0 340px; font-size: 12.5px; color: #5A6270; line-height: 1.5; }
+  .stripnote b { color: #1A1A1A; font-size: 13px; display: block;
+                  margin-bottom: 3px; }
+  .hist { flex: 1 1 auto; display: flex; align-items: flex-end; gap: 4px;
+           height: 74px; }
+  .hist i { flex: 1 1 0; background: #2a78d6; position: relative; border-radius: 2px; }
+  .hist i b { position: absolute; top: -17px; left: 0; right: 0; text-align: center;
+               font-size: 11px; font-weight: 400; color: #5A6270; }
+  .histax { display: flex; justify-content: space-between; font-size: 12px;
+             color: #5A6270; margin-top: 5px; }
+</style>
+<div class="page">
+  <div class="key">
+    <span><span class="ln"></span><b>what we actually see</b></span>
+    <span><span class="sw" style="background:#B02E2E;opacity:.2"></span>
+      what a file with <b>random churn dates</b> produces &mdash; 200 rebuilds,
+      95% range</span>
+    <span class="muted">share of at-risk customers leaving that month</span>
+  </div>
+
+  <div class="chart">
+    <div class="yaxis"><span style="bottom:0.0%">0%</span><span style="bottom:17.1%">5%</span><span style="bottom:34.2%">10%</span><span style="bottom:51.3%">15%</span><span style="bottom:68.4%">20%</span><span style="bottom:85.4%">25%</span></div>
+    <svg viewBox="0 0 900 300" preserveAspectRatio="none">
+      <polygon class="fill" points="0.00,179.41 39.13,209.56 78.26,205.05 117.39,206.79 156.52,206.69 195.65,207.72 234.78,203.31 273.91,202.79 313.04,199.61 352.17,182.90 391.30,197.46 430.43,185.46 469.57,192.23 508.70,194.08 547.83,183.62 586.96,174.90 626.09,169.98 665.22,162.19 704.35,150.70 743.48,143.63 782.61,127.53 821.74,105.79 860.87,68.16 900.00,22.22 900.00,90.51 860.87,150.81 821.74,191.51 782.61,212.94 743.48,222.28 704.35,231.09 665.22,238.17 626.09,248.42 586.96,251.19 547.83,254.68 508.70,264.21 469.57,264.21 430.43,259.70 391.30,269.14 352.17,278.47 313.04,284.21 273.91,282.67 234.78,290.26 195.65,289.34 156.52,289.13 117.39,300.00 78.26,300.00 39.13,300.00 0.00,300.00"/>
+      <polyline class="nullline" points="0.00,281.95 39.13,270.26 78.26,258.88 117.39,252.52 156.52,253.96 195.65,249.04 234.78,249.65 273.91,243.91 313.04,243.30 352.17,236.02 391.30,234.17 430.43,224.53 469.57,225.97 508.70,228.84 547.83,221.87 586.96,215.20 626.09,209.25 665.22,199.51 704.35,193.05 743.48,187.41 782.61,171.52 821.74,151.83 860.87,109.79 900.00,55.34"/>
+      <polyline class="obs" points="0.00,239.71 39.13,300.00 78.26,205.05 117.39,251.91 156.52,276.42 195.65,247.71 234.78,242.48 273.91,247.40 313.04,269.34 352.17,238.48 391.30,238.27 430.43,224.22 469.57,208.33 508.70,265.03 547.83,206.28 586.96,223.51 626.09,206.38 665.22,192.54 704.35,175.42 743.48,162.60 782.61,170.60 821.74,125.07 860.87,136.55 900.00,69.19"/>
+    </svg>
+  </div>
+  <div class="xaxis"><span style="left:0.00%">Jan 23</span><span style="left:13.04%">Apr 23</span><span style="left:26.09%">Jul 23</span><span style="left:39.13%">Oct 23</span><span style="left:52.17%">Jan 24</span><span style="left:65.22%">Apr 24</span><span style="left:78.26%">Jul 24</span><span style="left:91.30%">Oct 24</span></div>
+
+  <div class="verdict">
+    <div class="v"><b>&times;2.79 a year</b>
+      <span>the rise we observe</span></div>
+    <div class="v"><b>&times;2.76 a year</b>
+      <span>the rise random dates produce on their own</span></div>
+    <div class="v"><b>24 of
+      24</b>
+      <span>months where the black line sits inside the red band</span></div>
+    <div class="v"><b>58th percentile</b>
+      <span>where our result falls among pure noise &mdash; the middle</span></div>
+  </div>
+
+  <div class="strip">
+    <div class="stripnote">
+      <b>Why random dates were the null</b>
+      Take each churn date and ask where it falls between that customer's signup
+      and the last day of the file. Real churn would cluster somewhere. This is
+      flat &mdash; indistinguishable from a random draw, KS p = 0.92.
+    </div>
+    <div>
+      <div class="hist"><i style="height:86.6%"><b>10%</b></i><i style="height:92.5%"><b>10%</b></i><i style="height:89.6%"><b>10%</b></i><i style="height:88.1%"><b>10%</b></i><i style="height:92.5%"><b>10%</b></i><i style="height:91.0%"><b>10%</b></i><i style="height:76.1%"><b>8%</b></i><i style="height:89.6%"><b>10%</b></i><i style="height:100.0%"><b>11%</b></i><i style="height:89.6%"><b>10%</b></i></div>
+      <div class="histax"><span>their signup day</span>
+        <span>the last day of the file</span></div>
+    </div>
+  </div>
+</div>

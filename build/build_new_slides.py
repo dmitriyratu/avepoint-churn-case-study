@@ -202,6 +202,219 @@ note(s, "Replaces the three bar charts. Bars of churn rate invited exactly the "
         "country 0.428, trial 0.548. The figure is built by "
         "build/fig_segment_forest.py.")
 
+# ============================================ F · WHAT MORE ROWS ACTUALLY BOUGHT
+s = add("Part 3 · Modelling", "What tripling the rows actually bought", RED)
+picture(s, "09_pooled_selection_null.png", top=Inches(1.70), height=Inches(2.90))
+bullets(s, [
+    ("The single-cutoff result was measured on 177 customers. Asking the same "
+     "question at four quarter-ends gives 648 rows and 159 leavers, so the "
+     "search is worth re-running.", INK, True),
+    "",
+    ("The null has to keep the calendar.", RED, True),
+    "  Churn runs 17, 17, 31 and 31 percent across the four dates, and slide 11 "
+    "shows that rise is produced by the file rather than by customers. Scramble "
+    "labels freely and that structure is destroyed along with everything else, "
+    "which would make any pooled model look decisive. Scrambling inside each "
+    "cutoff keeps it, and asks whether anything is left once the quarter is "
+    "already known.",
+    "",
+    ("A weak signal appears, and it is too small to act on.", INK, True),
+    "  The best model reaches 0.608 against a null 95th percentile of 0.604, "
+    "which is p = 0.045. Knowing only the quarter is already worth 0.590, so "
+    "every customer feature in the build adds 0.018 of AUC.",
+    "  Two framings were tried and this is the one that worked, so the honest "
+    "reading is weaker still. Nothing here changes the recommendation on "
+    "slide 13: at a 31% base rate, calling everyone already pays.",
+], top=Inches(4.78), size=12.5, space=3)
+footnote(s, "The single-cutoff finding stands: shuffled labels beat the real "
+            "ones, 0.594 against 0.583. More rows move that to a 0.018 edge.")
+note(s, "Corrects the performance slide, which reported the single-cutoff "
+        "selection null only. The obvious challenge to that slide is 'you had "
+        "177 rows, of course nothing showed' — this answers it with the data "
+        "already built rather than with an argument.\n\n"
+        "Say the calendar point before the p-value, not after. Shuffling freely "
+        "across pooled rows destroys the 17/17/31/31 rates, the null collapses "
+        "toward chance, and 0.608 looks overwhelming. That version of the test "
+        "would have been wrong in the same way the calendar-hazard result on "
+        "slide 11 was wrong.\n\n"
+        "If pushed on p = 0.045: it is 9 of 200 shuffles, and it is the second "
+        "framing tried. A Bonferroni correction over the two takes it to 0.09. "
+        "The effect size is the better argument — 0.018 of AUC over a calendar "
+        "lookup is not a model anybody should ship.\n\n"
+        "Observed 0.6081 is the best of the ten-rung ladder averaged over 10 CV "
+        "seeds, range 0.594 to 0.620. Null mean 0.560, p95 0.604, max 0.627, "
+        "from 200 within-cutoff shuffles. Grouped by account throughout. Built "
+        "by build/fig_pooled_null_html.py from outputs/reports/"
+        "pooled_selection_null.csv.")
+
+# ================================================= G · PERFORMANCE, PROPERLY
+s = add("Part 3 · Modelling", "How it performs")
+bullets(s, [
+    ("Logistic regression, L2 penalty, C = 1. It won the ten-rung ladder on the "
+     "30 June 2024 cohort: 177 customers, 54 of whom left within 90 days.",
+     INK, True),
+    "  ROC-AUC 0.583 in cross-validation. Nested CV, which puts model selection "
+    "inside the outer folds, gives 0.534 ± 0.016. Chance is 0.500. The 0.049 "
+    "gap is selection optimism.",
+], top=Inches(1.72), size=13.5, space=4)
+picture(s, "04_performance.png", top=Inches(2.54), height=Inches(2.72))
+bullets(s, [
+    ("Threshold 0.245, chosen to maximise F1 on out-of-fold predictions rather "
+     "than at the 0.5 default.", INK, True),
+    "  At that operating point: precision 0.368, recall 0.722, F1 0.487. The "
+    "model recovers 39 of 54 leavers and puts 106 of 177 customers on the list.",
+    "",
+    ("The list it produces does not separate anybody.", RED, True),
+    "  Flagged customers churn at 36.8%, the cohort at 30.5%, and the 71 it tells "
+    "us to skip still churn at 21.1%. There is no group it identifies as safe.",
+    "",
+    ("No currency figures appear here, because none exist in the data.", INK, True),
+    "  Nothing records what an outreach costs or how often one works. Stated as "
+    "a ratio instead: calling everyone pays whenever a call costs under 30.5% of "
+    "a save, and using the list moves that to 36.8%. Unless the true cost falls "
+    "inside that six-point band, the model changes no decision.",
+], top=Inches(5.52), size=12.5, space=3)
+footnote(s, "Scores and threshold are both out of fold. Every number above is a "
+            "count or a rate from this cohort.")
+note(s, "The brief asks for performance, so lead with the confusion matrix and "
+        "the threshold reasoning rather than with methodology.\n\n"
+        "Threshold 0.245, picked out of fold on F1. TP 39, FP 67, FN 15, TN 56. "
+        "Recall 0.722, precision 0.368, 106 names on a 177-customer list. "
+        "Lift over random is 1.21.\n\n"
+        "Deliberately no currency. src/economics.py carries an illustrative call "
+        "cost and success rate; neither appears anywhere in the RavenStack "
+        "tables, and every money figure downstream scales with them. If finance "
+        "supplies real numbers the same slide takes them without changing "
+        "shape. If asked for a dollar answer, say that and give the ratio.\n\n"
+        "The strongest line is the skip list. A model that cannot find a safe "
+        "group cannot save anyone a phone call, which is the whole reason to "
+        "rank in the first place.\n\n"
+        "One inconsistency worth owning if raised: the threshold maximises F1, "
+        "which weights the two errors equally, while the argument above says "
+        "they are not equal. A cost-minimising threshold needs the cost figures "
+        "we do not have.\n\n"
+        "Built by build/fig_performance_html.py.")
+
+# ------------------------------------------------ G2 · CURVES
+s = add("Part 3 · Modelling", "Ranking quality, three ways")
+picture(s, "04_curves_html.png", top=Inches(1.72), height=Inches(3.05))
+bullets(s, [
+    ("ROC-AUC 0.589 out of fold. The curve sits just above the diagonal for its "
+     "whole length, with no region where the model separates cleanly.", INK, True),
+    "",
+    ("Average precision 0.378 against a 0.31 base rate.", INK, True),
+    "  PR is the honest picture for an imbalanced problem, because its floor "
+    "moves with the class balance rather than staying at 0.50. Precision hovers "
+    "just above the base-rate line at every recall, which is the same finding as "
+    "the confusion matrix: flagging a customer barely raises their risk.",
+    "",
+    ("Calibration is the reason the break-even argument is usable.", INK, True),
+    "  Predicted probabilities track observed churn well enough in the middle "
+    "bins to compare a score against a decision threshold. The curve is flat "
+    "rather than diagonal, which is what a weak model looks like — it "
+    "over-predicts at the bottom and under-predicts at the top.",
+], top=Inches(4.98), size=12.5, space=3)
+footnote(s, "The red dot on each panel is the shipped threshold of 0.245, not an "
+            "abstract sweep. Scores are out of fold.")
+note(s, "Companion to the performance slide, for the reviewer who wants the "
+        "curves rather than a single operating point.\n\n"
+        "AUC here is 0.589 from pooled out-of-fold predictions, against 0.583 as "
+        "the mean of per-fold AUCs on the ladder slide. Same quantity, two "
+        "estimators; say so if the difference is noticed.\n\n"
+        "The PR floor is the point worth making. A reviewer who only sees "
+        "AP = 0.378 may read it as weak-but-real; drawn against a 0.31 base rate "
+        "it is plainly near-worthless. This is also why ROC-AUC is the headline "
+        "metric across the four cutoffs, where churn rates run 17% to 31% and a "
+        "PR floor would move underneath the comparison.\n\n"
+        "Calibration uses 5 quantile bins because 177 rows will not support "
+        "more. The flat shape is characteristic of a model with little signal: "
+        "predictions are pulled toward the base rate at both ends.\n\n"
+        "Built by build/fig_curves_html.py.")
+
+
+# =================================================== F · WHAT THE MODEL SAYS
+s = add("Part 3 · Modelling", "What the model says drives churn", RED)
+picture(s, "13_drivers.png", top=Inches(1.72), height=Inches(3.35))
+bullets(s, [
+    ("The shipped model is a logistic regression, so it can simply be read. "
+     "Each bar is one input and the direction the model applies it.", INK, True),
+    "",
+    ("Taken at face value it is a briefing.", INK, True),
+    "  Pro-plan customers stay. Partner-sourced customers leave. Customers "
+    "holding several subscriptions leave. Every one of those is plausible, and "
+    "a product team could act on all three tomorrow.",
+    "",
+    ("The dashed lines are why I am not reporting any of it.", RED, True),
+    "  I shuffled the churn labels 500 times, refitting each time, and recorded "
+    "the largest coefficient. Chance reaches 1.68. The largest real coefficient "
+    "is 1.45. Not one input in the model is as strong as what chance produces "
+    "from labels that mean nothing.",
+    "",
+    "  Seven of the 86 inputs clear p = 0.05 individually. Testing 86 inputs, "
+    "chance delivers about 4. Asked properly — is any coefficient larger than "
+    "chance reaches — the answer is p = 0.22.",
+], top=Inches(5.18), size=13, space=4)
+footnote(s, "There is no driver list to hand the product team. Not weak "
+            "drivers: none.")
+note(s, "Replaces the SHAP slide, which answered a question nobody asked. The "
+        "brief asks what the model says is important, so answer that first, "
+        "then say why it cannot be reported.\n\n"
+        "Reading coefficients directly is also the honest choice here. The "
+        "shipped rung is Logistic L2 C=1 on standardised inputs, so the "
+        "coefficients are the explanation. SHAP would add a layer of machinery "
+        "over a linear model and change nothing.\n\n"
+        "The comparison that matters is against shuffled labels, not against "
+        "zero. Any fitted model produces a clean ordered ranking; the question "
+        "is whether it is larger than the ranking you get from nothing. Here it "
+        "is not: largest real coefficient 1.45, chance reaches 1.68 at the 95th "
+        "percentile, family-wise p = 0.222 over 500 refits.\n\n"
+        "If asked why the coefficient signs look stable across refits: five-fold "
+        "folds share 80% of their rows, so sign agreement across them is close "
+        "to guaranteed and is not evidence. The shuffle test is the one that "
+        "carries weight.\n\n"
+        "Built by build/fig_drivers_html.py, tables in "
+        "outputs/reports/coef_null.csv and coef_stability.csv.")
+
+# ========================================== H · CHURN IS NOT ACCELERATING
+s = add("Part 4 · Recommendation 1", "Do not go looking for what changed in 2024",
+        RED)
+picture(s, "12_calendar_null.png", top=Inches(1.66), height=Inches(4.30))
+bullets(s, [
+    ("Churn looks like it is accelerating. About 5 customers in every 100 left "
+     "each month in 2023, rising to 22 in 100 by December 2024. A 2.8x rise per "
+     "year, p = 2e-16, and by far the strongest number in this study.",
+     INK, True),
+    "",
+    ("I rebuilt the file with the churn dates replaced by random draws and "
+     "nothing else changed. It produced the same rise.", RED, True),
+    "  x2.76 a year against our x2.79. Every one of the 24 months sits inside the "
+    "range those rebuilds produce, and our result lands at the 58th percentile "
+    "of pure noise. So there is nothing here to investigate, and that is the "
+    "recommendation.",
+], top=Inches(6.10), size=13, space=4)
+footnote(s, "A small p-value only rejects one null. Here it rejected “the rate "
+            "is flat”, which was never the question.")
+note(s, "Say it in three sentences and stop. Churn looks like it is "
+        "accelerating, 2.8x a year, p = 2e-16. I rebuilt the file with random "
+        "churn dates and nothing else changed, and it produced 2.76x. The trend "
+        "belongs to the file, so there is nothing to investigate.\n\n"
+        "Everything below is backup, only if pushed.\n\n"
+        "WHY RANDOM DATES WERE THE NULL. Take each churn date and ask where it "
+        "falls between that customer's signup and the last day of the extract. "
+        "Real churn clusters somewhere - early if onboarding fails, late if it "
+        "is renewal-driven. This is flat across all ten slices, KS p = 0.92.\n\n"
+        "WHY A RANDOM DATE MAKES THE RATE CLIMB. A customer's chance of churning "
+        "in a given month is roughly one over the months left before the file "
+        "ends. That gets bigger every month, so the rate rises with nothing "
+        "happening in the business.\n\n"
+        "IF ASKED WHY IT DOES NOT REACH 100%. The null keeps each account's real "
+        "number of churn events, so the roughly 30% who never churn stay that "
+        "way. They sit in the denominator throughout, which caps the level "
+        "without removing the trend.\n\n"
+        "From generator.simulate_churn_dates and generator.calendar_hazard_null, "
+        "200 rebuilds, seed 0, shown in notebook 16. Figure built by "
+        "build/fig_calendar_null_html.py.")
+
 OUT.parent.mkdir(parents=True, exist_ok=True)
 prs.save(OUT)
 print(f"{OUT}  ({OUT.stat().st_size / 1e6:.2f} MB, "
