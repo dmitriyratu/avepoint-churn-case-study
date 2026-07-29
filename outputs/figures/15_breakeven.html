@@ -2,95 +2,130 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    width: 1040px; background: #fff; color: #1A1A1A;
+    width: 1120px; background: #fff; color: #1A1A1A;
     font-family: Calibri, "Segoe UI", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
-  .wrap { padding: 24px 28px 26px; }
-  h3 { font-size: 14px; font-weight: 700; margin-bottom: 14px; }
+  .wrap { padding: 18px 26px 20px; }
   .muted { color: #5A6270; }
 
-  .scale { position: relative; height: 128px; margin: 0 30px; }
-  .rail { position: absolute; left: 0; right: 0; top: 52px; height: 10px;
-           background: #EDF0F3; border-radius: 5px; }
-  .worth { position: absolute; top: 52px; height: 10px; background: #1e7a4b;
-            opacity: .85; border-radius: 0 5px 5px 0; }
-  .mark { position: absolute; top: 38px; height: 38px; width: 2px;
-           transform: translateX(-1px); }
-  .mark.a { background: #1e7a4b; }
-  .mark.b { background: #1A1A1A; }
-  .tag { position: absolute; transform: translateX(-50%); text-align: center;
-          white-space: nowrap; }
-  .tag b { display: block; font-size: 19px; }
-  .tag em { display: block; font-style: normal; font-size: 12.5px;
-             color: #5A6270; margin-top: 1px; }
-  .tag.a { top: 0; }
-  .tag.a b { color: #1e7a4b; }
-  .tag.b { top: 84px; }
-  .ticks { position: absolute; left: 0; right: 0; top: 66px; }
-  .ticks span.hide { display: none; }
-  .ticks span { position: absolute; transform: translateX(-50%); font-size: 12px;
-                 color: #9AA3AF; }
+  .head {
+    display: flex; align-items: baseline; gap: 14px;
+    padding-bottom: 12px; border-bottom: 1px solid #E4E7EB;
+  }
+  .head b { font-size: 15px; }
+  .head span { font-size: 13px; color: #5A6270; }
+  .head span i { font-style: normal; color: #1A1A1A; font-weight: 700; }
 
-  .verdict { margin: 22px 30px 0; padding: 12px 16px; background: #F2F8F4;
-              border-left: 3px solid #1e7a4b; font-size: 14px; }
-  .verdict b { font-size: 15px; }
+  .row { display: flex; gap: 16px; margin-top: 14px; }
+  .card {
+    flex: 1 1 0; padding: 14px 16px 15px;
+    border: 1px solid #E4E7EB; border-radius: 4px;
+  }
+  .card.bad { border-color: #e0b4b4; background: #FAF3F3; }
+  .card.ok { border-color: #b7d4c4; background: #F2F8F4; }
+  .card .lbl { font-size: 12.5px; color: #5A6270; margin-bottom: 4px; }
+  .card .lbl em {
+    float: right; font-style: normal; font-size: 11.5px; font-weight: 700;
+    letter-spacing: .04em; opacity: .85;
+  }
+  .card .amt { font-size: 30px; font-weight: 700; line-height: 1; }
+  .card.ok .amt { color: #1e7a4b; }
+  .card.bad .amt { color: #B02E2E; }
+  .card .why { font-size: 13px; color: #5A6270; margin-top: 7px; line-height: 1.4; }
+  .card .why b { color: #1A1A1A; }
 
-  .flip { display: flex; gap: 40px; margin: 20px 30px 0; }
-  .flip div { flex: 1 1 0; font-size: 13px; color: #5A6270; }
-  .flip b { display: block; font-size: 17px; color: #1A1A1A; margin-bottom: 2px; }
+  .rule {
+    margin-top: 14px; padding: 12px 16px; background: #F4F6F9;
+    border-left: 3px solid #1A1A1A; display: flex; align-items: center; gap: 22px;
+  }
+  .rule .text { flex: 1 1 auto; font-size: 14px; line-height: 1.45; }
+  .rule .text b { font-size: 15px; }
+  .rule .text span { color: #5A6270; }
+  .ratio { flex: 0 0 auto; text-align: center; }
+  .ratio .dots { display: flex; gap: 5px; align-items: center; justify-content: center; }
+  .dot {
+    display: inline-block; width: 14px; height: 14px; border-radius: 3px;
+  }
+  .dot.ok { background: #1e7a4b; }
+  .dot.bad { background: #B02E2E; width: 18px; height: 18px; margin-left: 6px; }
+  .ratio em {
+    display: block; font-style: normal; font-size: 12px; color: #5A6270;
+    margin-top: 5px;
+  }
+  .ratio em b { color: #1A1A1A; }
 
-  .money { margin: 24px 30px 0; padding-top: 18px; border-top: 1px solid #E4E7EB; }
-  .mrow { display: flex; align-items: center; height: 34px; }
-  .mname { flex: 0 0 200px; font-size: 13.5px; }
-  .mtrack { flex: 1 1 auto; position: relative; height: 34px; }
-  .mbar { position: absolute; top: 50%; height: 18px; margin-top: -9px;
-           border-radius: 2px; }
-  .mval { flex: 0 0 190px; padding-left: 16px; font-size: 13.5px; }
+  .foot {
+    display: flex; gap: 28px; align-items: center;
+    margin-top: 14px; padding-top: 14px; border-top: 1px solid #E4E7EB;
+  }
+  .bars { flex: 1 1 auto; }
+  .mrow { display: flex; align-items: center; height: 30px; }
+  .mname { flex: 0 0 175px; font-size: 13.5px; }
+  .mtrack { flex: 1 1 auto; position: relative; height: 30px; }
+  .mbar {
+    position: absolute; top: 50%; height: 15px; margin-top: -7.5px;
+    border-radius: 2px;
+  }
+  .mval { flex: 0 0 155px; padding-left: 12px; font-size: 13.5px; }
   .mval b { font-size: 15px; }
+  .aside { flex: 0 0 300px; font-size: 12.5px; color: #5A6270; line-height: 1.45; }
+  .aside b { color: #1A1A1A; }
 </style>
 <div class="wrap">
-  <h3>A call is worth making above a 10% chance of leaving. Everyone here is at 31%.</h3>
-  <div class="scale">
-    <div class="rail"></div>
-    <div class="worth" style="left:25.65%;right:0"></div>
-    <div class="mark a" style="left:25.65%"></div>
-    <div class="mark b" style="left:76.25%"></div>
-    <div class="tag a" style="left:25.65%">
-      <b>10.3%</b><em>a call pays for itself above here</em></div>
-    <div class="tag b" style="left:76.25%">
-      <b>30.5%</b><em>everyone in this group</em></div>
-    <div class="ticks">
-      <span style="left:0%">0%</span>
-      <span style="left:25.00%">10%</span>
-      <span style="left:50.00%">20%</span>
-      <span class="hide" style="left:75.00%">30%</span>
-      <span style="left:100%">40%</span>
+  <div class="head">
+    <b>Net at any threshold = TP &times; $1,462 &minus; (TP + FP) &times; $150</b>
+    <span>priced from the confusion matrix. Raising the threshold means
+      <i>skipping</i> people &mdash; price each skip against calling everyone.</span>
+  </div>
+
+  <div class="row">
+    <div class="card ok">
+      <div class="lbl">Skip a customer who stays<em>TN</em></div>
+      <div class="amt">+$150</div>
+      <div class="why">You save the call cost. That is the only thing ranking
+        can earn by leaving someone out.</div>
+    </div>
+    <div class="card bad">
+      <div class="lbl">Skip a customer who leaves<em>FN</em></div>
+      <div class="amt">&minus;$1,312</div>
+      <div class="why">You give up the expected save
+        (<b>20% &times; $7,310 = $1,462</b>) and only keep the
+        $150 you did not spend.</div>
     </div>
   </div>
 
-  <div class="verdict"><b>So call all of them.</b> The green stretch is where a
-    call makes money, and every customer in the cohort sits inside it. Ranking
-    only helps when you have to leave someone out.</div>
-
-  <div class="flip">
-    <div><b>$446</b>what a call would have to cost before targeting
-      beats calling everyone. It costs $150.</div>
-    <div><b>$2,459</b>what a customer would have to be worth, at most,
-      for the same. They are worth $7,310.</div>
+  <div class="rule">
+    <div class="text">
+      <b>To beat calling everyone, skip about 9 true stayers for every
+        true leaver you miss.</b><br>
+      <span>That is the bar the confusion matrix has to clear at every
+        threshold. A model near chance does not separate that cleanly &mdash;
+        lift the cut and the TPs fall almost as fast as the FPs.</span>
+    </div>
+    <div class="ratio">
+      <div class="dots"><i class="dot ok"></i><i class="dot ok"></i><i class="dot ok"></i><i class="dot ok"></i><i class="dot ok"></i><i class="dot ok"></i><i class="dot ok"></i><i class="dot ok"></i><i class="dot ok"></i><i class="dot bad"></i></div>
+      <em><b>9 TN</b> per <b>1 FN</b></em>
+    </div>
   </div>
 
-  <div class="money">
-    <div class="mrow">
-      <span class="mname">Call everyone</span>
-      <span class="mtrack"><i class="mbar" style="left:0;width:98.9%;background:#1e7a4b"></i></span>
-      <span class="mval"><b>$52,400</b></span>
+  <div class="foot">
+    <div class="bars">
+      <div class="mrow">
+        <span class="mname">Call everyone (177)</span>
+        <span class="mtrack"><i class="mbar" style="left:0;width:98.9%;background:#1e7a4b"></i></span>
+        <span class="mval"><b>$52,400</b></span>
+      </div>
+      <div class="mrow">
+        <span class="mname">Best model threshold</span>
+        <span class="mtrack"><i class="mbar" style="left:0;width:100%;background:#2a78d6"></i></span>
+        <span class="mval"><b>$53,000</b>
+          <span class="muted">&nbsp;+$600 · 1%</span></span>
+      </div>
     </div>
-    <div class="mrow">
-      <span class="mname">Use the model to rank</span>
-      <span class="mtrack"><i class="mbar" style="left:0;width:100%;background:#2a78d6"></i></span>
-      <span class="mval"><b>$53,000</b>
-        <span class="muted">&nbsp;+$600 &middot; 1%</span></span>
-    </div>
+    <div class="aside">Every threshold swept on out-of-fold scores. The
+      <b>+$600</b> is itself generous: the cut was chosen on the same
+      customers it is scored on. Cohort base rate <b>30%</b> against a
+      break-even of <b>10%</b>.</div>
   </div>
 </div>

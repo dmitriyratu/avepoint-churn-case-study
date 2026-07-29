@@ -348,18 +348,19 @@ footnote(s, "The recommendation does not change; the reason for it gets one "
 
 # ============================================================ 13 · INSIGHT 3
 s = add("Part 4 · Recommendation 3", "Call every at-risk customer, do not rank them", GREEN)
-picture(s, "15_breakeven_grid.png", height=Inches(3.3), top=Inches(1.8))
+picture(s, "15_breakeven_simple.png", height=Inches(3.55), top=Inches(1.70))
 bullets(s, [
-    ("A call costs about $150. A customer is worth about $7,300. If the call "
-     "works one time in five, it pays for itself on any customer with more than "
-     "a 10% chance of leaving. In this group, 31% leave.", INK, True),
-    ("So calling everyone already makes money, and no ranking can improve on a "
-     "decision that is right for every customer. Using the model adds $600 on "
-     "top of $52,400. That is a 1% gain, and even that is generous.", GREEN, True),
-], top=Inches(5.3), size=13)
-footnote(s, "This is one division. Had I run it first, it would have shown that "
-            "a working model was never the thing standing between us and the "
-            "decision.")
+    ("Yes — price every threshold from its confusion matrix. Skipping a stayer "
+     "saves $150; skipping a leaver costs about $1,310. You need roughly nine "
+     "of the first for every one of the second before ranking beats calling "
+     "everyone.", INK, True),
+    ("Sweep every cut on out-of-fold scores and the best find is +$600 on "
+     "$52,400. A 1% gain, and generous: the threshold was chosen on the same "
+     "customers.", GREEN, True),
+], top=Inches(5.40), size=13.5, space=5)
+footnote(s, "Call cost and save rate are assumptions, not measurements. "
+            "One division would have shown a working model was never the "
+            "binding constraint.")
 
 # ============================================================ 14 · TESTING
 s = add("Part 4 · Testing approach", "How I would test this, and what is worth testing")

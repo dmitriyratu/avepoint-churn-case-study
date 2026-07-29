@@ -459,66 +459,56 @@ note(s, "Say the argument in two sentences. Pooled, churn risk falls sharply "
 
 # ============================================ J · WHAT TO DO ABOUT CHURN
 s = add("Part 4 · Recommendations", "What to do about churn")
-picture(s, "15_what_to_do.png", top=Inches(1.78), height=Inches(3.55))
+picture(s, "15_what_to_do.png", top=Inches(1.68), height=Inches(3.75))
 bullets(s, [
-    ("Three things follow from this work, and none of them needs a model.",
-     INK, True),
-    "  Call everybody at risk, because at a 31% churn rate the decision is "
-    "already right for every customer. Do not spend on the two things the data "
-    "appears to recommend, because both come from the same artefact. Fix three "
-    "things in the export and the question becomes answerable.",
-], top=Inches(5.62), size=13.5, space=4)
-footnote(s, "Every number here is a count from the tables. Nothing is modelled "
-            "and nothing is assumed.")
-note(s, "The slide to present if there is only time for one. Everything else "
-        "in Part 4 is the working behind a column of this."
-        + "\n\n" +
-        "The three columns are deliberately in that order. A hiring panel wants "
-        "to hear an action before it hears a caveat, and the data request lands "
-        "better once they have seen why the obvious moves are wrong."
-        + "\n\n" +
-        "No currency appears. The repo carries an illustrative call cost and "
-        "success rate, neither of which is in the data, so the break-even is "
-        "stated as a ratio instead."
-        + "\n\n" +
+    ("Monday's plan is constructive, not a list of stops.", INK, True),
+    "  Call the at-risk list (~$52k net under the assumed economics), hold half "
+    "back, and log every touch. Do not spend on the 2024 trend, the SHAP list, "
+    "or tenure-targeted onboarding — those are artefacts. Ask for usage and "
+    "ticket timestamps rebuilt (they alone score AUC 0.41); keep billing; then "
+    "re-run.",
+], top=Inches(5.55), size=13.5, space=4)
+footnote(s, "Call cost and save rate are assumptions. The 0.41 → 0.63 contrast "
+            "is a post-hoc feature-family check — directional, not a new champion "
+            "model.")
+note(s, "Constructive reframing of the summary slide.\n\n"
+        "Do-this leads with treat-all NPV as a positive finding and the 9:1 "
+        "skip bar; adds experiment sizing (15pp / 15 months).\n\n"
+        "Do-not softens onboarding to tenure-targeted only; keeps calendar + "
+        "SHAP nulls.\n\n"
+        "Fix-this scopes the data ask: usage/tickets poison (AUC 0.41) vs "
+        "billing usable; 0.63 when dropped is the modelling silver lining, "
+        "flagged in the footnote as post-hoc.\n\n"
         "Built by build/fig_what_to_do_html.py.")
 
 # ============================================ G · THE RANKING IS WORTH NOTHING
 s = add("Part 4 · Recommendation 3", "Call every at-risk customer, do not rank them")
-picture(s, "15_breakeven_simple.png", top=Inches(1.70), height=Inches(3.55))
+picture(s, "15_breakeven_simple.png", top=Inches(1.62), height=Inches(4.05))
 bullets(s, [
-    ("A call costs about $150. A customer is worth about $7,300. If one call in "
-     "five saves the customer, the call pays for itself on anyone with more "
-     "than a 10.3% chance of leaving.", INK, True),
+    ("Yes — price every threshold from its confusion matrix. Skipping a stayer "
+     "saves $150; skipping a leaver costs about $1,310. You need roughly nine "
+     "of the first for every one of the second before ranking beats calling "
+     "everyone.", INK, True),
     "",
-    "Everyone in this cohort is at 30.5%, three times over that bar. So the "
-    "right action for every customer is the same one, and no ordering can "
-    "improve on a decision that is already correct for all of them.",
-    "",
-    "Ranking would only start to matter if a call cost $446 rather than $150, "
-    "or a customer were worth $2,459 rather than $7,310. Both are a factor of "
-    "three away.",
-    "",
-    ("Using the model adds $600 on top of $52,400. A 1% gain, and generous at "
-     "that, because the threshold it uses was chosen with hindsight on the same "
+    ("Sweep every cut on out-of-fold scores and the best find is +$600 on "
+     "$52,400. A 1% gain, and generous: the threshold was chosen on the same "
      "customers.", GREEN, True),
-], top=Inches(5.42), size=13.5, space=4)
-footnote(s, "One division. Run first, it would have shown that a working model "
-            "was never the thing standing between us and the decision.")
-note(s, "Replaces the break-even heatmap, which swept call cost against "
-        "customer value across sixteen cells. The sweep asked the reader to "
-        "find their cell, compare it against a base rate printed in the title, "
-        "and infer the conclusion themselves.\n\n"
-        "Only two cells of that grid ever mattered, and they are now stated as "
-        "the two points where the decision flips: $446 a call, or $2,459 a "
-        "customer.\n\n"
-        "Both inputs are assumptions, not measurements. "
+], top=Inches(5.80), size=14, space=5)
+footnote(s, "Call cost and save rate are assumptions, not measurements. "
+            "One division would have shown a working model was never the "
+            "binding constraint.")
+note(s, "The figure answers the natural objection: 'can't we just pick the "
+        "revenue-maximising threshold from TP/FP/TN/FN?' Yes — and that is "
+        "exactly what the value curve does.\n\n"
+        "Versus treat-all, each TN is worth +C ($150) and each FN costs "
+        "−(e×V − C) ≈ $1,310. Ratio ≈ 9:1. A nested-CV AUC of 0.534 does not "
+        "clear that bar, so the sweep lands within 1% of treat-all.\n\n"
+        "Same arithmetic as break-even p* = C/(e×V) = 10.3% against a 30.5% "
+        "base rate: when calls are cheap relative to a save, false negatives "
+        "are expensive and selectivity rarely pays.\n\n"
         "DEFAULT_INTERVENTION_COST = 150 and DEFAULT_EFFECTIVENESS = 0.20 in "
-        "src/economics.py; nothing in the data supports either. Say so before "
-        "being asked. The conclusion survives a wide range of both, which is "
-        "what the two flip points are there to show.\n\n"
-        "Numbers from outputs/reports/retention_economics.csv. The figure is "
-        "built by build/fig_breakeven_html.py.")
+        "src/economics.py. Numbers from retention_economics.csv. Figure: "
+        "build/fig_breakeven_html.py.")
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 prs.save(OUT)
