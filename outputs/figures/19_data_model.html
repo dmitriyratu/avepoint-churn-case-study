@@ -1,0 +1,134 @@
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #fff;
+         font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+  .wrap { position: relative; width: 1800px; height: 1030px; }
+  svg { position: absolute; inset: 0; }
+
+  .table { position: absolute; background: #fff; border: 1.5px solid var(--accent);
+            border-radius: 10px; overflow: hidden; z-index: 2;
+            box-shadow: 0 2px 10px rgba(26,26,26,.07); }
+  .head { display: flex; align-items: baseline; justify-content: space-between;
+           gap: 10px; padding: 11px 14px; height: 50px;
+           background: color-mix(in srgb, var(--accent) 9%, #fff);
+           border-bottom: 1.5px solid color-mix(in srgb, var(--accent) 32%, #fff); }
+  .name { font-size: 19px; font-weight: 650; color: var(--accent);
+           letter-spacing: -.2px; }
+  .count { font-size: 13px; color: #5A6270; white-space: nowrap; }
+
+  .row { display: flex; align-items: center; gap: 9px; height: 28px;
+          padding: 0 14px; border-bottom: 1px solid #F0F2F4; }
+  .row:last-of-type { border-bottom: 0; }
+  .row.flag { background: rgba(176,46,46,.045); }
+  .col { font-size: 14px; color: #1A1A1A; }
+  .type { font-size: 12.5px; color: #98A0AA; margin-left: auto; }
+  .row.flag .type { display: none; }
+  .warn { font-size: 12px; color: #B02E2E; margin-left: auto; font-style: italic;
+           white-space: nowrap; }
+
+  .badge { font-size: 9.5px; font-weight: 700; letter-spacing: .4px;
+            width: 22px; text-align: center; padding: 2px 0; border-radius: 3px; }
+  .badge.pk { background: #F0E6C8; color: #7A5C10; }
+  .badge.fk { background: #E2E9F1; color: #2E5F8A; }
+  .badge.none { background: transparent; }
+
+  .more { height: 26px; display: flex; align-items: center; padding: 0 14px;
+           font-size: 12px; color: #98A0AA; background: #FAFBFC;
+           border-top: 1px solid #F0F2F4; }
+
+  .edge { display: flex; flex-direction: column; align-items: center; gap: 3px;
+           text-align: center; }
+  .edge .card { font-size: 14px; font-weight: 650; color: var(--c);
+                 background: #fff; padding: 1px 9px; border-radius: 4px; }
+  .edge .note { font-size: 12px; color: var(--c); background: #fff;
+                 padding: 1px 8px; border-radius: 4px; line-height: 1.35; }
+
+  .legend { position: absolute; left: 44px; top: 44px; z-index: 3;
+             font-size: 13.5px; color: #5A6270; line-height: 2.0; }
+  .legend b { display: block; font-size: 15px; color: #1A1A1A; margin-bottom: 4px; }
+  .key { display: flex; align-items: center; gap: 9px; }
+  .key i { width: 30px; height: 0; border-top: 2px solid; display: inline-block; }
+
+  .findings { position: absolute; left: 44px; top: 780px;
+               width: 1712px; z-index: 3; display: grid;
+               grid-template-columns: repeat(3, 1fr); gap: 0 54px;
+               padding-top: 24px; border-top: 1px solid #D8DCE0; }
+  .findings h4 { font-size: 14.5px; font-weight: 650; margin-bottom: 10px;
+                  padding-bottom: 6px; border-bottom: 2px solid currentColor; }
+  .findings li { list-style: none; display: flex; gap: 9px; align-items: baseline;
+                  font-size: 13px; color: #5A6270; line-height: 1.5;
+                  margin-bottom: 6px; }
+  .findings .stat { font-weight: 650; color: #1A1A1A; white-space: nowrap;
+                     min-width: 84px; font-variant-numeric: tabular-nums; }
+</style>
+<div class="wrap">
+  <svg width="1800" height="1030"><defs><marker id="crowGreen" viewBox="0 0 14 14" refX="13" refY="7" markerWidth="11" markerHeight="11" orient="auto"><path d="M0,0 L13,7 M0,7 L13,7 M0,14 L13,7" fill="none" stroke="#1E7A4B" stroke-width="1.6"/></marker><marker id="crowRed" viewBox="0 0 14 14" refX="13" refY="7" markerWidth="11" markerHeight="11" orient="auto"><path d="M0,0 L13,7 M0,7 L13,7 M0,14 L13,7" fill="none" stroke="#B02E2E" stroke-width="1.6"/></marker></defs><path d="M380,372.0 C622.0,372.0 578.0,152.0 807,152.0" stroke="#1E7A4B" stroke-width="2" fill="none" marker-end="url(#crowGreen)"/><circle cx="380" cy="372.0" r="4" fill="#1E7A4B"/><foreignObject x="470.0" y="184.0" width="260" height="72"><div xmlns="http://www.w3.org/1999/xhtml" class="edge" style="--c:#1E7A4B"><div class="card">1 : 10</div><div class="note">sound — no contract starts before its customer</div></div></foreignObject><path d="M380,372.0 C622.0,372.0 578.0,408.0 807,408.0" stroke="#B02E2E" stroke-width="2" fill="none" stroke-dasharray="7 5" marker-end="url(#crowRed)"/><circle cx="380" cy="372.0" r="4" fill="#B02E2E"/><foreignObject x="470.0" y="312.0" width="260" height="72"><div xmlns="http://www.w3.org/1999/xhtml" class="edge" style="--c:#B02E2E"><div class="card">1 : 4</div><div class="note">broken in time — r = 0.016, 54% before signup</div></div></foreignObject><path d="M380,372.0 C622.0,372.0 578.0,636.0 807,636.0" stroke="#B02E2E" stroke-width="2" fill="none" stroke-dasharray="7 5" marker-end="url(#crowRed)"/><circle cx="380" cy="372.0" r="4" fill="#B02E2E"/><foreignObject x="470.0" y="426.0" width="260" height="72"><div xmlns="http://www.w3.org/1999/xhtml" class="edge" style="--c:#B02E2E"><div class="card">1 : 1.7</div><div class="note">dates are a coin toss between signup and file end</div></div></foreignObject><path d="M1180,152.0 C1312.0,152.0 1288.0,138.0 1407,138.0" stroke="#B02E2E" stroke-width="2" fill="none" stroke-dasharray="7 5" marker-end="url(#crowRed)"/><circle cx="1180" cy="152.0" r="4" fill="#B02E2E"/><foreignObject x="1200.0" y="53.0" width="200" height="72"><div xmlns="http://www.w3.org/1999/xhtml" class="edge" style="--c:#B02E2E"><div class="card">1 : 5</div><div class="note">broken in time — r = 0.002, 53% before signup</div></div></foreignObject></svg>
+  <div class="legend">
+    <b>How to read this</b>
+    <div class="key"><i style="border-color:#1E7A4B"></i>
+      the join holds, by ID and by date</div>
+    <div class="key"><i style="border-top-style:dashed;border-color:#B02E2E"></i>
+      the ID resolves, the date does not</div>
+  </div>
+  <div class="findings">
+    <div>
+      <h4 style="color:#5A6270">What we are working with</h4>
+      <li><span class="stat">500</span><span>customers, across 5 industries and 7 countries</span></li><li><span class="stat">5,000</span><span>contracts — ten per customer</span></li><li><span class="stat">27,000</span><span>usage rows and support tickets</span></li><li><span class="stat">600</span><span>churn records, covering 352 customers</span></li><li><span class="stat">24 months</span><span>January 2023 to December 2024, no gaps</span></li>
+    </div>
+    <div>
+      <h4 style="color:#1E7A4B">Every routine check passes</h4>
+      <li><span class="stat">0</span><span>orphan rows — every foreign key resolves</span></li><li><span class="stat">0</span><span>contracts start before their own customer</span></li><li><span class="stat">0</span><span>tickets close before they were opened</span></li><li><span class="stat">1.8%</span><span>of cells are blank, across all five tables</span></li><li><span class="stat">100%</span><span>of contracts price correctly: ARR = 12 × MRR</span></li>
+    </div>
+    <div>
+      <h4 style="color:#B02E2E">And the file is still unusable</h4>
+      <li><span class="stat">9 of 10</span><span>contracts per customer never end</span></li><li><span class="stat">33%</span><span>of contracts match their own account's plan</span></li><li><span class="stat">20%</span><span>of customers: all three churn records agree</span></li><li><span class="stat">3, 4, 5</span><span>the only satisfaction scores, of a stated 1–5</span></li><li><span class="stat">even</span><span>ticket priority splits 26 / 26 / 25 / 24</span></li>
+    </div>
+  </div>
+  
+  <div class="table" style="left:40px;top:250px;width:340px;
+       --accent:#1E7A4B">
+    <div class="head">
+      <span class="name">accounts</span>
+      <span class="count">500 rows</span>
+    </div>
+    <div class="row"><span class="badge pk">PK</span><span class="col">account_id</span><span class="type">varchar</span></div><div class="row"><span class="badge none"></span><span class="col">signup_date</span><span class="type">date</span></div><div class="row"><span class="badge none"></span><span class="col">plan_tier</span><span class="type">varchar</span></div><div class="row"><span class="badge none"></span><span class="col">industry</span><span class="type">varchar</span></div><div class="row"><span class="badge none"></span><span class="col">country</span><span class="type">varchar</span></div><div class="row flag"><span class="badge none"></span><span class="col">churn_flag</span><span class="type">boolean</span><span class=warn>no date — unusable</span></div>
+    <div class="more">+ 4 more columns</div>
+  </div>
+  <div class="table" style="left:820px;top:30px;width:360px;
+       --accent:#1E7A4B">
+    <div class="head">
+      <span class="name">subscriptions</span>
+      <span class="count">5,000 rows</span>
+    </div>
+    <div class="row"><span class="badge pk">PK</span><span class="col">subscription_id</span><span class="type">varchar</span></div><div class="row"><span class="badge fk">FK</span><span class="col">account_id</span><span class="type">varchar</span></div><div class="row"><span class="badge none"></span><span class="col">start_date</span><span class="type">date</span></div><div class="row flag"><span class="badge none"></span><span class="col">end_date</span><span class="type">date</span><span class=warn>only 486 are set</span></div><div class="row"><span class="badge none"></span><span class="col">mrr_amount</span><span class="type">decimal</span></div><div class="row"><span class="badge none"></span><span class="col">seats</span><span class="type">integer</span></div>
+    <div class="more">+ 8 more columns</div>
+  </div>
+  <div class="table" style="left:820px;top:300px;width:360px;
+       --accent:#B02E2E">
+    <div class="head">
+      <span class="name">support_tickets</span>
+      <span class="count">2,000 rows</span>
+    </div>
+    <div class="row"><span class="badge pk">PK</span><span class="col">ticket_id</span><span class="type">varchar</span></div><div class="row"><span class="badge fk">FK</span><span class="col">account_id</span><span class="type">varchar</span></div><div class="row flag"><span class="badge none"></span><span class="col">submitted_at</span><span class="type">datetime</span><span class=warn>not the customer's time</span></div><div class="row"><span class="badge none"></span><span class="col">priority</span><span class="type">varchar</span></div><div class="row flag"><span class="badge none"></span><span class="col">satisfaction_score</span><span class="type">integer</span><span class=warn>only ever 3, 4, 5</span></div>
+    <div class="more">+ 4 more columns</div>
+  </div>
+  <div class="table" style="left:820px;top:542px;width:360px;
+       --accent:#B02E2E">
+    <div class="head">
+      <span class="name">churn_events</span>
+      <span class="count">600 rows</span>
+    </div>
+    <div class="row"><span class="badge pk">PK</span><span class="col">churn_event_id</span><span class="type">varchar</span></div><div class="row"><span class="badge fk">FK</span><span class="col">account_id</span><span class="type">varchar</span></div><div class="row flag"><span class="badge none"></span><span class="col">churn_date</span><span class="type">date</span><span class=warn>the target is built here</span></div><div class="row"><span class="badge none"></span><span class="col">reason_code</span><span class="type">varchar</span></div>
+    <div class="more">+ 5 more columns</div>
+  </div>
+  <div class="table" style="left:1420px;top:30px;width:360px;
+       --accent:#B02E2E">
+    <div class="head">
+      <span class="name">feature_usage</span>
+      <span class="count">25,000 rows</span>
+    </div>
+    <div class="row"><span class="badge pk">PK</span><span class="col">usage_id</span><span class="type">varchar</span></div><div class="row"><span class="badge fk">FK</span><span class="col">subscription_id</span><span class="type">varchar</span></div><div class="row flag"><span class="badge none"></span><span class="col">usage_date</span><span class="type">date</span><span class=warn>not the customer's time</span></div><div class="row"><span class="badge none"></span><span class="col">usage_count</span><span class="type">integer</span></div><div class="row"><span class="badge none"></span><span class="col">error_count</span><span class="type">integer</span></div>
+    <div class="more">+ 3 more columns</div>
+  </div>
+</div>
