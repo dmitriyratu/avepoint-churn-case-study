@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -23,19 +24,44 @@ sys.path.insert(0, str(ROOT))
 from src import pipeline  # noqa: E402
 from src.config import CUTOFF_DATE, TARGET  # noqa: E402
 
+# Everything a success team could actually filter a list on. The last four come
+# from `subscriptions`, the one table with internal rules, so a null there says
+# more than a null in the tables known to be scrambled.
 VARIABLES = [
     ("industry", "Industry"),
     ("referral_source", "How they found us"),
     ("country", "Country"),
     ("plan_tier", "Plan"),
     ("is_trial", "Started on a trial"),
+    ("billing_freq", "Billing"),
+    ("seat_band", "Company size"),
+    ("tenure_band", "How long a customer"),
+    ("mrr_band", "Contract size"),
+    ("downgraded", "Ever downgraded"),
 ]
 SHUFFLES = 20_000
 XMAX, BINS = 0.80, 56
+ROW_H, PLOT_H = 52, 44
 SEED = 0
 
-cohort = pipeline.build().cohort
+built = pipeline.build()
+cohort = built.cohort.reset_index(drop=True)
+features = built.X.reset_index(drop=True)
 left = cohort[TARGET].to_numpy()
+
+
+def band(series, cuts, names):
+    return pd.cut(series, bins=cuts, labels=names, include_lowest=True)
+
+
+cohort["billing_freq"] = features["billing_freq"].fillna("unknown")
+cohort["seat_band"] = band(features["latest_seats"], [0, 9, 49, 199, 1e9],
+                           ["1-9 seats", "10-49", "50-199", "200+"])
+cohort["tenure_band"] = band(features["tenure_days"], [0, 180, 365, 547, 1e9],
+                             ["under 6 mo", "6-12 mo", "12-18 mo", "18 mo+"])
+cohort["mrr_band"] = band(features["latest_mrr"], [-1, 500, 1500, 4000, 1e9],
+                          ["under $500", "$500-1.5k", "$1.5k-4k", "$4k+"])
+cohort["downgraded"] = np.where(features["n_downgrades"] > 0, "yes", "no")
 
 codes, sizes = [], []
 for column, _ in VARIABLES:
@@ -101,10 +127,10 @@ HTML = f"""<meta charset="utf-8">
   .wrap {{ padding: 20px 24px 22px; }}
   .muted {{ color: #5A6270; }}
 
-  .row {{ display: flex; align-items: flex-end; height: 74px; margin-bottom: 9px; }}
-  .name {{ flex: 0 0 150px; text-align: right; padding: 0 16px 21px 0;
-           font-size: 14px; font-weight: 700; }}
-  .plot {{ flex: 1 1 auto; min-width: 0; position: relative; height: 66px;
+  .row {{ display: flex; align-items: flex-end; height: {ROW_H}px; margin-bottom: 7px; }}
+  .name {{ flex: 0 0 168px; text-align: right; padding: 0 16px 14px 0;
+           font-size: 13.5px; font-weight: 700; }}
+  .plot {{ flex: 1 1 auto; min-width: 0; position: relative; height: {PLOT_H}px;
            border-bottom: 1px solid #D8DCE0; }}
   .bars {{ position: absolute; inset: 0; display: flex; align-items: flex-end;
            gap: 1px; }}
@@ -119,13 +145,13 @@ HTML = f"""<meta charset="utf-8">
   .p b {{ display: block; font-size: 12.5px; font-weight: 400; }}
   .p.hot {{ color: #B02E2E; font-weight: 700; }}
 
-  .axis {{ position: relative; height: 18px; margin: 2px 132px 0 166px; }}
+  .axis {{ position: relative; height: 18px; margin: 2px 132px 0 184px; }}
   .axis span {{ position: absolute; transform: translateX(-50%); font-size: 12px;
                 color: #5A6270; }}
-  .cap {{ margin: 4px 132px 0 166px; font-size: 12.5px; color: #5A6270;
+  .cap {{ margin: 4px 132px 0 184px; font-size: 12.5px; color: #5A6270;
           text-align: center; }}
 
-  .verdict {{ display: flex; align-items: center; gap: 14px; margin: 16px 0 0 166px;
+  .verdict {{ display: flex; align-items: center; gap: 14px; margin: 14px 0 0 184px;
               padding: 11px 16px; border-left: 3px solid #B02E2E;
               background: #FAF3F3; }}
   .verdict b {{ font-size: 15px; flex: 0 0 auto; white-space: nowrap; }}
@@ -138,9 +164,10 @@ HTML = f"""<meta charset="utf-8">
     pale bars = {SHUFFLES:,} shuffles &nbsp;·&nbsp;
     <span style="color:#B02E2E">red = what we actually saw</span></div>
   <div class="verdict">
-    <b>Ask all five at once: p = {family_p:.2f}</b>
-    <span>Industry alone is p = {p_each.min():.2f}. Score every shuffle on all five
-      variables and keep its best, and {family_p:.0%} of them beat what we saw.</span>
+    <b>All {len(VARIABLES)} together: p = {family_p:.2f}</b>
+    <span>The best single result is p = {p_each.min():.2f}. Score each shuffle on all
+      {len(VARIABLES)} and keep its best, and {family_p:.0%} of them beat what we
+      saw.</span>
   </div>
 </div>
 """
@@ -153,7 +180,7 @@ from playwright.sync_api import sync_playwright  # noqa: E402
 out = ROOT / "outputs" / "figures" / "05_segment_shuffle.png"
 with sync_playwright() as p:
     browser = p.chromium.launch()
-    page = browser.new_page(viewport={"width": 1000, "height": 640},
+    page = browser.new_page(viewport={"width": 1000, "height": 900},
                             device_scale_factor=3)
     page.goto(page_path.as_uri())
     page.locator(".wrap").screenshot(path=str(out))

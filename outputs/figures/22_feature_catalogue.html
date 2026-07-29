@@ -1,0 +1,29 @@
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #fff;
+         font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+  .wrap { width: 1660px; height: 750px; padding: 32px 40px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 11px; font-weight: 600; color: #5A6270; text-align: left;
+        text-transform: uppercase; letter-spacing: .6px;
+        padding: 0 0 9px 0; border-bottom: 1.5px solid #D8DCE0; }
+  td { padding: 13px 0 13px 0; border-bottom: 1px solid #F0F2F4;
+        vertical-align: baseline; }
+  td.n { font-size: 21px; font-weight: 650; color: #2E5F8A; width: 52px;
+          text-align: right; padding-right: 20px;
+          font-variant-numeric: tabular-nums; }
+  td.tech { width: 360px; padding-right: 40px; }
+  td b { font-size: 15px; color: #1A1A1A; font-weight: 600; }
+  .why { font-size: 13px; color: #5A6270; display: block; margin-top: 3px; }
+  td.ex { font-size: 11.5px; color: #98A0AA; font-family: "Consolas",
+           monospace; line-height: 1.75; }
+</style>
+<div class="wrap">
+  <table>
+    <tr><th style="text-align:right;padding-right:22px">n</th>
+        <th>Technique</th><th>Columns</th></tr>
+    <tr><td class="n">9</td><td class="tech"><b>State at the cutoff</b><span class="why">latest value, first value, tenure</span></td><td class="ex">latest_mrr, latest_seats, latest_plan_tier, latest_is_trial, billing_freq, first_mrr, first_seats, tenure_days, days_since_signup</td></tr><tr><td class="n">23</td><td class="tech"><b>Aggregates per customer</b><span class="why">count, sum, mean, max, min, spread</span></td><td class="ex">n_subscriptions, n_upgrades, n_downgrades, n_trial_subs, n_ended_subs, total_mrr, max_mrr, avg_mrr, mrr_std, n_tickets, n_escalations, n_urgent_high, n_open_tickets, avg_resolution_hours, max_resolution_hours, avg_first_response_mins, avg_satisfaction, min_satisfaction, total_usage_events, total_usage_duration_mins, total_errors, avg_usage_count, unique_features_used</td></tr><tr><td class="n">8</td><td class="tech"><b>Trailing windows</b><span class="why">the same count over 30, 60, 90 and 180 days</span></td><td class="ex">usage_last_30d, usage_last_60d, usage_last_90d, usage_last_180d, usage_prior_90d, tickets_last_30d, tickets_last_90d, tickets_last_180d</td></tr><tr><td class="n">8</td><td class="tech"><b>Trend and acceleration</b><span class="why">recent rate over older rate, and a fitted slope</span></td><td class="ex">accel_30d_vs_90d, accel_30d_vs_180d, accel_90d_vs_180d, ticket_accel_30d_vs_90d, usage_momentum, usage_delta_90d, usage_trend_slope, recency_ratio_90d</td></tr><tr><td class="n">6</td><td class="tech"><b>Recency and rhythm</b><span class="why">days since the last event, and the gaps between them</span></td><td class="ex">days_since_last_usage, days_since_last_ticket, days_since_last_sub_start, usage_span_days, mean_gap_days, max_gap_days</td></tr><tr><td class="n">4</td><td class="tech"><b>Direction of travel</b><span class="why">latest minus first</span></td><td class="ex">seat_growth, mrr_growth, mrr_growth_pct, upgrade_net</td></tr><tr><td class="n">8</td><td class="tech"><b>Rates and shares</b><span class="why">a count over its own denominator</span></td><td class="ex">auto_renew_pct, pct_subs_ended, urgent_pct, escalation_rate, error_rate, beta_feature_pct, sat_missing_rate, mrr_cv</td></tr><tr><td class="n">3</td><td class="tech"><b>Per-seat normalisation</b><span class="why">divided by the seat count</span></td><td class="ex">usage_per_seat, tickets_per_seat, mrr_per_seat</td></tr><tr><td class="n">4</td><td class="tech"><b>Account attributes</b><span class="why">encoded inside each fold</span></td><td class="ex">industry, country, referral_source, plan_tier</td></tr>
+  </table>
+</div>

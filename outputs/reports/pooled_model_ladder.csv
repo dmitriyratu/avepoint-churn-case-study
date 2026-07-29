@@ -1,0 +1,11 @@
+model,auc,sd,ci_lo,ci_hi,n_folds
+0. Prior (no features),0.5,0.0,0.5,0.5,25
+1. Single decision stump,0.5733,0.0397,0.4982,0.6392,25
+"2. Logistic (L2, C=1)",0.5752,0.0492,0.469,0.6473,25
+"3. Logistic (L2, C=0.05)",0.5868,0.0426,0.4927,0.6509,25
+"4. Logistic (L1, C=0.1)",0.6036,0.0471,0.5177,0.6817,25
+5. Random forest (depth 4),0.5902,0.0484,0.5028,0.6654,25
+6. LightGBM (pipelined),0.5961,0.0434,0.5298,0.6649,25
+7. LightGBM (native NaN + categoricals),0.5965,0.0436,0.534,0.6688,25
+8. XGBoost (native NaN + categoricals),0.586,0.0433,0.5078,0.6503,25
+9. HistGradientBoosting (native NaN),0.5996,0.0433,0.5159,0.6683,25

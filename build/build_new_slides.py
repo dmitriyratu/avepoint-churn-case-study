@@ -97,7 +97,57 @@ note(s, "Sits after the performance slide. That one says the number falls from "
         "nested_cv_folds.csv and shown in notebook 04. The figure is built by "
         "build/fig_winners_html.py.")
 
-# ==================================================== D · NO SEGMENT STANDS OUT
+# ================================================= D · WHAT CHANCE ALONE PRODUCES
+s = add("Part 2 · Data exploration", "No group stands out, tested against chance")
+picture(s, "05_segment_shuffle.png", top=Inches(1.66), height=Inches(4.05),
+        left=Inches(0.45))
+bullets(s, [
+    ("Ten ways a success team could filter a call list. None of them works.",
+     INK, True),
+    "",
+    ("Method", INK, True),
+    "  Hold the groups fixed and shuffle who left, so the only thing destroyed "
+    "is the link between the two. Measure the widest gap in churn rate between "
+    "any two groups. Repeat 20,000 times.",
+    "  The pale bars are the gaps chance produced. The red line is the gap we "
+    "observed. If the line sits inside the bars, the grouping explains nothing.",
+    "",
+    ("Industry clears the bar on its own", RED, True),
+    "  A 32-point gap, beaten by 3% of shuffles. Reported alone, that is a "
+    "finding.",
+    "  It was not asked alone. Ten variables were tested. Scoring each shuffle "
+    "on all ten and keeping its best, 26% beat what we observed. The result "
+    "does not survive the question that was actually asked.",
+    "",
+    ("What the widths show", INK, True),
+    "  Country reaches 35 points on chance alone, because some countries hold "
+    "six customers. Billing never exceeds 8, because its two groups are large. "
+    "The shuffle prices that in without any assumption about distributions.",
+], top=Inches(1.78), left=Inches(7.35), width=Inches(5.30), size=12.5, space=3)
+footnote(s, "No group here is worth targeting, including the one that looked "
+            "like it was.")
+note(s, "Replaces both the bar charts and an earlier version built on "
+        "confidence intervals. Intervals show precision but do not perform the "
+        "test, and reading significance off whether they cross a line "
+        "disagreed with the actual test — Cybersecurity's interval excluded the "
+        "base rate while industry sat at p = 0.08.\n\n"
+        "This does the test directly, with no formula and no distributional "
+        "assumption. Shuffle the labels, keep the group sizes, recompute the "
+        "statistic, repeat.\n\n"
+        "The last row is the slide. Industry at p = 0.03 is exactly the finding "
+        "I would have reported if I had stopped there, and it is the same "
+        "mistake the deck later catches on the calendar-hazard result: testing "
+        "against the wrong null. Volunteer it rather than waiting to be asked.\n\n"
+        "The last five variables come from subscriptions, the one table with "
+        "internal rules, so a null there carries more weight than a null in the "
+        "tables already known to be scrambled.\n\n"
+        "Per-variable p: industry 0.033, contract size 0.058, company size "
+        "0.098, tenure 0.118, referral 0.136, country 0.501, trial 0.543, "
+        "billing 0.751, plan 0.863, downgrade 1.000. Family-wise 0.262 from "
+        "20,000 shuffles, seed 0, at the 30 June 2024 cutoff. Built by "
+        "build/fig_segment_shuffle_html.py.")
+
+# ============================================ E · NO SEGMENT STANDS OUT (INTERVALS)
 s = add("Part 2 · Data exploration", "No group of customers stands out")
 picture(s, "05_segment_forest_html.png", top=Inches(1.72), height=Inches(4.95),
         left=Inches(0.50))

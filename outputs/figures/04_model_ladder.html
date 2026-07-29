@@ -1,0 +1,220 @@
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1060px; background: #fff; color: #1A1A1A;
+    font-family: Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { display: flex; padding: 18px 22px 20px; gap: 0; }
+  .col { display: flex; flex-direction: column; }
+  .col.names { flex: 0 0 176px; }
+  .col.panel { flex: 1 1 0; padding: 0 18px; }
+
+  .title { height: 42px; font-size: 14px; font-weight: 700; }
+  .title em { display: block; font-style: normal; font-size: 12.5px;
+               font-weight: 400; color: #5A6270; margin-top: 2px; }
+
+  .lane { height: 27px; display: flex; align-items: center; }
+  .name { width: 100%; text-align: right; padding-right: 14px; font-size: 13px; }
+  .track { flex: 1 1 auto; min-width: 0; position: relative; height: 27px; }
+  .track i { position: absolute; display: block; }
+  .chance { top: 0; bottom: 0; width: 0; border-left: 1px dashed #B02E2E; }
+  .calendar { top: 0; bottom: 0; width: 2px; background: #eb6834;
+               transform: translateX(-1px); }
+  .ci { top: 50%; height: 3px; margin-top: -1.5px; background: #94A6BC;
+         border-radius: 2px; }
+  .ci.up { background: #2a78d6; }
+  .dot { top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px;
+          border-radius: 50%; background: #5A6270; }
+  .dot.up { background: #2a78d6; }
+  .val { flex: 0 0 46px; padding-left: 14px; font-size: 12.5px; color: #5A6270; }
+  .val.up { color: #2a78d6; font-weight: 700; }
+
+  .axis { position: relative; height: 18px; margin: 5px 46px 0 0; }
+  .axis span { position: absolute; transform: translateX(-50%); font-size: 11.5px;
+                color: #5A6270; }
+  .foot { margin: 4px 46px 0 0; font-size: 12px; color: #5A6270; }
+  .foot b { color: #B02E2E; font-weight: 400; }
+  .foot i { color: #eb6834; font-style: normal; font-weight: 700; }
+  .pad { height: 42px; }
+</style>
+<div class="wrap">
+  <div class="col names">
+    <div class="pad"></div>
+    <div class="lane"><span class="name">Prior, no features</span></div><div class="lane"><span class="name">One decision stump</span></div><div class="lane"><span class="name">Logistic L2, C = 1</span></div><div class="lane"><span class="name">Logistic L2, C = 0.05</span></div><div class="lane"><span class="name">Logistic L1, C = 0.1</span></div><div class="lane"><span class="name">Random forest, depth 4</span></div><div class="lane"><span class="name">LightGBM</span></div><div class="lane"><span class="name">LightGBM, native</span></div><div class="lane"><span class="name">XGBoost, native</span></div><div class="lane"><span class="name">HistGradientBoosting</span></div>
+  </div>
+  <div class="col panel">
+    <div class="title">One cutoff<em>177 customers, 54 left &middot; 50 folds</em></div>
+    
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i>
+            
+            <i class="dot" style="left:40.00%"></i>
+          </span>
+          <span class="val">0.500</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i>
+            <i class="ci" style="left:13.82%;width:54.80%"></i>
+            <i class="dot" style="left:43.12%"></i>
+          </span>
+          <span class="val">0.516</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i>
+            <i class="ci" style="left:13.02%;width:77.12%"></i>
+            <i class="dot" style="left:56.58%"></i>
+          </span>
+          <span class="val">0.583</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i>
+            <i class="ci" style="left:19.06%;width:73.94%"></i>
+            <i class="dot" style="left:52.92%"></i>
+          </span>
+          <span class="val">0.565</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i>
+            <i class="ci" style="left:18.30%;width:59.92%"></i>
+            <i class="dot" style="left:47.20%"></i>
+          </span>
+          <span class="val">0.536</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i>
+            <i class="ci" style="left:21.54%;width:66.86%"></i>
+            <i class="dot" style="left:50.02%"></i>
+          </span>
+          <span class="val">0.550</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i>
+            <i class="ci" style="left:20.00%;width:65.18%"></i>
+            <i class="dot" style="left:48.64%"></i>
+          </span>
+          <span class="val">0.543</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i>
+            <i class="ci" style="left:15.38%;width:77.72%"></i>
+            <i class="dot" style="left:48.78%"></i>
+          </span>
+          <span class="val">0.544</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i>
+            <i class="ci" style="left:26.70%;width:60.94%"></i>
+            <i class="dot" style="left:53.82%"></i>
+          </span>
+          <span class="val">0.569</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i>
+            <i class="ci" style="left:6.18%;width:80.18%"></i>
+            <i class="dot" style="left:50.40%"></i>
+          </span>
+          <span class="val">0.552</span>
+        </div>
+    <div class="axis"><span style="left:0.00%">0.3</span><span style="left:20.00%">0.4</span><span style="left:40.00%">0.5</span><span style="left:60.00%">0.6</span><span style="left:80.00%">0.7</span><span style="left:100.00%">0.8</span></div>
+    <div class="foot"><b>- - - chance, 0.50</b> &middot; no rung clears it</div>
+  </div>
+  <div class="col panel">
+    <div class="title">Four cutoffs pooled<em>648 rows, 159 left &middot; 25 grouped folds</em></div>
+    
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i><i class="calendar" style="left:57.95%"></i>
+            
+            <i class="dot" style="left:40.00%"></i>
+          </span>
+          <span class="val">0.500</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i><i class="calendar" style="left:57.95%"></i>
+            <i class="ci" style="left:39.64%;width:28.20%"></i>
+            <i class="dot" style="left:54.66%"></i>
+          </span>
+          <span class="val">0.573</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i><i class="calendar" style="left:57.95%"></i>
+            <i class="ci" style="left:33.80%;width:35.66%"></i>
+            <i class="dot" style="left:55.04%"></i>
+          </span>
+          <span class="val">0.575</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i><i class="calendar" style="left:57.95%"></i>
+            <i class="ci" style="left:38.54%;width:31.64%"></i>
+            <i class="dot" style="left:57.36%"></i>
+          </span>
+          <span class="val">0.587</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i><i class="calendar" style="left:57.95%"></i>
+            <i class="ci up" style="left:43.54%;width:32.80%"></i>
+            <i class="dot up" style="left:60.72%"></i>
+          </span>
+          <span class="val up">0.604</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i><i class="calendar" style="left:57.95%"></i>
+            <i class="ci up" style="left:40.56%;width:32.52%"></i>
+            <i class="dot up" style="left:58.04%"></i>
+          </span>
+          <span class="val up">0.590</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i><i class="calendar" style="left:57.95%"></i>
+            <i class="ci up" style="left:45.96%;width:27.02%"></i>
+            <i class="dot up" style="left:59.22%"></i>
+          </span>
+          <span class="val up">0.596</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i><i class="calendar" style="left:57.95%"></i>
+            <i class="ci up" style="left:46.80%;width:26.96%"></i>
+            <i class="dot up" style="left:59.30%"></i>
+          </span>
+          <span class="val up">0.597</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i><i class="calendar" style="left:57.95%"></i>
+            <i class="ci up" style="left:41.56%;width:28.50%"></i>
+            <i class="dot up" style="left:57.20%"></i>
+          </span>
+          <span class="val up">0.586</span>
+        </div>
+        <div class="lane">
+          <span class="track">
+            <i class="chance" style="left:40.00%"></i><i class="calendar" style="left:57.95%"></i>
+            <i class="ci up" style="left:43.18%;width:30.48%"></i>
+            <i class="dot up" style="left:59.92%"></i>
+          </span>
+          <span class="val up">0.600</span>
+        </div>
+    <div class="axis"><span style="left:0.00%">0.3</span><span style="left:20.00%">0.4</span><span style="left:40.00%">0.5</span><span style="left:60.00%">0.6</span><span style="left:80.00%">0.7</span><span style="left:100.00%">0.8</span></div>
+    <div class="foot"><i>&#9474; 0.590</i> = knowing only which of the
+      four dates a row came from</div>
+  </div>
+</div>
