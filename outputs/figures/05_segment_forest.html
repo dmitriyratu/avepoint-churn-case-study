@@ -1,0 +1,276 @@
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 940px; background: #fff; color: #1A1A1A;
+    font-family: Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { padding: 20px 24px 22px; }
+
+  .block { margin-bottom: 15px; }
+  .head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 5px;
+           padding-bottom: 4px; border-bottom: 1px solid #E4E7EB; }
+  .head span { font-size: 14.5px; font-weight: 700; }
+  .head em { font-size: 12.5px; font-style: normal; color: #5A6270; }
+
+  .row { display: flex; align-items: center; height: 25px; }
+  .name { flex: 0 0 132px; text-align: right; padding-right: 15px;
+           font-size: 13.5px; }
+  .track { flex: 1 1 auto; min-width: 0; position: relative; height: 25px; }
+  .track i { position: absolute; display: block; }
+  .base { top: 0; bottom: 0; width: 2px; background: #B02E2E;
+           transform: translateX(-1px); }
+  .ci { top: 50%; height: 3px; margin-top: -1.5px; background: #2a78d6;
+         opacity: .45; border-radius: 2px; }
+  .dot { top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px;
+          border-radius: 50%; background: #2a78d6; }
+  .count { flex: 0 0 84px; padding-left: 18px; font-size: 13px; color: #5A6270; }
+  .count b { color: #1A1A1A; font-weight: 700; }
+  .total .name, .total .count { color: #B02E2E; font-weight: 700; }
+  .total .count b { color: #B02E2E; }
+  .total .ci { background: #B02E2E; opacity: .38; }
+  .total .dot { background: #B02E2E; }
+
+  .axis { position: relative; height: 19px; margin: 4px 84px 0 132px; }
+  .axis span { position: absolute; transform: translateX(-50%); font-size: 12px;
+                color: #5A6270; }
+  .cap { text-align: center; margin: 5px 84px 0 132px; font-size: 12.5px;
+          color: #5A6270; }
+</style>
+<div class="wrap">
+  
+<div class="block">
+  <div class="head"><span>Everyone in the cohort</span><em>at 30 June 2024, one cutoff</em></div>
+  <div class="row total">
+    <span class="name">all customers</span>
+    <span class="track">
+      <i class="base" style="left:43.58%"></i>
+      <i class="ci" style="left:34.57%;width:19.21%"></i>
+      <i class="dot" style="left:43.58%"></i>
+    </span>
+    <span class="count"><b>54</b> of 177</span>
+  </div>
+</div>
+    <div class="block">
+      <div class="head"><span>Industry</span><em>p = 0.08</em></div>
+      
+        <div class="row">
+          <span class="name">EdTech</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:37.67%;width:44.87%"></i>
+            <i class="dot" style="left:58.82%"></i>
+          </span>
+          <span class="count"><b>14</b> of 34</span>
+        </div>
+        <div class="row">
+          <span class="name">DevTools</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:35.71%;width:40.27%"></i>
+            <i class="dot" style="left:54.42%"></i>
+          </span>
+          <span class="count"><b>16</b> of 42</span>
+        </div>
+        <div class="row">
+          <span class="name">HealthTech</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:25.16%;width:38.39%"></i>
+            <i class="dot" style="left:41.81%"></i>
+          </span>
+          <span class="count"><b>12</b> of 41</span>
+        </div>
+        <div class="row">
+          <span class="name">FinTech</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:22.00%;width:39.40%"></i>
+            <i class="dot" style="left:38.61%"></i>
+          </span>
+          <span class="count"><b>10</b> of 37</span>
+        </div>
+        <div class="row">
+          <span class="name">Cybersecurity</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:3.45%;width:34.83%"></i>
+            <i class="dot" style="left:12.42%"></i>
+          </span>
+          <span class="count"><b>2</b> of 23</span>
+        </div>
+    </div>
+    <div class="block">
+      <div class="head"><span>How they found us</span><em>p = 0.09</em></div>
+      
+        <div class="row">
+          <span class="name">organic</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:42.20%;width:44.11%"></i>
+            <i class="dot" style="left:63.49%"></i>
+          </span>
+          <span class="count"><b>16</b> of 36</span>
+        </div>
+        <div class="row">
+          <span class="name">partner</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:36.46%;width:46.03%"></i>
+            <i class="dot" style="left:58.04%"></i>
+          </span>
+          <span class="count"><b>13</b> of 32</span>
+        </div>
+        <div class="row">
+          <span class="name">ads</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:20.82%;width:35.52%"></i>
+            <i class="dot" style="left:35.71%"></i>
+          </span>
+          <span class="count"><b>11</b> of 44</span>
+        </div>
+        <div class="row">
+          <span class="name">event</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:18.33%;width:40.28%"></i>
+            <i class="dot" style="left:34.63%"></i>
+          </span>
+          <span class="count"><b>8</b> of 33</span>
+        </div>
+        <div class="row">
+          <span class="name">other</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:12.70%;width:37.74%"></i>
+            <i class="dot" style="left:26.79%"></i>
+          </span>
+          <span class="count"><b>6</b> of 32</span>
+        </div>
+    </div>
+    <div class="block">
+      <div class="head"><span>Plan</span><em>p = 0.84</em></div>
+      
+        <div class="row">
+          <span class="name">Pro</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:31.72%;width:31.69%"></i>
+            <i class="dot" style="left:46.15%"></i>
+          </span>
+          <span class="count"><b>21</b> of 65</span>
+        </div>
+        <div class="row">
+          <span class="name">Basic</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:29.54%;width:34.38%"></i>
+            <i class="dot" style="left:44.97%"></i>
+          </span>
+          <span class="count"><b>17</b> of 54</span>
+        </div>
+        <div class="row">
+          <span class="name">Enterprise</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:25.36%;width:32.07%"></i>
+            <i class="dot" style="left:39.41%"></i>
+          </span>
+          <span class="count"><b>16</b> of 58</span>
+        </div>
+    </div>
+    <div class="block">
+      <div class="head"><span>Country</span><em>p = 0.43</em></div>
+      
+        <div class="row">
+          <span class="name">US</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:37.66%;width:26.26%"></i>
+            <i class="dot" style="left:50.00%"></i>
+          </span>
+          <span class="count"><b>35</b> of 100</span>
+        </div>
+        <div class="row">
+          <span class="name">FR</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:17.23%;width:75.03%"></i>
+            <i class="dot" style="left:47.62%"></i>
+          </span>
+          <span class="count"><b>3</b> of 9</span>
+        </div>
+        <div class="row">
+          <span class="name">UK</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:21.95%;width:55.18%"></i>
+            <i class="dot" style="left:45.11%"></i>
+          </span>
+          <span class="count"><b>6</b> of 19</span>
+        </div>
+        <div class="row">
+          <span class="name">IN</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:20.78%;width:53.36%"></i>
+            <i class="dot" style="left:42.86%"></i>
+          </span>
+          <span class="count"><b>6</b> of 20</span>
+        </div>
+        <div class="row">
+          <span class="name">DE</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:11.69%;width:60.11%"></i>
+            <i class="dot" style="left:32.97%"></i>
+          </span>
+          <span class="count"><b>3</b> of 13</span>
+        </div>
+        <div class="row">
+          <span class="name">AU</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:2.55%;width:55.18%"></i>
+            <i class="dot" style="left:14.29%"></i>
+          </span>
+          <span class="count"><b>1</b> of 10</span>
+        </div>
+        <div class="row">
+          <span class="name">CA</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:0.00%;width:55.76%"></i>
+            <i class="dot" style="left:0.00%"></i>
+          </span>
+          <span class="count"><b>0</b> of 6</span>
+        </div>
+    </div>
+    <div class="block">
+      <div class="head"><span>Started on a trial</span><em>p = 0.55</em></div>
+      
+        <div class="row">
+          <span class="name">False</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:35.41%;width:21.73%"></i>
+            <i class="dot" style="left:45.59%"></i>
+          </span>
+          <span class="count"><b>45</b> of 141</span>
+        </div>
+        <div class="row">
+          <span class="name">True</span>
+          <span class="track">
+            <i class="base" style="left:43.58%"></i>
+            <i class="ci" style="left:19.64%;width:39.03%"></i>
+            <i class="dot" style="left:35.71%"></i>
+          </span>
+          <span class="count"><b>9</b> of 36</span>
+        </div>
+    </div>
+  <div class="axis"><span style="left:0.00%">0%</span><span style="left:14.29%">10%</span><span style="left:28.57%">20%</span><span style="left:42.86%">30%</span><span style="left:57.14%">40%</span><span style="left:71.43%">50%</span><span style="left:85.71%">60%</span><span style="left:100.00%">70%</span></div>
+  <div class="cap">share of the group that left within 90 days &nbsp;·&nbsp;
+    <span style="color:#B02E2E">red line = the 31% everyone rate</span></div>
+</div>

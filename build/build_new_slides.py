@@ -97,6 +97,61 @@ note(s, "Sits after the performance slide. That one says the number falls from "
         "nested_cv_folds.csv and shown in notebook 04. The figure is built by "
         "build/fig_winners_html.py.")
 
+# ==================================================== D · NO SEGMENT STANDS OUT
+s = add("Part 2 · Data exploration", "No group of customers stands out")
+picture(s, "05_segment_forest_html.png", top=Inches(1.72), height=Inches(4.95),
+        left=Inches(0.50))
+bullets(s, [
+    ("I checked industry, country, plan, how they found us, and whether they "
+     "started on a trial. Not one of them separates the customers who leave "
+     "from the ones who stay.", INK, True),
+    "",
+    ("The red line is 31%: 54 of the 177 customers left.", INK, True),
+    "  This is one cutoff, 30 June 2024 — a single line drawn in the data, not "
+    "the four dates pooled. Every group below is a slice of those same 177. If "
+    "a slice also sits at 31%, knowing a customer is in it tells us nothing we "
+    "did not already know.",
+    "",
+    ("The lines say how little a group this size can tell you.", INK, True),
+    "  Cybersecurity is 2 leavers out of 23. That is 9%, but 23 customers cannot "
+    "pin down a rate: anything from 2% to 27% would produce what we saw. The "
+    "width comes from the group size, not from the churn.",
+    "",
+    ("One group does miss the line, and it is the one to volunteer.", INK, True),
+    "  Cybersecurity. But testing 22 groups at 95% confidence, you expect 1.1 to "
+    "miss by chance. We got one.",
+    "",
+    "  Strongest association across all five is p = 0.08, before accounting for "
+    "having looked at five. I explored this on a held-out slice, so the data I "
+    "modelled on did not influence what I chose to look at.",
+], top=Inches(1.80), left=Inches(6.55), width=Inches(6.10), size=13, space=3)
+footnote(s, "A group of 23 customers cannot tell you much. The width of these "
+            "intervals is the finding, not the position of the dots.")
+note(s, "Replaces the three bar charts. Bars of churn rate invited exactly the "
+        "comparison the slide argues against — a viewer saw Cybersecurity at "
+        "0.09 against DevTools at 0.41 and read a threefold effect, when it is "
+        "two churners out of twenty-three.\n\n"
+        "Volunteer Cybersecurity rather than waiting to be asked. Producing the "
+        "one result that looks significant, and showing it is what 22 "
+        "comparisons produce on their own, is the same move as the generator "
+        "null later in the deck.\n\n"
+        "IF ASKED HOW THE LINES ARE CALCULATED. They are Wilson intervals. The "
+        "question they answer is 'which true churn rates could have produced "
+        "what I saw'. For Cybersecurity we saw 2 of 23. A true rate of 5% "
+        "produces that easily, 25% produces it occasionally, 45% almost never — "
+        "so the line runs 2% to 27%.\n\n"
+        "The textbook version is p +/- 2 x sqrt(p(1-p)/n), and it breaks here: "
+        "for Cybersecurity it returns -3% to 21%, a negative churn rate, and "
+        "for Canada with 0 of 6 it returns 0% to 0%, claiming certainty from "
+        "six customers. Wilson is the same idea done properly and cannot leave "
+        "the 0 to 1 range. Standard choice at these group sizes.\n\n"
+        "Width is driven by n under a square root, so quadrupling the group "
+        "halves the line: CA at n=6 spans +/-0.20, Cybersecurity at n=23 "
+        "+/-0.12, the US at n=100 +/-0.09.\n\n"
+        "Chi-square p-values: industry 0.079, referral 0.086, plan 0.837, "
+        "country 0.428, trial 0.548. The figure is built by "
+        "build/fig_segment_forest.py.")
+
 OUT.parent.mkdir(parents=True, exist_ok=True)
 prs.save(OUT)
 print(f"{OUT}  ({OUT.stat().st_size / 1e6:.2f} MB, "

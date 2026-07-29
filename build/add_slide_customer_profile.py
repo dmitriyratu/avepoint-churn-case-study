@@ -31,7 +31,7 @@ def main():
     pic.left = int((W - pic.width) / 2)
 
     footnote(s, "The example is the median customer by contract count, not a "
-                "worst case. Two thirds of the file looks like this.", MUTED)
+                "worst case. Most of the file looks like this.", MUTED)
 
     note(s, "The slide that answers \"what does one row actually mean here\".\n\n"
             "Read the left panel first. Ten contracts, all open, tier moving "
