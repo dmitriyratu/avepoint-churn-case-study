@@ -1,0 +1,97 @@
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1240px; background: #fff; color: #1A1A1A;
+    font-family: Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { padding: 24px 28px 26px; }
+  h2 { font-size: 17px; font-weight: 700; margin-bottom: 20px; }
+  .note { color: #5A6270; font-style: italic; font-size: 13.5px; }
+
+  .lane { display: flex; align-items: center; height: 40px; }
+  .when { flex: 0 0 104px; font-size: 14px; font-weight: 700; text-align: right;
+           padding-right: 14px; }
+  .track { flex: 1 1 auto; min-width: 0; position: relative; display: flex;
+            align-items: center; height: 100%; }
+  .known, .answer { height: 19px; display: block; }
+  .known { background: #2a78d6; }
+  .answer { background: #eb6834; }
+  .cut { position: absolute; top: 7px; bottom: 7px; width: 2px;
+          background: #B02E2E; transform: translateX(-1px); }
+  .tally { flex: 0 0 196px; padding-left: 20px; font-size: 13.5px; color: #5A6270; }
+  .tally b { color: #1A1A1A; font-weight: 700; }
+
+  /* the extract edge runs the height of the lanes, behind everything */
+  .field { position: relative; }
+  .edge { position: absolute; top: -4px; bottom: 30px; width: 0;
+           border-left: 1px dashed #C2C8D0; }
+  .edge span { position: absolute; top: -18px; right: 7px; white-space: nowrap;
+                font-size: 12.5px; color: #5A6270; font-style: italic; }
+
+  .axis { position: relative; height: 34px; margin: 8px 104px 0 118px; }
+  .axis span { position: absolute; transform: translateX(-50%); font-size: 12px;
+                color: #5A6270; text-align: center; }
+  .axis em { display: block; font-style: normal; font-size: 12px; }
+
+  .key { display: flex; align-items: center; gap: 9px; margin: 6px 0 0 118px;
+          font-size: 13.5px; color: #5A6270; }
+  .key i { width: 26px; height: 13px; display: block; }
+  .key .gap { width: 22px; }
+</style>
+<div class="wrap">
+  <h2>One question, asked from four dates</h2>
+  <div class="field">
+    <div class="edge" style="left:calc(118px + (100% - 314px) * 1.0000)">
+      <span>the data stops here</span></div>
+    
+    <div class="lane">
+      <span class="when">31 Dec 2023</span>
+      <span class="track">
+        <i class="known" style="width:49.86%"></i>
+        <i class="answer" style="width:12.33%"></i>
+        <i class="cut" style="left:49.86%"></i>
+      </span>
+      <span class="tally"><b>134</b> could still leave &nbsp;&middot;&nbsp;
+        <b>23</b> did</span>
+    </div>
+    <div class="lane">
+      <span class="when">31 Mar 2024</span>
+      <span class="track">
+        <i class="known" style="width:62.33%"></i>
+        <i class="answer" style="width:12.33%"></i>
+        <i class="cut" style="left:62.33%"></i>
+      </span>
+      <span class="tally"><b>161</b> could still leave &nbsp;&middot;&nbsp;
+        <b>28</b> did</span>
+    </div>
+    <div class="lane">
+      <span class="when">30 Jun 2024</span>
+      <span class="track">
+        <i class="known" style="width:74.79%"></i>
+        <i class="answer" style="width:12.33%"></i>
+        <i class="cut" style="left:74.79%"></i>
+      </span>
+      <span class="tally"><b>177</b> could still leave &nbsp;&middot;&nbsp;
+        <b>54</b> did</span>
+    </div>
+    <div class="lane">
+      <span class="when">30 Sep 2024</span>
+      <span class="track">
+        <i class="known" style="width:87.40%"></i>
+        <i class="answer" style="width:12.33%"></i>
+        <i class="cut" style="left:87.40%"></i>
+      </span>
+      <span class="tally"><b>176</b> could still leave &nbsp;&middot;&nbsp;
+        <b>54</b> did</span>
+    </div>
+    <div class="axis"><span style="left:0.00%">Jan<em>2023</em></span><span style="left:12.33%">Apr</span><span style="left:24.79%">Jul</span><span style="left:37.40%">Oct</span><span style="left:50.00%">Jan<em>2024</em></span><span style="left:62.47%">Apr</span><span style="left:74.93%">Jul</span><span style="left:87.53%">Oct</span></div>
+  </div>
+  <div class="key">
+    <i style="background:#2a78d6"></i><span>what we knew on that date</span>
+    <span class="gap"></span>
+    <i style="background:#eb6834"></i><span>the next 90 days &mdash;
+      the answer, never a feature</span>
+  </div>
+</div>

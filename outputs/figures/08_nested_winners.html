@@ -1,0 +1,112 @@
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1180px; background: #fff; color: #1A1A1A;
+    font-family: Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { display: flex; gap: 64px; padding: 24px 28px 26px; }
+  h2 { font-size: 15.5px; font-weight: 700; margin-bottom: 6px; }
+  h2 em { color: #5A6270; font-style: normal; margin-right: 11px;
+           letter-spacing: .09em; font-size: 13px; }
+  .note { color: #5A6270; font-style: italic; font-size: 13.5px; }
+
+  .grid { display: grid; grid-template-columns: repeat(5, 46px); gap: 6px;
+           margin-top: 16px; }
+  .cell { height: 40px; border-radius: 2px; color: #fff; font-size: 16px;
+           font-weight: 700; display: flex; align-items: center;
+           justify-content: center; }
+
+  .tally { flex: 1 1 auto; min-width: 0; }
+  .mrow { display: flex; align-items: center; gap: 10px; height: 30px; }
+  .mrow i { flex: none; width: 22px; height: 22px; border-radius: 2px;
+             color: #fff; font-size: 12.5px; font-weight: 700; font-style: normal;
+             display: flex; align-items: center; justify-content: center; }
+  .mname { flex: 0 0 258px; font-size: 13.5px; }
+  .bar { flex: none; height: 13px; border-radius: 1px; }
+  .won { font-size: 13.5px; color: #5A6270; margin-left: 4px; }
+  .zero .mname, .zero .won { color: #9AA3AF; }
+</style>
+<div class="wrap">
+  <div>
+    <h2><em>25 FOLDS</em>Who won each round</h2>
+    <div class="note">the contest re-run 25 times, on different customers</div>
+    <div class="grid"><div class="cell" style="background:#eb6834" title="XGBoost (native NaN + categoricals)">8</div><div class="cell" style="background:#2a78d6" title="Logistic (L1, C=0.1)">4</div><div class="cell" style="background:#eb6834" title="HistGradientBoosting (native NaN)">9</div><div class="cell" style="background:#2a78d6" title="Logistic (L2, C=0.05)">3</div><div class="cell" style="background:#2a78d6" title="Logistic (L2, C=0.05)">3</div><div class="cell" style="background:#2a78d6" title="Logistic (L2, C=1)">2</div><div class="cell" style="background:#eb6834" title="XGBoost (native NaN + categoricals)">8</div><div class="cell" style="background:#2a78d6" title="Logistic (L2, C=1)">2</div><div class="cell" style="background:#eb6834" title="HistGradientBoosting (native NaN)">9</div><div class="cell" style="background:#1e7a4b" title="Random forest (depth 4)">5</div><div class="cell" style="background:#eb6834" title="XGBoost (native NaN + categoricals)">8</div><div class="cell" style="background:#2a78d6" title="Logistic (L2, C=1)">2</div><div class="cell" style="background:#eb6834" title="HistGradientBoosting (native NaN)">9</div><div class="cell" style="background:#eb6834" title="LightGBM (pipelined)">6</div><div class="cell" style="background:#eb6834" title="XGBoost (native NaN + categoricals)">8</div><div class="cell" style="background:#8a94a6" title="Single decision stump">1</div><div class="cell" style="background:#2a78d6" title="Logistic (L2, C=0.05)">3</div><div class="cell" style="background:#2a78d6" title="Logistic (L1, C=0.1)">4</div><div class="cell" style="background:#eb6834" title="XGBoost (native NaN + categoricals)">8</div><div class="cell" style="background:#2a78d6" title="Logistic (L2, C=1)">2</div><div class="cell" style="background:#eb6834" title="XGBoost (native NaN + categoricals)">8</div><div class="cell" style="background:#2a78d6" title="Logistic (L2, C=1)">2</div><div class="cell" style="background:#eb6834" title="LightGBM (pipelined)">6</div><div class="cell" style="background:#eb6834" title="XGBoost (native NaN + categoricals)">8</div><div class="cell" style="background:#eb6834" title="HistGradientBoosting (native NaN)">9</div></div>
+  </div>
+  <div class="tally">
+    <h2><em>THE TALLY</em>8 of 10 models won at least once</h2>
+    <div class="note">a genuinely better model wins nearly every round</div>
+    <div style="margin-top:14px">
+    <div class="mrow zero">
+      <i style="background:#D8DCE0">0</i>
+      <span class="mname">Prior (no features)</span>
+      <span class="bar" style="width:0px;
+            background:transparent"></span>
+      <span class="won">&mdash;</span>
+    </div>
+    <div class="mrow">
+      <i style="background:#8a94a6">1</i>
+      <span class="mname">Single decision stump</span>
+      <span class="bar" style="width:24px;
+            background:#8a94a6"></span>
+      <span class="won">1</span>
+    </div>
+    <div class="mrow">
+      <i style="background:#2a78d6">2</i>
+      <span class="mname">Logistic (L2, C=1)</span>
+      <span class="bar" style="width:120px;
+            background:#2a78d6"></span>
+      <span class="won">5</span>
+    </div>
+    <div class="mrow">
+      <i style="background:#2a78d6">3</i>
+      <span class="mname">Logistic (L2, C=0.05)</span>
+      <span class="bar" style="width:72px;
+            background:#2a78d6"></span>
+      <span class="won">3</span>
+    </div>
+    <div class="mrow">
+      <i style="background:#2a78d6">4</i>
+      <span class="mname">Logistic (L1, C=0.1)</span>
+      <span class="bar" style="width:48px;
+            background:#2a78d6"></span>
+      <span class="won">2</span>
+    </div>
+    <div class="mrow">
+      <i style="background:#1e7a4b">5</i>
+      <span class="mname">Random forest (depth 4)</span>
+      <span class="bar" style="width:24px;
+            background:#1e7a4b"></span>
+      <span class="won">1</span>
+    </div>
+    <div class="mrow">
+      <i style="background:#eb6834">6</i>
+      <span class="mname">LightGBM (pipelined)</span>
+      <span class="bar" style="width:48px;
+            background:#eb6834"></span>
+      <span class="won">2</span>
+    </div>
+    <div class="mrow zero">
+      <i style="background:#D8DCE0">7</i>
+      <span class="mname">LightGBM (native NaN + categoricals)</span>
+      <span class="bar" style="width:0px;
+            background:transparent"></span>
+      <span class="won">&mdash;</span>
+    </div>
+    <div class="mrow">
+      <i style="background:#eb6834">8</i>
+      <span class="mname">XGBoost (native NaN + categoricals)</span>
+      <span class="bar" style="width:168px;
+            background:#eb6834"></span>
+      <span class="won">7</span>
+    </div>
+    <div class="mrow">
+      <i style="background:#eb6834">9</i>
+      <span class="mname">HistGradientBoosting (native NaN)</span>
+      <span class="bar" style="width:96px;
+            background:#eb6834"></span>
+      <span class="won">4</span>
+    </div></div>
+  </div>
+</div>
