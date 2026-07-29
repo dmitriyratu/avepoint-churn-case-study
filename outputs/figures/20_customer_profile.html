@@ -1,0 +1,88 @@
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #fff;
+         font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+  .wrap { position: relative; width: 1800px; height: 700px;
+           display: grid; grid-template-columns: 880px 1fr; gap: 0 64px;
+           padding: 40px 44px; }
+
+  h3 { font-size: 20px; font-weight: 650; color: #1A1A1A; margin-bottom: 4px; }
+  .sub { font-size: 14px; color: #5A6270; margin-bottom: 20px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 12px; font-weight: 600; color: #5A6270; text-align: left;
+        text-transform: uppercase; letter-spacing: .55px; padding: 0 12px 8px 0;
+        border-bottom: 1.5px solid #D8DCE0; }
+  th.num, td.num { text-align: right; }
+  td { font-size: 15px; color: #1A1A1A; padding: 9px 12px 9px 0;
+        border-bottom: 1px solid #F0F2F4; font-variant-numeric: tabular-nums; }
+  td.none { color: #B02E2E; }
+
+  .card { border: 1.5px solid #D8DCE0; border-radius: 10px; padding: 14px 18px;
+           margin-bottom: 18px; display: flex; gap: 34px; align-items: baseline; }
+  .card b { font-size: 17px; color: #1A1A1A; }
+  .card span { font-size: 14px; color: #5A6270; }
+  .card i { font-style: normal; color: #1A1A1A; font-weight: 600; }
+
+  .note { margin-top: 16px; font-size: 14.5px; color: #B02E2E; line-height: 1.6; }
+  .note b { font-weight: 650; }
+
+  .call { margin-top: 20px; padding: 14px 18px; border-radius: 10px;
+           font-size: 14.5px; line-height: 1.6; }
+  .call.bad { background: rgba(176,46,46,.06); color: #B02E2E; }
+  .call.good { background: rgba(30,122,75,.07); color: #1E7A4B; }
+  .call b { font-weight: 650; }
+</style>
+<div class="wrap">
+  <div>
+    <h3>One customer, in full</h3>
+    <div class="sub">Account A-00bed1 — the median customer by contract count.
+      Every contract this account holds, in order.</div>
+
+    <div class="card">
+      <span>the account record says</span>
+      <b>Basic</b>
+      <span><i>28</i> seats</span>
+      <span>signed up <i>14 Nov 2023</i></span>
+      <span><i>Cybersecurity</i>, US</span>
+    </div>
+
+    <table>
+      <tr><th>Started</th><th>Ended</th><th>Plan</th>
+          <th class="num">Seats</th><th class="num">Monthly</th></tr>
+      <tr><td>16 Nov 2023</td><td class="none">—</td><td>Basic</td><td class="num">61</td><td class="num">$1,159</td></tr><tr><td>06 Apr 2024</td><td class="none">—</td><td>Pro</td><td class="num">28</td><td class="num">$1,372</td></tr><tr><td>06 May 2024</td><td class="none">—</td><td>Enterprise</td><td class="num">28</td><td class="num">$5,572</td></tr><tr><td>14 May 2024</td><td class="none">—</td><td>Enterprise</td><td class="num">49</td><td class="num">$9,751</td></tr><tr><td>16 Jul 2024</td><td class="none">—</td><td>Enterprise</td><td class="num">28</td><td class="num">$5,572</td></tr><tr><td>20 Jul 2024</td><td class="none">—</td><td>Pro</td><td class="num">28</td><td class="num">$1,372</td></tr><tr><td>06 Aug 2024</td><td class="none">—</td><td>Pro</td><td class="num">28</td><td class="num">$1,372</td></tr><tr><td>18 Aug 2024</td><td class="none">—</td><td>Pro</td><td class="num">36</td><td class="num">$1,764</td></tr><tr><td>28 Aug 2024</td><td class="none">—</td><td>Enterprise · trial</td><td class="num">28</td><td class="num">$0</td></tr><tr><td>01 Sep 2024</td><td class="none">—</td><td>Enterprise</td><td class="num">28</td><td class="num">$5,572</td></tr>
+    </table>
+
+    <div class="note">
+      <b>$33,506 a month</b> across 10 contracts that
+      all remain open, on an account whose own record says 28 seats
+      and one plan. Nothing has ever ended, and the tier moves in no direction.
+    </div>
+  </div>
+
+  <div>
+    <h3>The population it comes from</h3>
+    <div class="sub">All 500 customers. Minimum, median and maximum.</div>
+
+    <table>
+      <tr><th>Per customer</th><th class="num">Min</th>
+          <th class="num">Median</th><th class="num">Max</th></tr>
+      <tr><td>contracts per customer</td><td class="num">2</td><td class="num">10</td><td class="num">19</td></tr><tr><td>of those, still open</td><td class="num">2</td><td class="num">9</td><td class="num">18</td></tr><tr><td>plan tiers held at once</td><td class="num">1</td><td class="num">3</td><td class="num">3</td></tr><tr><td>seats on the account</td><td class="num">1</td><td class="num">15</td><td class="num">163</td></tr><tr><td>monthly spend per contract</td><td class="num">$0</td><td class="num">$931</td><td class="num">$33,830</td></tr><tr><td>support tickets</td><td class="num">1</td><td class="num">4</td><td class="num">11</td></tr><tr><td>usage rows</td><td class="num">10</td><td class="num">50</td><td class="num">101</td></tr>
+    </table>
+
+    <div class="call bad">
+      <b>435 of 500 customers</b> hold Basic, Pro and Enterprise
+      simultaneously. Add up every open contract and the median customer is
+      billed <b>$18,834 a month</b> — so no single row
+      answers &ldquo;what is this customer paying?&rdquo;
+    </div>
+
+    <div class="call good">
+      <b>Inside a row, the rules are exact.</b> Price per seat is
+      $19 on Basic, $49 on Pro and $199 on Enterprise, with no exceptions, and
+      ARR is always twelve times MRR. Each contract is internally perfect. It is
+      the relationship between them, and to the customer, that carries nothing.
+    </div>
+  </div>
+</div>
